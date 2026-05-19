@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.ranksavvy-wrapper {
+    /* Namespace our tailwind utilities to prevent conflicts with WP Admin */
+    box-sizing: border-box;
+}
+
+.ranksavvy-wrapper * {
+    box-sizing: border-box;
+}

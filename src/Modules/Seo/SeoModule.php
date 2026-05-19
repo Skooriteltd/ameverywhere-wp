@@ -1,0 +1,32 @@
+<?php
+
+namespace RankSavvy\Modules\Seo;
+
+use RankSavvy\Core\Event\EventManager;
+
+class SeoModule
+{
+    private EventManager $eventManager;
+    private MetaTagsGenerator $metaGenerator;
+    private OpenGraphGenerator $openGraphGenerator;
+
+    public function __construct(
+        EventManager $eventManager,
+        MetaTagsGenerator $metaGenerator,
+        OpenGraphGenerator $openGraphGenerator
+    ) {
+        $this->eventManager = $eventManager;
+        $this->metaGenerator = $metaGenerator;
+        $this->openGraphGenerator = $openGraphGenerator;
+    }
+
+    public function boot(): void
+    {
+        // Hook into WordPress standard header output
+        $this->eventManager->addAction('wp_head', [$this->metaGenerator, 'outputStandardMetaTags'], 1);
+        $this->eventManager->addAction('wp_head', [$this->openGraphGenerator, 'outputSocialMetaTags'], 2);
+        
+        // Disable default WordPress title tag generation if theme supports title-tag
+        $this->eventManager->addFilter('pre_get_document_title', [$this->metaGenerator, 'getDocumentTitle'], 10, 0);
+    }
+}
