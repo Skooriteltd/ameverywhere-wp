@@ -20,6 +20,10 @@ class AdminModule
         $this->eventManager->addAction('admin_menu', [$this->adminMenu, 'registerMenu']);
         $this->eventManager->addAction('admin_enqueue_scripts', [$this->adminMenu, 'enqueueAssets']);
         $this->eventManager->addAction('rest_api_init', [$this, 'registerRestRoutes']);
+
+        // Register SEO Score column in Posts/Pages list tables
+        $seoScoreColumn = new SeoScoreColumn();
+        $seoScoreColumn->register();
     }
 
     public function registerRestRoutes(): void

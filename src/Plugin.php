@@ -20,6 +20,11 @@ use RankSavvy\Modules\Schema\SchemaModule;
 use RankSavvy\Modules\Schema\SchemaGenerator;
 use RankSavvy\Modules\ContentAssistant\ContentAssistantModule;
 use RankSavvy\Modules\Trends\TrendsModule;
+use RankSavvy\Modules\Breadcrumbs\BreadcrumbRenderer;
+use RankSavvy\Modules\ImageSeo\ImageSeoModule;
+use RankSavvy\Modules\TechnicalSeo\RobotsTxtEditor;
+use RankSavvy\Modules\Migration\MigrationManager;
+use RankSavvy\Modules\Onboarding\SetupWizard;
 
 class Plugin
 {
@@ -132,6 +137,33 @@ class Plugin
                 $this->container->get('event_manager')
             );
         });
+
+        // Register Breadcrumb Renderer
+        $this->container->singleton('breadcrumb_renderer', function() {
+            return new BreadcrumbRenderer();
+        });
+
+        // Register Image SEO Module
+        $this->container->singleton('image_seo_module', function() {
+            return new ImageSeoModule(
+                $this->container->get('event_manager')
+            );
+        });
+
+        // Register Robots.txt Editor
+        $this->container->singleton('robots_txt_editor', function() {
+            return new RobotsTxtEditor();
+        });
+
+        // Register Migration Manager
+        $this->container->singleton('migration_manager', function() {
+            return new MigrationManager();
+        });
+
+        // Register Setup Wizard
+        $this->container->singleton('setup_wizard', function() {
+            return new SetupWizard();
+        });
     }
 
     private function bootModules(): void
@@ -168,6 +200,29 @@ class Plugin
         /** @var TrendsModule $trendsModule */
         $trendsModule = $this->container->get('trends_module');
         $trendsModule->boot();
+
+        /** @var BreadcrumbRenderer $breadcrumbRenderer */
+        $breadcrumbRenderer = $this->container->get('breadcrumb_renderer');
+        $breadcrumbRenderer->register();
+
+        /** @var ImageSeoModule $imageSeoModule */
+        $imageSeoModule = $this->container->get('image_seo_module');
+        $imageSeoModule->boot();
+
+        /** @var RobotsTxtEditor $robotsTxtEditor */
+        $robotsTxtEditor = $this->container->get('robots_txt_editor');
+        $robotsTxtEditor->register();
+
+        // Register Robots.txt REST routes
+        add_action('rest_api_init', [$robotsTxtEditor, 'registerRoutes']);
+
+        /** @var MigrationManager $migrationManager */
+        $migrationManager = $this->container->get('migration_manager');
+        add_action('rest_api_init', [$migrationManager, 'registerRoutes']);
+
+        /** @var SetupWizard $setupWizard */
+        $setupWizard = $this->container->get('setup_wizard');
+        $setupWizard->register();
     }
 
     public function getContainer(): Container

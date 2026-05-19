@@ -37,8 +37,9 @@ class AdminMenu
             );
 
             wp_localize_script('ranksavvy-admin-js', 'rankSavvyAdminConfig', [
-                'apiUrl' => esc_url_raw(rest_url('ranksavvy/v1')),
-                'nonce'  => wp_create_nonce('wp_rest')
+                'apiUrl'        => esc_url_raw(rest_url('ranksavvy/v1')),
+                'nonce'         => wp_create_nonce('wp_rest'),
+                'setupComplete' => get_option('ranksavvy_setup_complete') ? '1' : '0',
             ]);
         }
 
