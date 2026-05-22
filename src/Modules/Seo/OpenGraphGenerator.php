@@ -69,6 +69,7 @@ class OpenGraphGenerator
         }
 
         // Fallback to site default image or empty
-        return '';
+        $defaultShareImage = get_option('ranksavvy_default_share_image', '');
+        return !empty($defaultShareImage) ? $defaultShareImage : '';
     }
 }

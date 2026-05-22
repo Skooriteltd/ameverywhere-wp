@@ -25,6 +25,9 @@ use RankSavvy\Modules\ImageSeo\ImageSeoModule;
 use RankSavvy\Modules\TechnicalSeo\RobotsTxtEditor;
 use RankSavvy\Modules\Migration\MigrationManager;
 use RankSavvy\Modules\Onboarding\SetupWizard;
+use RankSavvy\Modules\Social\SocialModule;
+use RankSavvy\Modules\Ai\LlmsTxtGenerator;
+use RankSavvy\Modules\Admin\BulkMetaEditor;
 
 class Plugin
 {
@@ -47,8 +50,14 @@ class Plugin
     public function boot(): void
     {
         $this->registerServices();
+        
+        /** @var \RankSavvy\Core\Queue\QueueManager $queueManager */
+        $queueManager = $this->container->get('queue_manager');
+        $queueManager->boot();
+
         $this->bootModules();
     }
+
 
     private function registerServices(): void
     {
@@ -79,11 +88,13 @@ class Plugin
         // Register Sitemap Module Dependencies
         $this->container->singleton('sitemap_generator', SitemapGenerator::class);
         $this->container->singleton('news_sitemap_generator', NewsSitemapGenerator::class);
+        $this->container->singleton('video_sitemap_generator', VideoSitemapGenerator::class);
         
         $this->container->singleton('sitemap_route_manager', function() {
             return new SitemapRouteManager(
                 $this->container->get('sitemap_generator'),
-                $this->container->get('news_sitemap_generator')
+                $this->container->get('news_sitemap_generator'),
+                $this->container->get('video_sitemap_generator')
             );
         });
 
@@ -93,6 +104,7 @@ class Plugin
                 $this->container->get('sitemap_route_manager')
             );
         });
+
 
         // Register Indexing Module Dependencies
         $this->container->singleton('queue_manager', \RankSavvy\Core\Queue\QueueManager::class);
@@ -164,6 +176,23 @@ class Plugin
         $this->container->singleton('setup_wizard', function() {
             return new SetupWizard();
         });
+
+        // Register Social Module
+        $this->container->singleton('social_module', function() {
+            return new SocialModule(
+                $this->container->get('event_manager')
+            );
+        });
+
+        // Register llms.txt Generator
+        $this->container->singleton('llms_txt_generator', function() {
+            return new LlmsTxtGenerator();
+        });
+
+        // Register Bulk Meta Editor
+        $this->container->singleton('bulk_meta_editor', function() {
+            return new BulkMetaEditor();
+        });
     }
 
     private function bootModules(): void
@@ -223,6 +252,19 @@ class Plugin
         /** @var SetupWizard $setupWizard */
         $setupWizard = $this->container->get('setup_wizard');
         $setupWizard->register();
+
+        /** @var SocialModule $socialModule */
+        $socialModule = $this->container->get('social_module');
+        $socialModule->boot();
+
+        /** @var LlmsTxtGenerator $llmsTxtGenerator */
+        $llmsTxtGenerator = $this->container->get('llms_txt_generator');
+        $llmsTxtGenerator->boot();
+        add_action('rest_api_init', [$llmsTxtGenerator, 'registerRestRoutes']);
+
+        /** @var BulkMetaEditor $bulkMetaEditor */
+        $bulkMetaEditor = $this->container->get('bulk_meta_editor');
+        add_action('rest_api_init', [$bulkMetaEditor, 'registerRestRoutes']);
     }
 
     public function getContainer(): Container
@@ -232,7 +274,12 @@ class Plugin
 
     public static function activate(): void
     {
-        // Activation logic (e.g., creating custom tables)
+        // 1. Run schema installation
+        $installer = new \RankSavvy\Core\Database\Installer();
+        $installer->install();
+
+        // 2. Trigger dynamic activation actions
+        do_action('ranksavvy_activation');
     }
 
     public static function deactivate(): void

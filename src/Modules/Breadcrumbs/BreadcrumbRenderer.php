@@ -27,6 +27,22 @@ class BreadcrumbRenderer
     {
         add_shortcode('ranksavvy_breadcrumbs', [$this, 'renderShortcode']);
         add_action('wp_footer', [$this, 'outputSchema']);
+
+        $autoInsert = get_option('ranksavvy_breadcrumb_auto_insert', 'none');
+        if ($autoInsert === 'before_content') {
+            add_filter('the_content', [$this, 'autoInsertBeforeContent'], 9);
+        }
+    }
+
+    /**
+     * Filter callback to automatically insert breadcrumbs before content.
+     */
+    public function autoInsertBeforeContent(string $content): string
+    {
+        if (is_singular() && in_the_loop() && is_main_query()) {
+            return $this->render() . $content;
+        }
+        return $content;
     }
 
     /**

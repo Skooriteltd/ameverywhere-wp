@@ -4,16 +4,36 @@ namespace RankSavvy\Modules\TechnicalSeo;
 
 /**
  * Monitors and logs front-end 404 errors safely and efficiently.
- * Limits option bloat by enforcing a strict cap on stored logs.
- * Exposes a REST API for displaying and managing logs.
+ *
+ * Architecture:
+ *   - Frontend: Pushes 404 details into a lightweight transient buffer (zero DB writes).
+ *   - Background: A WP-Cron job flushes the buffer into the database every hour.
+ *   - Limits: Caps stored logs at MAX_LOGS (100) to prevent database ballooning.
+ *   - No SHOW TABLES: Table existence is checked once on activation and cached.
  */
 class ErrorMonitor
 {
     private const OPTION_KEY = 'ranksavvy_404_logs';
-    private const MAX_LOGS = 100; // Cap log records strictly to avoid database ballooning
+    private const BUFFER_TRANSIENT = 'ranksavvy_404_buffer';
+    private const TABLE_EXISTS_OPTION = 'ranksavvy_404_table_exists';
+    private const MAX_LOGS = 100;
+    private const MAX_BUFFER = 50; // Cap buffer size to prevent transient bloat
+    private const FLUSH_HOOK = 'ranksavvy_flush_404_buffer';
 
     /**
-     * Intercept front-end queries and log if it is a 404 error.
+     * Boot the error monitor — register the background flush cron.
+     */
+    public function boot(): void
+    {
+        // Schedule the hourly background flush if not already scheduled
+        if (!wp_next_scheduled(self::FLUSH_HOOK)) {
+            wp_schedule_event(time(), 'hourly', self::FLUSH_HOOK);
+        }
+        add_action(self::FLUSH_HOOK, [$this, 'flushBufferToDatabase']);
+    }
+
+    /**
+     * Intercept front-end queries and buffer the 404 — zero database writes.
      */
     public function log404Errors(): void
     {
@@ -27,7 +47,7 @@ class ErrorMonitor
             return;
         }
 
-        // Filter out obvious bot probes for WP admin scripts
+        // Filter out obvious bot probes
         if (strpos($uri, 'wp-admin') !== false || strpos($uri, 'wp-login') !== false || strpos($uri, '.env') !== false) {
             return;
         }
@@ -35,26 +55,28 @@ class ErrorMonitor
         $referer = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '';
         $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
 
-        $logs = get_option(self::OPTION_KEY, []);
-        
-        $foundKey = null;
-        foreach ($logs as $key => $log) {
-            if ($log['uri'] === $uri) {
-                $foundKey = $key;
+        // Push into the in-memory transient buffer (no DB write during HTTP request)
+        $buffer = get_transient(self::BUFFER_TRANSIENT);
+        if (!is_array($buffer)) {
+            $buffer = [];
+        }
+
+        // Deduplicate in the buffer: if the URI already exists, increment hits
+        $found = false;
+        foreach ($buffer as &$entry) {
+            if ($entry['uri'] === $uri) {
+                $entry['hits']++;
+                $entry['last_hit'] = current_time('mysql');
+                $entry['referer'] = $referer ?: $entry['referer'];
+                $entry['user_agent'] = $userAgent;
+                $found = true;
                 break;
             }
         }
+        unset($entry);
 
-        if ($foundKey !== null) {
-            // Update hit count and timestamp
-            $logs[$foundKey]['hits']++;
-            $logs[$foundKey]['last_hit'] = current_time('mysql');
-            $logs[$foundKey]['referer'] = $referer ?: $logs[$foundKey]['referer'];
-            $logs[$foundKey]['user_agent'] = $userAgent;
-        } else {
-            // Add new log entry
-            $logs[] = [
-                'id'         => uniqid('err_404_', false),
+        if (!$found && count($buffer) < self::MAX_BUFFER) {
+            $buffer[] = [
                 'uri'        => $uri,
                 'hits'       => 1,
                 'referer'    => $referer,
@@ -63,16 +85,87 @@ class ErrorMonitor
             ];
         }
 
-        // Enforce MAX_LOGS cap: Sort by last hit date descending and slice
-        usort($logs, function ($a, $b) {
-            return strcmp($b['last_hit'], $a['last_hit']);
-        });
+        // Store back — short TTL, flushed by cron within the hour
+        set_transient(self::BUFFER_TRANSIENT, $buffer, 2 * HOUR_IN_SECONDS);
+    }
 
-        if (count($logs) > self::MAX_LOGS) {
-            $logs = array_slice($logs, 0, self::MAX_LOGS);
+    /**
+     * Background cron callback: flush the transient buffer into the database.
+     * Runs outside the HTTP request lifecycle — safe for batch DB writes.
+     */
+    public function flushBufferToDatabase(): void
+    {
+        $buffer = get_transient(self::BUFFER_TRANSIENT);
+        if (empty($buffer) || !is_array($buffer)) {
+            return;
         }
 
-        update_option(self::OPTION_KEY, $logs);
+        // Check table existence from cached option (set during activation)
+        if (get_option(self::TABLE_EXISTS_OPTION) !== 'yes') {
+            // Re-verify once and cache the result
+            global $wpdb;
+            $table = $wpdb->prefix . 'ranksavvy_404_logs';
+            if ($wpdb->get_var("SHOW TABLES LIKE '$table'") === $table) {
+                update_option(self::TABLE_EXISTS_OPTION, 'yes', false);
+            } else {
+                return; // Table doesn't exist, skip
+            }
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+
+        foreach ($buffer as $entry) {
+            $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE uri = %s", $entry['uri']));
+
+            if ($existing) {
+                $wpdb->update(
+                    $table,
+                    [
+                        'hits'       => intval($existing->hits) + intval($entry['hits']),
+                        'last_hit'   => $entry['last_hit'],
+                        'referer'    => $entry['referer'] ?: $existing->referer,
+                        'user_agent' => $entry['user_agent'],
+                    ],
+                    ['id' => $existing->id]
+                );
+            } else {
+                $wpdb->insert(
+                    $table,
+                    [
+                        'id'         => uniqid('err_404_', false),
+                        'uri'        => $entry['uri'],
+                        'hits'       => intval($entry['hits']),
+                        'referer'    => $entry['referer'],
+                        'user_agent' => $entry['user_agent'],
+                        'last_hit'   => $entry['last_hit'],
+                    ]
+                );
+            }
+        }
+
+        // Trim oldest logs if total exceeds MAX_LOGS
+        $totalLogs = (int) $wpdb->get_var("SELECT COUNT(*) FROM $table");
+        if ($totalLogs > self::MAX_LOGS) {
+            $wpdb->query(
+                "DELETE FROM $table WHERE id NOT IN (
+                    SELECT id FROM (
+                        SELECT id FROM $table ORDER BY last_hit DESC LIMIT " . self::MAX_LOGS . "
+                    ) as temp
+                )"
+            );
+        }
+
+        // Clear the buffer after successful flush
+        delete_transient(self::BUFFER_TRANSIENT);
+    }
+
+    /**
+     * Mark the 404 table as existing (called from Installer on activation).
+     */
+    public static function markTableExists(): void
+    {
+        update_option(self::TABLE_EXISTS_OPTION, 'yes', false);
     }
 
     /**
@@ -101,8 +194,45 @@ class ErrorMonitor
 
     public function get404LogsEndpoint(\WP_REST_Request $request): \WP_REST_Response
     {
-        $logs = get_option(self::OPTION_KEY, []);
-        return rest_ensure_response($logs);
+        // Force-flush any pending buffer so admin sees the latest data
+        $this->flushBufferToDatabase();
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+
+        if (get_option(self::TABLE_EXISTS_OPTION) !== 'yes') {
+            return rest_ensure_response([]);
+        }
+
+        $rows = $wpdb->get_results("SELECT * FROM $table ORDER BY last_hit DESC", ARRAY_A);
+
+        // Run legacy migration on the first load if table is empty but options has logs
+        $legacyLogs = get_option(self::OPTION_KEY);
+        if (empty($rows) && !empty($legacyLogs) && is_array($legacyLogs)) {
+            foreach ($legacyLogs as $log) {
+                $wpdb->insert($table, [
+                    'id'         => $log['id'] ?? uniqid('err_404_', false),
+                    'uri'        => $log['uri'] ?? '',
+                    'hits'       => intval($log['hits'] ?? 1),
+                    'referer'    => $log['referer'] ?? '',
+                    'user_agent' => $log['user_agent'] ?? '',
+                    'last_hit'   => $log['last_hit'] ?? current_time('mysql'),
+                ]);
+            }
+            $rows = $wpdb->get_results("SELECT * FROM $table ORDER BY last_hit DESC", ARRAY_A);
+            delete_option(self::OPTION_KEY);
+        }
+
+        // Standardize types
+        if (!empty($rows)) {
+            foreach ($rows as &$row) {
+                $row['hits'] = intval($row['hits']);
+            }
+        } else {
+            $rows = [];
+        }
+
+        return rest_ensure_response($rows);
     }
 
     public function clear404LogsEndpoint(\WP_REST_Request $request): \WP_REST_Response
@@ -110,21 +240,38 @@ class ErrorMonitor
         $params = $request->get_json_params();
         $id = sanitize_text_field($params['id'] ?? '');
 
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+
         if (empty($id)) {
             // Clear all logs
-            update_option(self::OPTION_KEY, []);
+            $wpdb->query("DELETE FROM $table");
             return rest_ensure_response(['success' => true, 'logs' => []]);
         }
 
         // Clear specific log item
-        $logs = get_option(self::OPTION_KEY, []);
-        $filtered = array_filter($logs, function ($log) use ($id) {
-            return ($log['id'] ?? '') !== $id;
-        });
+        $wpdb->delete($table, ['id' => $id]);
 
-        $filtered = array_values($filtered);
-        update_option(self::OPTION_KEY, $filtered);
+        $updatedLogs = $wpdb->get_results("SELECT * FROM $table ORDER BY last_hit DESC", ARRAY_A);
+        if (!empty($updatedLogs)) {
+            foreach ($updatedLogs as &$row) {
+                $row['hits'] = intval($row['hits']);
+            }
+        } else {
+            $updatedLogs = [];
+        }
 
-        return rest_ensure_response(['success' => true, 'logs' => $filtered]);
+        return rest_ensure_response(['success' => true, 'logs' => $updatedLogs]);
+    }
+
+    /**
+     * Cleanup on plugin deactivation: clear the scheduled flush event.
+     */
+    public static function deactivate(): void
+    {
+        $timestamp = wp_next_scheduled(self::FLUSH_HOOK);
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, self::FLUSH_HOOK);
+        }
     }
 }

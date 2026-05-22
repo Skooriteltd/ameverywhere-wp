@@ -4,14 +4,21 @@ namespace RankSavvy\Modules\Schema\Types;
 
 class ArticleSchema
 {
-    public function isApplicable(): bool
+    public function isApplicable(?int $postId = null): bool
     {
+        if ($postId !== null) {
+            $post = get_post($postId);
+            return $post && in_array($post->post_type, ['post', 'page'], true);
+        }
         return is_single();
     }
 
-    public function generate(): array
+    public function generate(?int $postId = null): array
     {
-        $post = get_post();
+        $post = $postId !== null ? get_post($postId) : get_post();
+        if (!$post) {
+            return [];
+        }
         $schemaType = 'Article';
 
         // Check if News optimization is needed
@@ -55,3 +62,4 @@ class ArticleSchema
         return $schema;
     }
 }
+

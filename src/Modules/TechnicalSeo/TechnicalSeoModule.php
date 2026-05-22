@@ -25,6 +25,9 @@ class TechnicalSeoModule
 
     public function boot(): void
     {
+        // Boot the 404 monitor — registers its hourly background flush cron
+        $this->errorMonitor->boot();
+
         // Hook into template_redirect to catch redirects and 404s before the template loads
         $this->eventManager->addAction('template_redirect', [$this->redirectManager, 'handleRedirects'], 1);
         $this->eventManager->addAction('template_redirect', [$this->errorMonitor, 'log404Errors'], 99);
@@ -32,5 +35,8 @@ class TechnicalSeoModule
         // Register custom REST routes for redirect management and 404 monitors
         $this->eventManager->addAction('rest_api_init', [$this->redirectManager, 'registerRoutes']);
         $this->eventManager->addAction('rest_api_init', [$this->errorMonitor, 'registerRoutes']);
+
+        // Clean up cron schedule on deactivation
+        $this->eventManager->addAction('ranksavvy_deactivation', ['RankSavvy\Modules\TechnicalSeo\ErrorMonitor', 'deactivate']);
     }
 }

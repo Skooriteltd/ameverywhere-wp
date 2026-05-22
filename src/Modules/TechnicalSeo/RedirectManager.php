@@ -5,10 +5,17 @@ namespace RankSavvy\Modules\TechnicalSeo;
 /**
  * Handles, matches, and performs 301/302/307 redirects.
  * Exposes a production-grade REST API for Redirect CRUD.
+ *
+ * Performance Architecture:
+ *   - Exact matches: Direct SQL lookup by source URL (indexed column).
+ *   - Regex rules: Loaded separately and cached via wp_cache (Object Cache API).
+ *   - No full-table loads on the frontend — zero-bloat at scale.
  */
 class RedirectManager
 {
     private const OPTION_KEY = 'ranksavvy_redirects';
+    private const REGEX_CACHE_KEY = 'ranksavvy_regex_redirects';
+    private const REGEX_CACHE_GROUP = 'ranksavvy';
 
     /**
      * Intercept front-end requests and perform redirects if matching rule is found.
@@ -19,48 +26,135 @@ class RedirectManager
             return;
         }
 
-        $redirects = $this->getRedirectRules();
-        if (empty($redirects)) {
-            return;
+        $currentPath = $this->getCurrentPath();
+        $cleanCurrent = $this->normalizePath($currentPath);
+
+        // ── 1. Fast Exact Match via direct SQL ──
+        $exactMatch = $this->findExactMatch($cleanCurrent);
+        if ($exactMatch) {
+            $this->performRedirect($exactMatch->target, (int) $exactMatch->code);
         }
 
-        $currentPath = $this->getCurrentPath();
-
-        foreach ($redirects as $rule) {
-            $source = trim($rule['source']);
-            $target = trim($rule['target']);
-            $code = intval($rule['code'] ?? 301);
-            $isRegex = !empty($rule['is_regex']);
-
-            // Normalize source path for exact comparison
-            $cleanSource = $this->normalizePath($source);
-            $cleanCurrent = $this->normalizePath($currentPath);
-
-            // Exact Match
-            if (!$isRegex && $cleanCurrent === $cleanSource) {
-                $this->performRedirect($target, $code);
-            }
-
-            // Regex Match
-            if ($isRegex) {
-                // Ensure regex pattern is bounded and safe
-                $pattern = '/' . str_replace('/', '\/', ltrim($source, '/')) . '/i';
-                if (@preg_match($pattern, $currentPath)) {
-                    $newTarget = @preg_replace($pattern, $target, $currentPath);
-                    if ($newTarget) {
-                        $this->performRedirect($newTarget, $code);
-                    }
+        // ── 2. Regex Match via cached rule set ──
+        $regexRules = $this->getRegexRules();
+        foreach ($regexRules as $rule) {
+            $pattern = '/' . str_replace('/', '\\/', ltrim($rule->source, '/')) . '/i';
+            if (@preg_match($pattern, $currentPath)) {
+                $newTarget = @preg_replace($pattern, $rule->target, $currentPath);
+                if ($newTarget) {
+                    $this->performRedirect($newTarget, (int) $rule->code);
                 }
             }
         }
     }
 
     /**
-     * Get redirects rules list.
+     * Find an exact-match redirect by normalized source path.
+     * Uses a direct indexed query — O(1) lookup instead of loading all rows.
+     */
+    private function findExactMatch(string $normalizedPath): ?object
+    {
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_redirects';
+
+        // Look up both the normalized path and common path variations
+        $result = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT target, code FROM $table WHERE source = %s AND is_regex = 0 LIMIT 1",
+                $normalizedPath
+            )
+        );
+
+        // Also try with trailing slash stripped/added for flexibility
+        if (!$result) {
+            $alt = (substr($normalizedPath, -1) === '/')
+                ? rtrim($normalizedPath, '/')
+                : $normalizedPath . '/';
+
+            $result = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT target, code FROM $table WHERE source = %s AND is_regex = 0 LIMIT 1",
+                    $alt
+                )
+            );
+        }
+
+        return $result ?: null;
+    }
+
+    /**
+     * Get regex redirect rules from Object Cache (Memcached/Redis aware).
+     * Falls back to a single focused query if the cache is cold.
+     */
+    private function getRegexRules(): array
+    {
+        $cached = wp_cache_get(self::REGEX_CACHE_KEY, self::REGEX_CACHE_GROUP);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_redirects';
+
+        $rules = $wpdb->get_results(
+            "SELECT source, target, code FROM $table WHERE is_regex = 1"
+        );
+
+        if (!is_array($rules)) {
+            $rules = [];
+        }
+
+        // Cache for 1 hour — flushed on redirect CRUD operations
+        wp_cache_set(self::REGEX_CACHE_KEY, $rules, self::REGEX_CACHE_GROUP, HOUR_IN_SECONDS);
+
+        return $rules;
+    }
+
+    /**
+     * Invalidate the regex rules cache (called after any redirect CRUD).
+     */
+    private function flushRegexCache(): void
+    {
+        wp_cache_delete(self::REGEX_CACHE_KEY, self::REGEX_CACHE_GROUP);
+    }
+
+    /**
+     * Get all redirect rules (for the admin REST API only — not used on frontend).
      */
     public function getRedirectRules(): array
     {
-        return get_option(self::OPTION_KEY, []);
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_redirects';
+
+        $rows = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
+
+        // Fallback and migration logic for legacy wp_options storage
+        $legacyRedirects = get_option(self::OPTION_KEY);
+        if (empty($rows) && !empty($legacyRedirects) && is_array($legacyRedirects)) {
+            foreach ($legacyRedirects as $rule) {
+                $wpdb->insert($table, [
+                    'id'       => $rule['id'] ?? uniqid('redir_', false),
+                    'source'   => $rule['source'] ?? '',
+                    'target'   => $rule['target'] ?? '',
+                    'code'     => intval($rule['code'] ?? 301),
+                    'is_regex' => !empty($rule['is_regex']) ? 1 : 0
+                ]);
+            }
+            $rows = $wpdb->get_results("SELECT * FROM $table", ARRAY_A);
+            delete_option(self::OPTION_KEY);
+        }
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        // Standardize types
+        foreach ($rows as &$row) {
+            $row['is_regex'] = !empty($row['is_regex']);
+            $row['code'] = intval($row['code']);
+        }
+
+        return $rows;
     }
 
     /**
@@ -115,27 +209,37 @@ class RedirectManager
             $code = 301;
         }
 
-        $redirects = $this->getRedirectRules();
+        // Check for duplicate source via direct query instead of loading all rules
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_redirects';
 
-        // Check for duplicates
-        foreach ($redirects as $rule) {
-            if ($rule['source'] === $source) {
-                return new \WP_Error('duplicate', 'A redirect with this source already exists.', ['status' => 400]);
-            }
+        $existing = $wpdb->get_var(
+            $wpdb->prepare("SELECT COUNT(*) FROM $table WHERE source = %s", $source)
+        );
+        if ($existing > 0) {
+            return new \WP_Error('duplicate', 'A redirect with this source already exists.', ['status' => 400]);
         }
 
         $id = uniqid('redir_', false);
-        $redirects[] = [
+
+        $inserted = $wpdb->insert($table, [
             'id'       => $id,
             'source'   => $source,
             'target'   => $target,
             'code'     => $code,
-            'is_regex' => $isRegex,
-        ];
+            'is_regex' => $isRegex ? 1 : 0,
+        ]);
 
-        update_option(self::OPTION_KEY, $redirects);
+        if ($inserted === false) {
+            return new \WP_Error('db_error', 'Failed to save redirect inside the database.', ['status' => 500]);
+        }
 
-        return rest_ensure_response(['success' => true, 'redirects' => $redirects]);
+        // Flush regex cache so new rules take effect immediately
+        $this->flushRegexCache();
+
+        $updatedRedirects = $this->getRedirectRules();
+
+        return rest_ensure_response(['success' => true, 'redirects' => $updatedRedirects]);
     }
 
     public function deleteRedirectEndpoint(\WP_REST_Request $request): \WP_REST_Response
@@ -147,16 +251,21 @@ class RedirectManager
             return new \WP_Error('missing_id', 'Redirect ID is required.', ['status' => 400]);
         }
 
-        $redirects = $this->getRedirectRules();
-        $filtered = array_filter($redirects, function ($rule) use ($id) {
-            return ($rule['id'] ?? '') !== $id;
-        });
+        global $wpdb;
+        $table = $wpdb->prefix . 'ranksavvy_redirects';
 
-        // Re-index array
-        $filtered = array_values($filtered);
-        update_option(self::OPTION_KEY, $filtered);
+        $deleted = $wpdb->delete($table, ['id' => $id]);
 
-        return rest_ensure_response(['success' => true, 'redirects' => $filtered]);
+        if ($deleted === false) {
+            return new \WP_Error('db_error', 'Failed to delete redirect from the database.', ['status' => 500]);
+        }
+
+        // Flush regex cache
+        $this->flushRegexCache();
+
+        $updatedRedirects = $this->getRedirectRules();
+
+        return rest_ensure_response(['success' => true, 'redirects' => $updatedRedirects]);
     }
 
     /**

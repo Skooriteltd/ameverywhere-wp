@@ -27,6 +27,27 @@ class MetaTagsGenerator
             echo sprintf('<meta name="robots" content="%s" />' . "\n", esc_attr($robots));
         }
 
+        // Webmaster Tools Verification Meta Tags
+        $googleVerify = get_option('ranksavvy_google_verify', '');
+        if (!empty($googleVerify)) {
+            echo sprintf('<meta name="google-site-verification" content="%s" />' . "\n", esc_attr($googleVerify));
+        }
+
+        $bingVerify = get_option('ranksavvy_bing_verify', '');
+        if (!empty($bingVerify)) {
+            echo sprintf('<meta name="msvalidate.01" content="%s" />' . "\n", esc_attr($bingVerify));
+        }
+
+        $yandexVerify = get_option('ranksavvy_yandex_verify', '');
+        if (!empty($yandexVerify)) {
+            echo sprintf('<meta name="yandex-verification" content="%s" />' . "\n", esc_attr($yandexVerify));
+        }
+
+        $pinterestVerify = get_option('ranksavvy_pinterest_verify', '');
+        if (!empty($pinterestVerify)) {
+            echo sprintf('<meta name="pdomain" content="%s" />' . "\n", esc_attr($pinterestVerify));
+        }
+
         echo "<!-- /RankSavvy SEO Meta Tags -->\n\n";
     }
 

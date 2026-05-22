@@ -91,4 +91,55 @@ class GoogleIndexingApi
 
         return null;
     }
+
+    public function checkStatus(string $url): array
+    {
+        $apiKeyJsonStr = get_option('ranksavvy_google_indexing_key');
+        if (empty($apiKeyJsonStr)) {
+            return ['error' => 'API Key is missing or empty. Please set it in options.'];
+        }
+
+        $jsonKey = json_decode($apiKeyJsonStr, true);
+        if (!$jsonKey || !isset($jsonKey['private_key']) || !isset($jsonKey['client_email'])) {
+            return ['error' => 'Invalid API key format.'];
+        }
+
+        $transientKey = 'ranksavvy_gsc_meta_' . md5($url);
+        $cached = get_transient($transientKey);
+        if ($cached !== false) {
+            return $cached;
+        }
+
+        $accessToken = $this->getAccessToken($jsonKey);
+        if (!$accessToken) {
+            return ['error' => 'Failed to obtain access token.'];
+        }
+
+        $endpoint = 'https://indexing.googleapis.com/v3/urlNotifications/metadata?url=' . urlencode($url);
+
+        $response = wp_remote_get($endpoint, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $accessToken,
+            ],
+            'timeout' => 15,
+        ]);
+
+        if (is_wp_error($response)) {
+            return ['error' => $response->get_error_message()];
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        if ($code !== 200) {
+            $errorMsg = isset($data['error']['message']) ? $data['error']['message'] : 'HTTP Code ' . $code;
+            return ['error' => $errorMsg];
+        }
+
+        set_transient($transientKey, $data, 300); // 5 minutes cache
+
+        return $data;
+    }
 }
+

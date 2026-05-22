@@ -4,12 +4,15 @@ namespace RankSavvy\Modules\Schema\Types;
 
 class BreadcrumbSchema
 {
-    public function isApplicable(): bool
+    public function isApplicable(?int $postId = null): bool
     {
+        if ($postId !== null) {
+            return true; // We can generate breadcrumbs for any valid post
+        }
         return !is_front_page();
     }
 
-    public function generate(): array
+    public function generate(?int $postId = null): array
     {
         $itemListElement = [];
         
@@ -21,9 +24,9 @@ class BreadcrumbSchema
             'item'     => home_url('/'),
         ];
 
-        // MVP: Simple implementation for single posts
-        if (is_single()) {
-            $post = get_post();
+        // Simple implementation for single posts
+        $post = $postId !== null ? get_post($postId) : get_post();
+        if ($post) {
             $categories = get_the_category($post->ID);
             
             if (!empty($categories)) {
@@ -41,12 +44,21 @@ class BreadcrumbSchema
                     'name'     => get_the_title($post->ID),
                     'item'     => get_permalink($post->ID),
                 ];
+            } else {
+                $itemListElement[] = [
+                    '@type'    => 'ListItem',
+                    'position' => 2,
+                    'name'     => get_the_title($post->ID),
+                    'item'     => get_permalink($post->ID),
+                ];
             }
         }
 
+        $pageUrl = $post ? get_permalink($post->ID) : home_url(add_query_arg([], $GLOBALS['wp']->request));
+
         return [
             '@type'           => 'BreadcrumbList',
-            '@id'             => home_url(add_query_arg([], $GLOBALS['wp']->request)) . '#breadcrumb',
+            '@id'             => $pageUrl . '#breadcrumb',
             'itemListElement' => $itemListElement,
         ];
     }

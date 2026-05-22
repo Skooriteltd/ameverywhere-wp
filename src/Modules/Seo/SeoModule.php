@@ -28,5 +28,9 @@ class SeoModule
         
         // Disable default WordPress title tag generation if theme supports title-tag
         $this->eventManager->addFilter('pre_get_document_title', [$this->metaGenerator, 'getDocumentTitle'], 10, 0);
+
+        // Boot RSS Optimizations module
+        $rssOptimizations = new RssOptimizations();
+        $rssOptimizations->register();
     }
 }
