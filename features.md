@@ -95,3 +95,20 @@ The Site Title and Tagline are used throughout AIOSEO as default values and fall
 			
 Install Broken Link Checker
 Broken links hurt your SEO and user experience. Install the Broken Link Checker plugin to automatically find and fix them.			
+
+
+
+Key technical SEO features:– Automated meta tag optimization right out of the box.– Canonical URLs to prevent duplicate content issues.– Advanced XML sitemaps for clear site indexing.– Best-in-class Schema.org integration to improve search understanding and appearance.– Complete breadcrumb control for visitors and crawlers.– Performance improvements that help reduce load times.– Crawl settings to manage how bots access your site and reduce environmental impact.– LLMs.txt management to guide how large language models interact with your content.
+Every update delivers ongoing technical SEO enhancements automatically.
+
+
+maintain your website’s SEO health:
+* Cornerstone content tools to organize and prioritize key pages.
+* Front-end SEO inspector to view and edit titles, descriptions, and schema live.
+* SEO roles to delegate plugin access securely across teams.
+* Regular 2-week update cycle to ensure compatibility with the latest SEO standards and search engine changes.
+
+Yoast SEO works seamlessly with popular WordPress tools to enhance your workflow and results:
+* Google Site Kit: Access insights from Search Console, Analytics, and PageSpeed directly inside WordPress.
+* Advanced Custom Fields (ACF): Combine with ACF Content Analysis for Yoast SEO for advanced field optimization.
+* Jetpack: Manage SEO and social previews all in one place.
