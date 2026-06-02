@@ -19,6 +19,16 @@ class ContentAssistantModule
         $this->eventManager->addAction('init', [$this, 'registerMetaFields']);
         $this->eventManager->addAction('enqueue_block_editor_assets', [$this, 'enqueueEditorAssets']);
         $this->eventManager->addAction('rest_api_init', [$this, 'registerRestRoutes']);
+
+        // Internal Link Index — keep the link table updated on content changes
+        $linkEngine = new InternalLinkEngine();
+        $this->eventManager->addAction('save_post', function (int $postId) use ($linkEngine) {
+            $post = get_post($postId);
+            if ($post) {
+                $linkEngine->indexPostLinks($postId, $post);
+            }
+        }, 20);
+        $this->eventManager->addAction('deleted_post', [$linkEngine, 'removePostLinks']);
     }
 
     public function registerMetaFields(): void

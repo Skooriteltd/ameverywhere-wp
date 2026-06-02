@@ -274,16 +274,27 @@ class Plugin
 
     public static function activate(): void
     {
-        // 1. Run schema installation
+        // 1. Run schema installation (creates/updates all custom tables)
         $installer = new \RankSavvy\Core\Database\Installer();
         $installer->install();
 
-        // 2. Trigger dynamic activation actions
+        // 2. Generate persistent encryption salt for KeyVault (Fix #4)
+        \RankSavvy\Core\Security\KeyVault::ensureSaltExists();
+
+        // 3. Cache the 404 table existence flag (Fix #3)
+        \RankSavvy\Modules\TechnicalSeo\ErrorMonitor::markTableExists();
+
+        // 4. Trigger dynamic activation actions
         do_action('ranksavvy_activation');
     }
 
     public static function deactivate(): void
     {
-        // Deactivation logic
+        // Clean up scheduled cron events
+        \RankSavvy\Modules\TechnicalSeo\ErrorMonitor::deactivate();
+        \RankSavvy\Core\Queue\QueueManager::deactivate();
+
+        // Trigger dynamic deactivation actions
+        do_action('ranksavvy_deactivation');
     }
 }
