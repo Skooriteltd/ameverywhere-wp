@@ -1,0 +1,358 @@
+# Copyright (C) 2026 AmEveryWhere Team
+# This file is distributed under the same license as the AmEveryWhere plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: AmEveryWhere 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/ameverywhere\n"
+"POT-Creation-Date: 2026-09-18T10:00:00+00:00\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2026-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"X-Generator: AmEveryWhere POT Generator\n"
+"X-Domain: ameverywhere\n"
+
+#. Plugin Name of the plugin
+msgid "AmEveryWhere"
+msgstr ""
+
+#. Plugin URI of the plugin
+msgid "https://ameverywhere.com"
+msgstr ""
+
+#. Description of the plugin
+msgid "AmEveryWhere is a next-generation WordPress SEO and AEO plugin engineered for the AI-first search era."
+msgstr ""
+
+#. Author of the plugin
+msgid "AmEveryWhere Team"
+msgstr ""
+
+#. Author URI of the plugin
+msgid "https://ameverywhere.com"
+msgstr ""
+
+#: src/Modules/Compliance/AiDisclosureManager.php:57
+msgid "AI Content Disclosure"
+msgstr ""
+
+#: src/assets/js/editor.js:660
+msgid "AI Optimization Goal"
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:42
+msgid "AI token usage limit exceeded for this billing cycle."
+msgstr ""
+
+#: src/Modules/ContentAssistant/ContentAssistantModule.php:184
+msgid "Action parameter is required."
+msgstr ""
+
+#: src/assets/js/editor.js:2154
+msgid "Additional Keywords"
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:181
+msgid "Anthropic API Error."
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:143
+msgid "Anthropic API key is missing or not configured."
+msgstr ""
+
+#: src/assets/js/editor.js:2729
+msgid "Canonical URL"
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:51
+msgid "Competitor URL returned empty content."
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:43
+msgid "Competitor URL returned status code %d."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:338
+msgid "Connection test passed successfully!"
+msgstr ""
+
+#: src/assets/js/editor.js:2118
+msgid "Cornerstone Content"
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:79
+msgid "Could not decode any valid JSON-LD graphs."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:396
+#: src/Modules/Admin/AdminModule.php:468
+msgid "Could not resolve post URL."
+msgstr ""
+
+#: src/assets/js/editor.js:2786
+msgid "Disable Auto-Share for this Post"
+msgstr ""
+
+#: src/assets/js/editor.js:2119
+msgid "Enforces stricter length (≥1000 words) and internal link audits."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:342
+msgid "Failed to connect to the selected AI provider."
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:35
+msgid "Failed to fetch URL: %s"
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:1027
+msgid "Failed to obtain GA4 access token. Check your Service Account credentials."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:1013
+msgid "GA4 Property ID and Service Account credentials are required. Configure them under AmEveryWhere → Analytics."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:713
+msgid "Google Search Console not connected."
+msgstr ""
+
+#: src/assets/js/editor.js:2677
+msgid "Google Trends"
+msgstr ""
+
+#: src/assets/js/editor.js:2787
+msgid "If enabled, this post will NOT be automatically shared to your connected social accounts when published."
+msgstr ""
+
+#: src/assets/js/editor.js:2727
+msgid "Indexing & Technical"
+msgstr ""
+
+#: src/assets/js/editor.js:805
+msgid "Internal Links & Orphan Finder"
+msgstr ""
+
+#: src/Modules/ContentAssistant/ContentAssistantModule.php:209
+msgid "Invalid AI action."
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:52
+msgid "Invalid AI provider selected."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:1021
+msgid "Invalid GA4 credentials."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:355
+msgid "Invalid Post ID."
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:19
+msgid "Invalid competitor URL supplied."
+msgstr ""
+
+#: src/assets/js/editor.js:2131
+msgid "Keyword Optimization Gaps"
+msgstr ""
+
+#: src/assets/js/editor.js:2210
+msgid "Leave blank to use the post title."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:882
+msgid "Link index table not found. Save a post to initialize it."
+msgstr ""
+
+#: src/assets/js/editor.js:2113
+msgid "Marks this as a top-level pillar page in your topic cluster."
+msgstr ""
+
+#: src/Modules/ContentAssistant/InternalLinkEngine.php:62
+msgid "Matches the exact title of \"%s\""
+msgstr ""
+
+#: src/assets/js/editor.js:2219
+msgid "Meta Description"
+msgstr ""
+
+#: src/assets/js/editor.js:2205
+msgid "Meta Title"
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:1264
+msgid "Missing or malformed settings object."
+msgstr ""
+
+#: src/assets/js/editor.js:2741
+msgid "No Follow (Prevent following outbound links)"
+msgstr ""
+
+#: src/assets/js/editor.js:2736
+msgid "No Index (Hide from Search Engines)"
+msgstr ""
+
+#: src/Modules/Schema/CompetitorScraper.php:59
+msgid "No JSON-LD schemas found on the competitor page."
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:227
+msgid "Ollama Connection Error: %s"
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:238
+msgid "Ollama local instance returned an error."
+msgstr ""
+
+#: src/assets/js/editor.js:2651
+msgid "Open Graph Description"
+msgstr ""
+
+#: src/assets/js/editor.js:2657
+msgid "Open Graph Image URL"
+msgstr ""
+
+#: src/assets/js/editor.js:2646
+msgid "Open Graph Title (Facebook/LinkedIn)"
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:115
+msgid "OpenAI API Error."
+msgstr ""
+
+#: src/Core/Ai/AiGateway.php:78
+msgid "OpenAI API key is missing or not configured."
+msgstr ""
+
+#: src/assets/js/editor.js:2746
+msgid "Optimize for Google News"
+msgstr ""
+
+#: src/assets/js/editor.js:1685
+msgid "PageSpeed Performance"
+msgstr ""
+
+#: src/assets/js/editor.js:2112
+msgid "Pillar Content"
+msgstr ""
+
+#: ameverywhere.php:39
+msgid "Please run <code>composer install</code> in the plugin directory."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:350
+#: src/Modules/ContentAssistant/ContentAssistantModule.php:242
+msgid "Post ID is required."
+msgstr ""
+
+#: src/assets/js/editor.js:2730
+msgid "Prevent duplicate content issues by overriding canonical output."
+msgstr ""
+
+#: src/assets/js/editor.js:2107
+msgid "Primary Focus Keyword"
+msgstr ""
+
+#: src/assets/js/editor.js:2234
+msgid "Primary Schema Type"
+msgstr ""
+
+#: ameverywhere.php:37
+msgid "AmEveryWhere"
+msgstr ""
+
+#: src/assets/js/editor.js:657
+msgid "AmEveryWhere AI Assistant"
+msgstr ""
+
+#: src/assets/js/editor.js:2082
+msgid "AmEveryWhere AI SEO"
+msgstr ""
+
+#: src/assets/js/editor.js:2080
+msgid "AmEveryWhere SEO"
+msgstr ""
+
+#: src/assets/js/editor.js:1746
+msgid "Ranking Keywords (GSC)"
+msgstr ""
+
+#: src/assets/js/editor.js:2175
+msgid "Readability"
+msgstr ""
+
+#: src/Modules/Schema/SchemaModule.php:209
+msgid "Rules must be a valid array."
+msgstr ""
+
+#: src/assets/js/editor.js:2105
+msgid "SEO Analysis"
+msgstr ""
+
+#: src/assets/js/editor.js:2195
+msgid "SERP Preview & Meta"
+msgstr ""
+
+#: src/Modules/TechnicalSeo/HtaccessEditor.php:106
+msgid "Save rejected: the .htaccess content contains a potentially dangerous PHP execution directive."
+msgstr ""
+
+#: src/Modules/ContentAssistant/InternalLinkEngine.php:107
+msgid "Shares matching categories or tags."
+msgstr ""
+
+#: src/assets/js/editor.js:2783
+msgid "Social Media Sharing"
+msgstr ""
+
+#: src/assets/js/editor.js:2644
+msgid "Social Metadata"
+msgstr ""
+
+#: src/Modules/Schema/SchemaModule.php:89
+msgid "Specified post was not found or is not published."
+msgstr ""
+
+#: src/assets/js/editor.js:2232
+msgid "Structured Data Schema"
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:366
+msgid "Submitted to search engines successfully."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:974
+msgid "The provided credentials JSON is not a valid Google Service Account file."
+msgstr ""
+
+#: src/Modules/TechnicalSeo/RedirectManager.php:376
+msgid "The provided regex pattern is invalid."
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:1268
+msgid "This settings file was not exported from AmEveryWhere."
+msgstr ""
+
+#: src/assets/js/editor.js:2663
+msgid "Twitter Title"
+msgstr ""
+
+#: src/Modules/Admin/AdminModule.php:373
+msgid "URL is required."
+msgstr ""
+
+#: src/Modules/Schema/SchemaModule.php:152
+msgid "URL parameter is required."
+msgstr ""
+
+#: src/assets/js/editor.js:2134
+msgid "Your focus keyword is missing in these critical locations:"
+msgstr ""
+
+#: src/Modules/ContentAssistant/InternalLinkEngine.php:106
+msgid "related content"
+msgstr ""
+

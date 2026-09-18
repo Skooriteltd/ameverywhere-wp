@@ -1,8 +1,8 @@
-# RankSavvy Master Tasklist & Progress Tracker
+# AmEveryWhere Master Tasklist & Progress Tracker
 
 > **Document Version:** 1.2  
-> **Target Platform:** RankSavvy Full Suite (WordPress, Headless API, Laravel Package)  
-> **Linked Specification:** [specification.md](file:///Applications/XAMPP/xamppfiles/htdocs/ranksavvy/specification.md)  
+> **Target Platform:** AmEveryWhere Full Suite (WordPress, Headless API, Laravel Package)  
+> **Linked Specification:** [specification.md](file:///Applications/XAMPP/xamppfiles/htdocs/ameverywhere/specification.md)  
 > **Last Updated:** May 2026
 
 ---
@@ -18,7 +18,7 @@
 ## 🛠️ Phase 0: Core Architecture & Setup
 *Establish clean PSR-compliant OOP boundaries, DI container, event router, and database schema.*
   - Conforms to PSR-12 and WordPress standards.
-  - Autoload mapping established for namespace `RankSavvy\`.
+  - Autoload mapping established for namespace `AmEveryWhere\`.
   - Created dynamic event dispatcher managing core Actions and Filters dynamically.
   - Booted React Admin Panel with styled components.
   - Webpack bundles (`editor.js`, `index.js`) compiled safely.

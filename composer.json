@@ -1,17 +1,17 @@
 {
-    "name": "ranksavvy/ranksavvy",
-    "description": "RankSavvy is a next-generation WordPress SEO and AEO plugin engineered for the AI-first search era.",
+    "name": "ameverywhere/ameverywhere",
+    "description": "AmEveryWhere is a next-generation WordPress SEO and AEO plugin engineered for the AI-first search era.",
     "type": "wordpress-plugin",
-    "license": "GPL-3.0-or-later",
+    "license": "GPL-2.0-or-later",
     "authors": [
         {
-            "name": "RankSavvy Team",
-            "email": "hello@ranksavvy.com"
+            "name": "AmEveryWhere Team",
+            "email": "hello@ameverywhere.com"
         }
     ],
     "autoload": {
         "psr-4": {
-            "RankSavvy\\": "src/"
+            "AmEveryWhere\\": "src/"
         }
     },
     "require": {

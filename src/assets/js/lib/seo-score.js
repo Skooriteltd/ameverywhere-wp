@@ -1,5 +1,5 @@
 /**
- * RankSavvy SEO Score Calculator
+ * AmEveryWhere SEO Score Calculator
  * 
  * Calculates a composite 0-100 SEO score from keyword, meta, and readability checks.
  * Each check contributes weighted points to the total.
@@ -94,7 +94,7 @@ export function calculateSeoScore({ title, content, focusKeyword, metaTitle, met
                 const altTexts = imgNodes.map(img => (img.getAttribute('alt') || '').toLowerCase());
                 kwInAlt = altTexts.some(text => text.includes(lowerKeyword));
             } catch (e) {
-                console.error('RankSavvy SEO DOMParser error, using fallback:', e);
+                console.error('AmEveryWhere SEO DOMParser error, using fallback:', e);
             }
         } else {
             // Regex Fallbacks

@@ -1,58 +1,64 @@
 <?php
 
-namespace RankSavvy\Modules\Admin;
+namespace AmEveryWhere\Modules\Admin;
 
 class AdminMenu
 {
     public function registerMenu(): void
     {
         add_menu_page(
-            'RankSavvy SEO',
-            'RankSavvy',
+            'AmEveryWhere SEO',
+            'AmEveryWhere',
             'manage_options',
-            'ranksavvy',
+            'ameverywhere',
             [$this, 'renderAdminPage'],
-            'dashicons-chart-area', // Use a suitable dashicon
+            'dashicons-chart-area',
             85
         );
     }
 
     public function enqueueAssets(string $hook): void
     {
-        // Only load assets on our plugin page
-        if ($hook !== 'toplevel_page_ranksavvy') {
+        // Only load assets on our plugin page (support both new and legacy hooks)
+        if ($hook !== 'toplevel_page_ameverywhere' && $hook !== 'toplevel_page_ranksavvy') {
             return;
         }
 
-        $assetFile = RANKSAVVY_PLUGIN_DIR . 'build/index.asset.php';
+        $assetFile = AMEVERYWHERE_PLUGIN_DIR . 'build/index.asset.php';
         
         if (file_exists($assetFile)) {
             $assets = require $assetFile;
             wp_enqueue_script(
-                'ranksavvy-admin-js',
-                RANKSAVVY_PLUGIN_URL . 'build/index.js',
+                'ameverywhere-admin-js',
+                AMEVERYWHERE_PLUGIN_URL . 'build/index.js',
                 $assets['dependencies'],
                 $assets['version'],
                 true
             );
 
-            wp_localize_script('ranksavvy-admin-js', 'rankSavvyAdminConfig', [
-                'apiUrl'        => esc_url_raw(rest_url('ranksavvy/v1')),
+            $adminConfig = [
+                'apiUrl'        => esc_url_raw(rest_url('ameverywhere/v1')),
                 'nonce'         => wp_create_nonce('wp_rest'),
-                'setupComplete' => get_option('ranksavvy_setup_complete') ? '1' : '0',
-            ]);
+                'setupComplete' => get_option('ameverywhere_setup_complete') ? '1' : '0',
+                'isMultisite'   => is_multisite() ? '1' : '0',
+            ];
+
+            // Localize both new and legacy config variables for backward compatibility
+            wp_localize_script('ameverywhere-admin-js', 'amEveryWhereAdminConfig', $adminConfig);
+            wp_localize_script('ameverywhere-admin-js', 'rankSavvyAdminConfig', $adminConfig);
         }
 
         wp_enqueue_style(
-            'ranksavvy-admin-css',
-            RANKSAVVY_PLUGIN_URL . 'build/index.css',
+            'ameverywhere-admin-css',
+            AMEVERYWHERE_PLUGIN_URL . 'build/index.css',
             [],
-            RANKSAVVY_VERSION
+            AMEVERYWHERE_VERSION
         );
+        wp_style_add_data('ameverywhere-admin-css', 'rtl', 'replace');
     }
 
     public function renderAdminPage(): void
     {
-        echo '<div class="wrap"><div id="ranksavvy-admin-app"></div></div>';
+        echo '<div class="wrap"><div id="ameverywhere-admin-app"></div></div>';
     }
 }

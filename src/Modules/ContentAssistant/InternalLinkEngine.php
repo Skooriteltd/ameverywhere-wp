@@ -1,12 +1,12 @@
 <?php
 
-namespace RankSavvy\Modules\ContentAssistant;
+namespace AmEveryWhere\Modules\ContentAssistant;
 
 /**
  * Internal link recommendation engine with indexed orphan detection.
  *
  * Architecture:
- *   - Link Index Table (wp_ranksavvy_links): Populated on post save by parsing
+ *   - Link Index Table (wp_ameverywhere_links): Populated on post save by parsing
  *     HTML content and extracting internal links. Columns: post_id, target_url, anchor_text.
  *   - Orphan Detection: Finding incoming links is now a lightning-fast indexed
  *     SELECT COUNT(*) WHERE target_url = %s, instead of the old LIKE '%url%' full-table scan.
@@ -59,7 +59,7 @@ class InternalLinkEngine
                     'title'      => $title,
                     'url'        => get_permalink($p->ID),
                     'anchor'     => $matchedAnchor,
-                    'reason'     => sprintf(__('Matches the exact title of "%s"', 'ranksavvy'), $title)
+                    'reason'     => sprintf(__('Matches the exact title of "%s"', 'ameverywhere'), $title)
                 ];
             }
         }
@@ -103,8 +103,8 @@ class InternalLinkEngine
                         'post_id' => $op->ID,
                         'title'   => $op->post_title,
                         'url'     => get_permalink($op->ID),
-                        'anchor'  => __('related content', 'ranksavvy'),
-                        'reason'  => __('Shares matching categories or tags.', 'ranksavvy')
+                        'anchor'  => __('related content', 'ameverywhere'),
+                        'reason'  => __('Shares matching categories or tags.', 'ameverywhere')
                     ];
                 }
             }
@@ -116,13 +116,13 @@ class InternalLinkEngine
     /**
      * Verify if the current post is an "Orphan" (has zero incoming internal links).
      *
-     * Uses the indexed wp_ranksavvy_links table for O(1) lookup instead of
+     * Uses the indexed wp_ameverywhere_links table for O(1) lookup instead of
      * the previous LIKE '%url%' full-table scan on wp_posts.
      */
     public function checkOrphanStatus(int $postId): array
     {
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_links';
+        $table = $wpdb->prefix . 'ameverywhere_links';
 
         $permalink = get_permalink($postId);
         if (!$permalink) {
@@ -166,7 +166,7 @@ class InternalLinkEngine
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_links';
+        $table = $wpdb->prefix . 'ameverywhere_links';
 
         // Clear existing links for this post — full re-index on each save
         $wpdb->delete($table, ['post_id' => $postId], ['%d']);
@@ -222,7 +222,7 @@ class InternalLinkEngine
     public function removePostLinks(int $postId): void
     {
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_links';
+        $table = $wpdb->prefix . 'ameverywhere_links';
         $wpdb->delete($table, ['post_id' => $postId], ['%d']);
     }
 

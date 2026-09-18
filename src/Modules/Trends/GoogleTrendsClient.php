@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Trends;
+namespace AmEveryWhere\Modules\Trends;
 
 class GoogleTrendsClient
 {
@@ -8,7 +8,7 @@ class GoogleTrendsClient
 
     public function fetchTrendData(string $keyword, string $geo = ''): array
     {
-        $cacheKey = 'ranksavvy_trend_' . md5($keyword . $geo);
+        $cacheKey = 'ameverywhere_trend_' . md5($keyword . $geo);
         $cached = get_transient($cacheKey);
         if ($cached) {
             return $cached;

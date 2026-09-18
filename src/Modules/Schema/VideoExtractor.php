@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema;
+namespace AmEveryWhere\Modules\Schema;
 
 /**
  * Scans post content to detect YouTube, Vimeo, and HTML5 video embeds
@@ -19,14 +19,14 @@ class VideoExtractor
         }
 
         // Check if there is manual video metadata first
-        $manualVideoUrl = get_post_meta($postId, '_ranksavvy_video_url', true);
+        $manualVideoUrl = get_post_meta($postId, '_ameverywhere_video_url', true);
         $videoObjects = [];
 
         if (!empty($manualVideoUrl)) {
-            $thumbnail = get_post_meta($postId, '_ranksavvy_video_thumbnail', true) ?: get_the_post_thumbnail_url($postId, 'full');
-            $title = get_post_meta($postId, '_ranksavvy_video_title', true) ?: get_the_title($postId);
-            $desc = get_post_meta($postId, '_ranksavvy_video_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
-            $durationRaw = get_post_meta($postId, '_ranksavvy_video_duration', true);
+            $thumbnail = get_post_meta($postId, '_ameverywhere_video_thumbnail', true) ?: get_the_post_thumbnail_url($postId, 'full');
+            $title = get_post_meta($postId, '_ameverywhere_video_title', true) ?: get_the_title($postId);
+            $desc = get_post_meta($postId, '_ameverywhere_video_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
+            $durationRaw = get_post_meta($postId, '_ameverywhere_video_duration', true);
 
             $duration = 'PT1M'; // default fallback
             if (!empty($durationRaw)) {

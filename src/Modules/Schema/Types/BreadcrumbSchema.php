@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema\Types;
+namespace AmEveryWhere\Modules\Schema\Types;
 
 class BreadcrumbSchema
 {

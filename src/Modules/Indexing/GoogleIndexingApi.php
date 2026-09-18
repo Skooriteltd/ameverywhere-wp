@@ -1,12 +1,20 @@
 <?php
 
-namespace RankSavvy\Modules\Indexing;
+namespace AmEveryWhere\Modules\Indexing;
+
+use AmEveryWhere\Core\Security\KeyVault;
 
 class GoogleIndexingApi
 {
+    private function getStoredCredentials(): string
+    {
+        $raw = (string) get_option('ameverywhere_google_indexing_key', '');
+        return KeyVault::decrypt($raw);
+    }
+
     public function ping(string $url, string $action): bool
     {
-        $apiKeyJsonStr = get_option('ranksavvy_google_indexing_key');
+        $apiKeyJsonStr = $this->getStoredCredentials();
         if (empty($apiKeyJsonStr)) {
             return false;
         }
@@ -43,9 +51,31 @@ class GoogleIndexingApi
         return $code === 200 || $code === 202;
     }
 
-    private function getAccessToken(array $jsonKey): ?string
+    /**
+     * Retrieve a valid Google OAuth2 access token.
+     *
+     * When called with a $jsonKey array the key is used directly (internal use).
+     * When called with no arguments the key is read from the stored option, which
+     * allows external callers (e.g. AdminModule) to obtain a token without
+     * duplicating the credential-loading logic.
+     *
+     * @param array|null $jsonKey Service-account credentials array, or null to auto-load.
+     * @return string|null        Bearer token string, or null on failure.
+     */
+    public function getAccessToken(?array $jsonKey = null): ?string
     {
-        $transientKey = 'ranksavvy_gsc_token';
+        if ($jsonKey === null) {
+            $apiKeyJsonStr = $this->getStoredCredentials();
+            if (empty($apiKeyJsonStr)) {
+                return null;
+            }
+            $jsonKey = json_decode($apiKeyJsonStr, true);
+            if (!$jsonKey || !isset($jsonKey['private_key'], $jsonKey['client_email'])) {
+                return null;
+            }
+        }
+
+        $transientKey = 'ameverywhere_gsc_token';
         $token = get_transient($transientKey);
         if ($token) {
             return $token;
@@ -94,7 +124,7 @@ class GoogleIndexingApi
 
     public function checkStatus(string $url): array
     {
-        $apiKeyJsonStr = get_option('ranksavvy_google_indexing_key');
+        $apiKeyJsonStr = $this->getStoredCredentials();
         if (empty($apiKeyJsonStr)) {
             return ['error' => 'API Key is missing or empty. Please set it in options.'];
         }
@@ -104,7 +134,7 @@ class GoogleIndexingApi
             return ['error' => 'Invalid API key format.'];
         }
 
-        $transientKey = 'ranksavvy_gsc_meta_' . md5($url);
+        $transientKey = 'ameverywhere_gsc_meta_' . md5($url);
         $cached = get_transient($transientKey);
         if ($cached !== false) {
             return $cached;

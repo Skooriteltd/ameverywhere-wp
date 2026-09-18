@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Indexing;
+namespace AmEveryWhere\Modules\Indexing;
 
 class IndexingJob
 {

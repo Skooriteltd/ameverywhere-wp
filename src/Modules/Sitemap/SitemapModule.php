@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Sitemap;
+namespace AmEveryWhere\Modules\Sitemap;
 
-use RankSavvy\Core\Event\EventManager;
+use AmEveryWhere\Core\Event\EventManager;
 
 /**
  * Boots the sitemap module, registers REST endpoints for sitemaps config,
@@ -34,7 +34,7 @@ class SitemapModule
         $this->eventManager->addAction('template_redirect', [$this->routeManager, 'handleSitemapRequests'], 0);
         
         // Ensure rewrite rules are flushed on activation
-        $this->eventManager->addAction('ranksavvy_activation', [$this->routeManager, 'flushRules']);
+        $this->eventManager->addAction('ameverywhere_activation', [$this->routeManager, 'flushRules']);
 
         // Clear sitemap cache when content changes
         $this->eventManager->addAction('save_post', [SitemapGenerator::class, 'clearCache']);
@@ -45,8 +45,53 @@ class SitemapModule
         $this->eventManager->addAction('deleted_post', [VideoSitemapGenerator::class, 'clearCache']);
         $this->eventManager->addAction('transition_post_status', [VideoSitemapGenerator::class, 'clearCache']);
 
+        // ── Phase 1 Backlog #10: Automatically notify search engines when sitemap changes ──
+        // Fires on every publish/update — pings Google and Bing with the sitemap index URL
+        // using a debounced transient (max one ping per site per 60 minutes) to avoid abuse.
+        $this->eventManager->addAction('transition_post_status', [$this, 'maybePingSearchEngines'], 20, 3);
+
         // Register configuration routes
         $this->eventManager->addAction('rest_api_init', [$this, 'registerRoutes']);
+    }
+
+    /**
+     * Ping Google and Bing with the sitemap index URL when a post transitions
+     * to/from "publish". Debounced to at most once per 60 minutes site-wide.
+     */
+    public function maybePingSearchEngines(string $newStatus, string $oldStatus, \WP_Post $post): void
+    {
+        // Only fire when content becomes or updates to published status
+        if ($newStatus !== 'publish') {
+            return;
+        }
+
+        // Skip auto-drafts, revisions, and non-public post types
+        if (wp_is_post_revision($post->ID) || wp_is_post_autosave($post->ID)) {
+            return;
+        }
+
+        // Debounce: only ping once per 60 minutes to avoid hammering the APIs
+        $throttleKey = 'ameverywhere_sitemap_ping_throttle';
+        if (get_transient($throttleKey)) {
+            return;
+        }
+        set_transient($throttleKey, true, HOUR_IN_SECONDS);
+
+        $sitemapUrl = home_url('/sitemap.xml');
+
+        // Ping Google (public URL — no auth required)
+        wp_remote_get(
+            'https://www.google.com/ping?sitemap=' . urlencode($sitemapUrl),
+            ['timeout' => 5, 'blocking' => false]
+        );
+
+        // Ping Bing via IndexNow if a key is configured
+        $indexNowKey = get_option('ameverywhere_indexnow_key', '');
+        if (!empty($indexNowKey)) {
+            $bingApi = new \AmEveryWhere\Modules\Indexing\BingIndexNowApi();
+            $bingApi->ping(get_permalink($post->ID), $indexNowKey);
+        }
+
     }
 
     /**
@@ -54,7 +99,7 @@ class SitemapModule
      */
     public function registerRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/settings/sitemaps', [
+        register_rest_route('ameverywhere/v1', '/settings/sitemaps', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getSitemapSettings'],

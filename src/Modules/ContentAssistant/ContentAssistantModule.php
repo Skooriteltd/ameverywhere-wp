@@ -1,9 +1,9 @@
 <?php
 
-namespace RankSavvy\Modules\ContentAssistant;
+namespace AmEveryWhere\Modules\ContentAssistant;
 
-use RankSavvy\Core\Event\EventManager;
-use RankSavvy\Core\Ai\AiGateway;
+use AmEveryWhere\Core\Event\EventManager;
+use AmEveryWhere\Core\Ai\AiGateway;
 
 class ContentAssistantModule
 {
@@ -34,37 +34,75 @@ class ContentAssistantModule
     public function registerMetaFields(): void
     {
         $metaKeys = [
-            '_ranksavvy_meta_title',
-            '_ranksavvy_meta_description',
-            '_ranksavvy_is_news',
-            '_ranksavvy_noindex',
-            '_ranksavvy_nofollow',
-            '_ranksavvy_canonical_url',
-            '_ranksavvy_is_cornerstone',
-            '_ranksavvy_og_title',
-            '_ranksavvy_og_description',
-            '_ranksavvy_og_image',
-            '_ranksavvy_twitter_title',
-            '_ranksavvy_focus_keyword',
-            '_ranksavvy_primary_schema',
-            '_ranksavvy_schema_product_name',
-            '_ranksavvy_schema_product_description',
-            '_ranksavvy_schema_product_price',
-            '_ranksavvy_schema_product_currency',
-            '_ranksavvy_schema_product_rating',
-            '_ranksavvy_schema_product_availability',
-            '_ranksavvy_schema_faq_questions',
-            '_ranksavvy_schema_howto_name',
-            '_ranksavvy_schema_howto_description',
-            '_ranksavvy_schema_howto_steps',
-            '_ranksavvy_schema_howto_supplies',
-            '_ranksavvy_schema_howto_tools',
-            '_ranksavvy_schema_localbusiness_name',
-            '_ranksavvy_schema_localbusiness_telephone',
-            '_ranksavvy_schema_localbusiness_street',
-            '_ranksavvy_schema_localbusiness_city',
-            '_ranksavvy_schema_localbusiness_postal',
-            '_ranksavvy_schema_localbusiness_country'
+            '_ameverywhere_meta_title',
+            '_ameverywhere_meta_description',
+            '_ameverywhere_is_news',
+            '_ameverywhere_noindex',
+            '_ameverywhere_nofollow',
+            '_ameverywhere_canonical_url',
+            '_ameverywhere_is_cornerstone',
+            '_ameverywhere_og_title',
+            '_ameverywhere_og_description',
+            '_ameverywhere_og_image',
+            '_ameverywhere_twitter_title',
+            '_ameverywhere_focus_keyword',
+            '_ameverywhere_primary_schema',
+            '_ameverywhere_schema_product_name',
+            '_ameverywhere_schema_product_description',
+            '_ameverywhere_schema_product_price',
+            '_ameverywhere_schema_product_currency',
+            '_ameverywhere_schema_product_rating',
+            '_ameverywhere_schema_product_availability',
+            '_ameverywhere_schema_faq_questions',
+            '_ameverywhere_schema_howto_name',
+            '_ameverywhere_schema_howto_description',
+            '_ameverywhere_schema_howto_steps',
+            '_ameverywhere_schema_howto_supplies',
+            '_ameverywhere_schema_howto_tools',
+            '_ameverywhere_schema_localbusiness_name',
+            '_ameverywhere_schema_localbusiness_telephone',
+            '_ameverywhere_schema_localbusiness_street',
+            '_ameverywhere_schema_localbusiness_city',
+            '_ameverywhere_schema_localbusiness_postal',
+            '_ameverywhere_schema_localbusiness_country',
+            // ── Phase 1 Backlog: Unlimited Keywords ──────────────────────
+            // JSON array of additional focus keywords beyond the primary one.
+            '_ameverywhere_additional_keywords',
+            // ── Phase 1 Backlog: Schema Stack (Unlimited Multiple Schemas) ─
+            // JSON array of additional schema objects layered on top of primary.
+            '_ameverywhere_schema_stack',
+            // ── Phase 1 Backlog: Pillar Content ──────────────────────────
+            '_ameverywhere_is_pillar',
+            // ── Phase 1 Backlog: Per-Post Performance Badges ─────────────
+            '_ameverywhere_pagespeed_cache',
+            '_ameverywhere_ranking_keywords',
+            '_ameverywhere_ranking_keywords_at',
+            // ── Social / Misc ─────────────────────────────────────────────
+            '_ameverywhere_disable_social_share',
+            '_ameverywhere_custom_schema_properties',
+            '_ameverywhere_schema_custom_type',
+            // Recipe schema fields
+            '_ameverywhere_schema_recipe_name',
+            '_ameverywhere_schema_recipe_description',
+            '_ameverywhere_schema_recipe_ingredients',
+            '_ameverywhere_schema_recipe_instructions',
+            '_ameverywhere_schema_recipe_prep_time',
+            '_ameverywhere_schema_recipe_cook_time',
+            '_ameverywhere_schema_recipe_calories',
+            '_ameverywhere_schema_recipe_cuisine',
+            '_ameverywhere_schema_recipe_yield',
+            // Event schema fields
+            '_ameverywhere_schema_event_name',
+            '_ameverywhere_schema_event_description',
+            '_ameverywhere_schema_event_start_date',
+            '_ameverywhere_schema_event_end_date',
+            '_ameverywhere_schema_event_venue',
+            '_ameverywhere_schema_event_address',
+            '_ameverywhere_schema_event_organizer',
+            '_ameverywhere_schema_event_performer',
+            '_ameverywhere_schema_event_price',
+            '_ameverywhere_schema_event_currency',
+            '_ameverywhere_schema_event_status',
         ];
 
         foreach (['post', 'page'] as $postType) {
@@ -83,7 +121,7 @@ class ContentAssistantModule
 
     public function enqueueEditorAssets(): void
     {
-        $assetFile = RANKSAVVY_PLUGIN_DIR . 'build/editor.asset.php';
+        $assetFile = AMEVERYWHERE_PLUGIN_DIR . 'build/editor.asset.php';
         
         if (!file_exists($assetFile)) {
             return;
@@ -97,29 +135,32 @@ class ContentAssistantModule
         );
 
         wp_enqueue_script(
-            'ranksavvy-editor-js',
-            RANKSAVVY_PLUGIN_URL . 'build/editor.js',
+            'ameverywhere-editor-js',
+            AMEVERYWHERE_PLUGIN_URL . 'build/editor.js',
             $dependencies,
             $assets['version'],
             true
         );
 
-        wp_localize_script('ranksavvy-editor-js', 'rankSavvyEditorConfig', [
-            'apiUrl'            => esc_url_raw(rest_url('ranksavvy/v1')),
+        $editorConfig = [
+            'apiUrl'            => esc_url_raw(rest_url('ameverywhere/v1')),
             'nonce'             => wp_create_nonce('wp_rest'),
-            'defaultShareImage' => esc_url_raw(get_option('ranksavvy_default_share_image', ''))
-        ]);
+            'defaultShareImage' => esc_url_raw(get_option('ameverywhere_default_share_image', ''))
+        ];
+
+        wp_localize_script('ameverywhere-editor-js', 'amEveryWhereEditorConfig', $editorConfig);
+        wp_localize_script('ameverywhere-editor-js', 'rankSavvyEditorConfig', $editorConfig);
     }
 
     public function registerRestRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/ai/generate', [
+        register_rest_route('ameverywhere/v1', '/ai/generate', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'generateAiContent'],
             'permission_callback' => [$this, 'checkPermission'],
         ]);
 
-        register_rest_route('ranksavvy/v1', '/content/internal-links', [
+        register_rest_route('ameverywhere/v1', '/content/internal-links', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'getContentInternalLinks'],
             'permission_callback' => [$this, 'checkPermission'],
@@ -143,7 +184,7 @@ class ContentAssistantModule
         $focusKeyword = isset($params['focus_keyword']) ? sanitize_text_field($params['focus_keyword']) : '';
 
         if (empty($action)) {
-            return new \WP_Error('missing_action', __('Action parameter is required.', 'ranksavvy'), ['status' => 400]);
+            return new \WP_Error('missing_action', __('Action parameter is required.', 'ameverywhere'), ['status' => 400]);
         }
 
         $aiGateway = new AiGateway();
@@ -168,7 +209,7 @@ class ContentAssistantModule
                 break;
 
             default:
-                return new \WP_Error('invalid_action', __('Invalid AI action.', 'ranksavvy'), ['status' => 400]);
+                return new \WP_Error('invalid_action', __('Invalid AI action.', 'ameverywhere'), ['status' => 400]);
         }
 
         $result = $aiGateway->queryModel($prompt, $systemPrompt);
@@ -201,7 +242,7 @@ class ContentAssistantModule
         $content = isset($params['content']) ? wp_kses_post($params['content']) : '';
 
         if (!$postId) {
-            return new \WP_Error('missing_id', __('Post ID is required.', 'ranksavvy'), ['status' => 400]);
+            return new \WP_Error('missing_id', __('Post ID is required.', 'ameverywhere'), ['status' => 400]);
         }
 
         $linkEngine = new InternalLinkEngine();

@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Schema;
+namespace AmEveryWhere\Modules\Schema;
 
-use RankSavvy\Core\Event\EventManager;
+use AmEveryWhere\Core\Event\EventManager;
 
 /**
  * Boots the Schema module and registers REST API endpoints.
@@ -30,21 +30,21 @@ class SchemaModule
     public function registerRoutes(): void
     {
         // Public machine-readable endpoint for LLM system ingestion
-        register_rest_route('ranksavvy/v1', '/schemamap', [
+        register_rest_route('ameverywhere/v1', '/schemamap', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'handleSchemaMap'],
             'permission_callback' => '__return_true', // Publicly accessible
         ]);
 
         // Competitor URL scraper proxy (Authenticated)
-        register_rest_route('ranksavvy/v1', '/schema/scrape', [
+        register_rest_route('ameverywhere/v1', '/schema/scrape', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'handleScrapeCompetitor'],
             'permission_callback' => [$this, 'checkEditorPermission'],
         ]);
 
         // Read/Write global conditional schema display rules (Admin only)
-        register_rest_route('ranksavvy/v1', '/schema/global-rules', [
+        register_rest_route('ameverywhere/v1', '/schema/global-rules', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getGlobalRules'],
@@ -69,7 +69,7 @@ class SchemaModule
     }
 
     /**
-     * Handles /wp-json/ranksavvy/v1/schemamap
+     * Handles /wp-json/ameverywhere/v1/schemamap
      */
     public function handleSchemaMap(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -86,7 +86,7 @@ class SchemaModule
         if ($postId > 0) {
             $post = get_post($postId);
             if (!$post || !in_array($post->post_status, ['publish', 'inherit'], true)) {
-                return new \WP_Error('post_not_found', __('Specified post was not found or is not published.', 'ranksavvy'), ['status' => 404]);
+                return new \WP_Error('post_not_found', __('Specified post was not found or is not published.', 'ameverywhere'), ['status' => 404]);
             }
             
             $schema = $this->schemaGenerator->getSchemaForPost($postId);
@@ -110,7 +110,7 @@ class SchemaModule
                 $id = get_the_ID();
                 $effectiveSchema = SchemaGenerator::getEffectivePrimarySchema($id);
                 $schemas = ['BreadcrumbList']; // Default
-                $isNews = get_post_meta($id, '_ranksavvy_is_news', true);
+                $isNews = get_post_meta($id, '_ameverywhere_is_news', true);
                 $schemas[] = ($isNews === 'yes') ? 'NewsArticle' : 'Article';
 
                 if ($effectiveSchema !== 'none') {
@@ -129,7 +129,7 @@ class SchemaModule
                     'title'   => get_the_title(),
                     'url'     => get_permalink(),
                     'schemas' => array_unique($schemas),
-                    'schemamap_url' => rest_url("ranksavvy/v1/schemamap?post_id={$id}")
+                    'schemamap_url' => rest_url("ameverywhere/v1/schemamap?post_id={$id}")
                 ];
             }
             wp_reset_postdata();
@@ -141,7 +141,7 @@ class SchemaModule
     }
 
     /**
-     * Handles /wp-json/ranksavvy/v1/schema/scrape
+     * Handles /wp-json/ameverywhere/v1/schema/scrape
      */
     public function handleScrapeCompetitor(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -149,7 +149,7 @@ class SchemaModule
         $url = isset($params['url']) ? sanitize_text_field($params['url']) : '';
 
         if (empty($url)) {
-            return new \WP_Error('missing_url', __('URL parameter is required.', 'ranksavvy'), ['status' => 400]);
+            return new \WP_Error('missing_url', __('URL parameter is required.', 'ameverywhere'), ['status' => 400]);
         }
 
         $result = CompetitorScraper::scrapeUrl($url);
@@ -161,11 +161,11 @@ class SchemaModule
     }
 
     /**
-     * Handles GET /wp-json/ranksavvy/v1/schema/global-rules
+     * Handles GET /wp-json/ameverywhere/v1/schema/global-rules
      */
     public function getGlobalRules(\WP_REST_Request $request): \WP_REST_Response
     {
-        $rulesJson = get_option('ranksavvy_global_schema_rules', '[]');
+        $rulesJson = get_option('ameverywhere_global_schema_rules', '[]');
         $rules = json_decode($rulesJson, true);
         if (!is_array($rules)) {
             $rules = [];
@@ -198,7 +198,7 @@ class SchemaModule
     }
 
     /**
-     * Handles POST /wp-json/ranksavvy/v1/schema/global-rules
+     * Handles POST /wp-json/ameverywhere/v1/schema/global-rules
      */
     public function updateGlobalRules(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -206,7 +206,7 @@ class SchemaModule
         $rules = isset($params['rules']) ? $params['rules'] : [];
 
         if (!is_array($rules)) {
-            return new \WP_Error('invalid_format', __('Rules must be a valid array.', 'ranksavvy'), ['status' => 400]);
+            return new \WP_Error('invalid_format', __('Rules must be a valid array.', 'ameverywhere'), ['status' => 400]);
         }
 
         // Sanitize
@@ -222,7 +222,7 @@ class SchemaModule
             ];
         }
 
-        update_option('ranksavvy_global_schema_rules', wp_json_encode($sanitized));
+        update_option('ameverywhere_global_schema_rules', wp_json_encode($sanitized));
 
         return rest_ensure_response([
             'success' => true,

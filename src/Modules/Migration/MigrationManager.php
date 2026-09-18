@@ -1,9 +1,9 @@
 <?php
 
-namespace RankSavvy\Modules\Migration;
+namespace AmEveryWhere\Modules\Migration;
 
 /**
- * Auto-detects installed SEO plugins and migrates their data to RankSavvy.
+ * Auto-detects installed SEO plugins and migrates their data to AmEveryWhere.
  * Supports: Yoast SEO, RankMath, All in One SEO (AIOSEO).
  * 
  * Philosophy: One click, zero data loss.
@@ -11,37 +11,37 @@ namespace RankSavvy\Modules\Migration;
 class MigrationManager
 {
     /**
-     * Meta key mapping from competitor plugins to RankSavvy.
+     * Meta key mapping from competitor plugins to AmEveryWhere.
      */
     private const META_MAP = [
         'yoast' => [
-            '_yoast_wpseo_title'          => '_ranksavvy_meta_title',
-            '_yoast_wpseo_metadesc'       => '_ranksavvy_meta_description',
-            '_yoast_wpseo_focuskw'        => '_ranksavvy_focus_keyword',
-            '_yoast_wpseo_opengraph-title' => '_ranksavvy_og_title',
-            '_yoast_wpseo_opengraph-description' => '_ranksavvy_og_description',
-            '_yoast_wpseo_opengraph-image' => '_ranksavvy_og_image',
-            '_yoast_wpseo_twitter-title'   => '_ranksavvy_twitter_title',
-            '_yoast_wpseo_meta-robots-noindex' => '_ranksavvy_noindex',
+            '_yoast_wpseo_title'          => '_ameverywhere_meta_title',
+            '_yoast_wpseo_metadesc'       => '_ameverywhere_meta_description',
+            '_yoast_wpseo_focuskw'        => '_ameverywhere_focus_keyword',
+            '_yoast_wpseo_opengraph-title' => '_ameverywhere_og_title',
+            '_yoast_wpseo_opengraph-description' => '_ameverywhere_og_description',
+            '_yoast_wpseo_opengraph-image' => '_ameverywhere_og_image',
+            '_yoast_wpseo_twitter-title'   => '_ameverywhere_twitter_title',
+            '_yoast_wpseo_meta-robots-noindex' => '_ameverywhere_noindex',
         ],
         'rankmath' => [
-            'rank_math_title'             => '_ranksavvy_meta_title',
-            'rank_math_description'       => '_ranksavvy_meta_description',
-            'rank_math_focus_keyword'     => '_ranksavvy_focus_keyword',
-            'rank_math_facebook_title'    => '_ranksavvy_og_title',
-            'rank_math_facebook_description' => '_ranksavvy_og_description',
-            'rank_math_facebook_image'    => '_ranksavvy_og_image',
-            'rank_math_twitter_title'     => '_ranksavvy_twitter_title',
-            'rank_math_robots'            => '_ranksavvy_noindex',
+            'rank_math_title'             => '_ameverywhere_meta_title',
+            'rank_math_description'       => '_ameverywhere_meta_description',
+            'rank_math_focus_keyword'     => '_ameverywhere_focus_keyword',
+            'rank_math_facebook_title'    => '_ameverywhere_og_title',
+            'rank_math_facebook_description' => '_ameverywhere_og_description',
+            'rank_math_facebook_image'    => '_ameverywhere_og_image',
+            'rank_math_twitter_title'     => '_ameverywhere_twitter_title',
+            'rank_math_robots'            => '_ameverywhere_noindex',
         ],
         'aioseo' => [
-            '_aioseo_title'               => '_ranksavvy_meta_title',
-            '_aioseo_description'         => '_ranksavvy_meta_description',
-            '_aioseo_keywords'            => '_ranksavvy_focus_keyword',
-            '_aioseo_og_title'            => '_ranksavvy_og_title',
-            '_aioseo_og_description'      => '_ranksavvy_og_description',
-            '_aioseo_og_image'            => '_ranksavvy_og_image',
-            '_aioseo_twitter_title'       => '_ranksavvy_twitter_title',
+            '_aioseo_title'               => '_ameverywhere_meta_title',
+            '_aioseo_description'         => '_ameverywhere_meta_description',
+            '_aioseo_keywords'            => '_ameverywhere_focus_keyword',
+            '_aioseo_og_title'            => '_ameverywhere_og_title',
+            '_aioseo_og_description'      => '_ameverywhere_og_description',
+            '_aioseo_og_image'            => '_ameverywhere_og_image',
+            '_aioseo_twitter_title'       => '_ameverywhere_twitter_title',
         ],
     ];
 
@@ -118,7 +118,7 @@ class MigrationManager
             ));
 
             foreach ($rows as $row) {
-                // Don't overwrite existing RankSavvy data
+                // Don't overwrite existing AmEveryWhere data
                 $existing = get_post_meta($row->post_id, $targetKey, true);
                 if (!empty($existing)) {
                     $skipped++;
@@ -128,12 +128,12 @@ class MigrationManager
                 $value = $row->meta_value;
 
                 // Special handling for noindex values
-                if ($targetKey === '_ranksavvy_noindex') {
+                if ($targetKey === '_ameverywhere_noindex') {
                     $value = $this->normalizeNoindex($value, $pluginId);
                 }
 
                 // Special handling for RankMath focus keyword (comma-separated → first one)
-                if ($targetKey === '_ranksavvy_focus_keyword' && $pluginId === 'rankmath') {
+                if ($targetKey === '_ameverywhere_focus_keyword' && $pluginId === 'rankmath') {
                     $keywords = explode(',', $value);
                     $value = trim($keywords[0]);
                 }
@@ -149,7 +149,7 @@ class MigrationManager
             'success'  => true,
             'migrated' => $migrated,
             'skipped'  => $skipped,
-            'message'  => "Migrated {$migrated} meta entries. Skipped {$skipped} (already had RankSavvy data).",
+            'message'  => "Migrated {$migrated} meta entries. Skipped {$skipped} (already had AmEveryWhere data).",
         ];
     }
 
@@ -175,13 +175,13 @@ class MigrationManager
      */
     public function registerRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/migration/detect', [
+        register_rest_route('ameverywhere/v1', '/migration/detect', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'handleDetect'],
             'permission_callback' => function () { return current_user_can('manage_options'); },
         ]);
 
-        register_rest_route('ranksavvy/v1', '/migration/run', [
+        register_rest_route('ameverywhere/v1', '/migration/run', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'handleMigrate'],
             'permission_callback' => function () { return current_user_can('manage_options'); },

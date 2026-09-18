@@ -1,0 +1,91 @@
+/* AmEveryWhere Cookie Consent Banner */
+.aew-cookie-banner,
+.rs-cookie-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: #1e293b;
+    color: #f1f5f9;
+    box-shadow: 0 -2px 16px rgba(0,0,0,.25);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.aew-cookie-banner__inner,
+.rs-cookie-banner__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.aew-cookie-banner__text,
+.rs-cookie-banner__text {
+    margin: 0;
+    flex: 1 1 300px;
+    color: #cbd5e1;
+}
+
+.aew-cookie-banner__text a,
+.rs-cookie-banner__text a {
+    color: #93c5fd;
+    text-decoration: underline;
+}
+
+.aew-cookie-banner__actions,
+.rs-cookie-banner__actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.aew-cookie-btn,
+.rs-cookie-btn {
+    padding: 8px 18px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+}
+
+.aew-cookie-btn:hover,
+.rs-cookie-btn:hover {
+    opacity: .85;
+}
+
+.aew-cookie-btn--accept,
+.rs-cookie-btn--accept {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.aew-cookie-btn--decline,
+.rs-cookie-btn--decline {
+    background: transparent;
+    color: #94a3b8;
+    border: 1px solid #475569;
+}
+
+@media (max-width: 600px) {
+    .aew-cookie-banner__inner,
+    .rs-cookie-banner__inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .aew-cookie-banner__actions,
+    .rs-cookie-banner__actions {
+        width: 100%;
+    }
+    .aew-cookie-btn,
+    .rs-cookie-btn {
+        flex: 1;
+    }
+}

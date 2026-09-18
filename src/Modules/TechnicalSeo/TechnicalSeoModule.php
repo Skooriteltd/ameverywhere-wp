@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\TechnicalSeo;
+namespace AmEveryWhere\Modules\TechnicalSeo;
 
-use RankSavvy\Core\Event\EventManager;
+use AmEveryWhere\Core\Event\EventManager;
 
 /**
  * Boots technical SEO routines including redirects, 404 monitoring, and their admin REST routes.
@@ -18,9 +18,9 @@ class TechnicalSeoModule
         RedirectManager $redirectManager,
         ErrorMonitor $errorMonitor
     ) {
-        $this->eventManager = $eventManager;
+        $this->eventManager    = $eventManager;
         $this->redirectManager = $redirectManager;
-        $this->errorMonitor = $errorMonitor;
+        $this->errorMonitor    = $errorMonitor;
     }
 
     public function boot(): void
@@ -37,6 +37,15 @@ class TechnicalSeoModule
         $this->eventManager->addAction('rest_api_init', [$this->errorMonitor, 'registerRoutes']);
 
         // Clean up cron schedule on deactivation
-        $this->eventManager->addAction('ranksavvy_deactivation', ['RankSavvy\Modules\TechnicalSeo\ErrorMonitor', 'deactivate']);
+        $this->eventManager->addAction('ameverywhere_deactivation', ['AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor', 'deactivate']);
+
+        // Custom 404 page handler
+        $custom404 = new Custom404Handler();
+        $custom404->register();
+
+        // Favicon audit — admin notice when no site icon is configured
+        $faviconAudit = new FaviconAudit();
+        $faviconAudit->register();
     }
 }
+

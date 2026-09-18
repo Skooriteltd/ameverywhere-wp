@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema\Types;
+namespace AmEveryWhere\Modules\Schema\Types;
 
 /**
  * Generates custom point-and-click schemas (Product, FAQ, HowTo, LocalBusiness, Recipe, Event)
@@ -18,7 +18,7 @@ class CustomSchema
             return false;
         }
 
-        $schemaType = \RankSavvy\Modules\Schema\SchemaGenerator::getEffectivePrimarySchema($id);
+        $schemaType = \AmEveryWhere\Modules\Schema\SchemaGenerator::getEffectivePrimarySchema($id);
         return !empty($schemaType) && $schemaType !== 'none';
     }
 
@@ -32,7 +32,7 @@ class CustomSchema
             return [];
         }
 
-        $schemaType = \RankSavvy\Modules\Schema\SchemaGenerator::getEffectivePrimarySchema($id);
+        $schemaType = \AmEveryWhere\Modules\Schema\SchemaGenerator::getEffectivePrimarySchema($id);
         $schema = [];
 
 
@@ -57,7 +57,7 @@ class CustomSchema
                 break;
             case 'custom':
                 $schema = [
-                    '@type' => get_post_meta($id, '_ranksavvy_schema_custom_type', true) ?: 'Thing',
+                    '@type' => get_post_meta($id, '_ameverywhere_schema_custom_type', true) ?: 'Thing',
                     '@id'   => get_permalink($id) . '#custom',
                 ];
                 break;
@@ -78,12 +78,12 @@ class CustomSchema
      */
     private function generateProductSchema(int $postId): array
     {
-        $name = get_post_meta($postId, '_ranksavvy_schema_product_name', true) ?: get_the_title($postId);
-        $desc = get_post_meta($postId, '_ranksavvy_schema_product_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
-        $price = get_post_meta($postId, '_ranksavvy_schema_product_price', true);
-        $currency = get_post_meta($postId, '_ranksavvy_schema_product_currency', true) ?: 'USD';
-        $rating = get_post_meta($postId, '_ranksavvy_schema_product_rating', true);
-        $availability = get_post_meta($postId, '_ranksavvy_schema_product_availability', true) ?: 'InStock';
+        $name = get_post_meta($postId, '_ameverywhere_schema_product_name', true) ?: get_the_title($postId);
+        $desc = get_post_meta($postId, '_ameverywhere_schema_product_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
+        $price = get_post_meta($postId, '_ameverywhere_schema_product_price', true);
+        $currency = get_post_meta($postId, '_ameverywhere_schema_product_currency', true) ?: 'USD';
+        $rating = get_post_meta($postId, '_ameverywhere_schema_product_rating', true);
+        $availability = get_post_meta($postId, '_ameverywhere_schema_product_availability', true) ?: 'InStock';
 
         $schema = [
             '@type'       => 'Product',
@@ -124,7 +124,7 @@ class CustomSchema
      */
     private function generateFaqSchema(int $postId): array
     {
-        $faqsJson = get_post_meta($postId, '_ranksavvy_schema_faq_questions', true);
+        $faqsJson = get_post_meta($postId, '_ameverywhere_schema_faq_questions', true);
         $faqs = !empty($faqsJson) ? json_decode($faqsJson, true) : [];
 
         if (empty($faqs) || !is_array($faqs)) {
@@ -162,14 +162,14 @@ class CustomSchema
      */
     private function generateHowToSchema(int $postId): array
     {
-        $name = get_post_meta($postId, '_ranksavvy_schema_howto_name', true) ?: get_the_title($postId);
-        $desc = get_post_meta($postId, '_ranksavvy_schema_howto_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
+        $name = get_post_meta($postId, '_ameverywhere_schema_howto_name', true) ?: get_the_title($postId);
+        $desc = get_post_meta($postId, '_ameverywhere_schema_howto_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
         
-        $stepsJson = get_post_meta($postId, '_ranksavvy_schema_howto_steps', true);
+        $stepsJson = get_post_meta($postId, '_ameverywhere_schema_howto_steps', true);
         $steps = !empty($stepsJson) ? json_decode($stepsJson, true) : [];
 
-        $suppliesText = get_post_meta($postId, '_ranksavvy_schema_howto_supplies', true);
-        $toolsText = get_post_meta($postId, '_ranksavvy_schema_howto_tools', true);
+        $suppliesText = get_post_meta($postId, '_ameverywhere_schema_howto_supplies', true);
+        $toolsText = get_post_meta($postId, '_ameverywhere_schema_howto_tools', true);
 
         $schema = [
             '@type'       => 'HowTo',
@@ -228,12 +228,12 @@ class CustomSchema
      */
     private function generateLocalBusinessSchema(int $postId): array
     {
-        $name = get_post_meta($postId, '_ranksavvy_schema_localbusiness_name', true) ?: get_bloginfo('name');
-        $telephone = get_post_meta($postId, '_ranksavvy_schema_localbusiness_telephone', true);
-        $street = get_post_meta($postId, '_ranksavvy_schema_localbusiness_street', true);
-        $city = get_post_meta($postId, '_ranksavvy_schema_localbusiness_city', true);
-        $postal = get_post_meta($postId, '_ranksavvy_schema_localbusiness_postal', true);
-        $country = get_post_meta($postId, '_ranksavvy_schema_localbusiness_country', true) ?: 'US';
+        $name = get_post_meta($postId, '_ameverywhere_schema_localbusiness_name', true) ?: get_bloginfo('name');
+        $telephone = get_post_meta($postId, '_ameverywhere_schema_localbusiness_telephone', true);
+        $street = get_post_meta($postId, '_ameverywhere_schema_localbusiness_street', true);
+        $city = get_post_meta($postId, '_ameverywhere_schema_localbusiness_city', true);
+        $postal = get_post_meta($postId, '_ameverywhere_schema_localbusiness_postal', true);
+        $country = get_post_meta($postId, '_ameverywhere_schema_localbusiness_country', true) ?: 'US';
 
         $schema = [
             '@type'     => 'LocalBusiness',
@@ -265,10 +265,10 @@ class CustomSchema
      */
     private function generateRecipeSchema(int $postId): array
     {
-        $name = get_post_meta($postId, '_ranksavvy_schema_recipe_name', true) ?: get_the_title($postId);
-        $desc = get_post_meta($postId, '_ranksavvy_schema_recipe_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
+        $name = get_post_meta($postId, '_ameverywhere_schema_recipe_name', true) ?: get_the_title($postId);
+        $desc = get_post_meta($postId, '_ameverywhere_schema_recipe_description', true) ?: wp_strip_all_tags(get_the_excerpt($postId));
         
-        $ingredientsText = get_post_meta($postId, '_ranksavvy_schema_recipe_ingredients', true);
+        $ingredientsText = get_post_meta($postId, '_ameverywhere_schema_recipe_ingredients', true);
         $ingredients = [];
         if (!empty($ingredientsText)) {
             // Can be JSON or comma-separated
@@ -280,12 +280,12 @@ class CustomSchema
             }
         }
 
-        $instructionsJson = get_post_meta($postId, '_ranksavvy_schema_recipe_instructions', true);
+        $instructionsJson = get_post_meta($postId, '_ameverywhere_schema_recipe_instructions', true);
         $instructions = !empty($instructionsJson) ? json_decode($instructionsJson, true) : [];
 
-        $prepTimeRaw = get_post_meta($postId, '_ranksavvy_schema_recipe_prep_time', true);
-        $cookTimeRaw = get_post_meta($postId, '_ranksavvy_schema_recipe_cook_time', true);
-        $calories = get_post_meta($postId, '_ranksavvy_schema_recipe_calories', true);
+        $prepTimeRaw = get_post_meta($postId, '_ameverywhere_schema_recipe_prep_time', true);
+        $cookTimeRaw = get_post_meta($postId, '_ameverywhere_schema_recipe_cook_time', true);
+        $calories = get_post_meta($postId, '_ameverywhere_schema_recipe_calories', true);
 
         $schema = [
             '@type'       => 'Recipe',
@@ -345,14 +345,14 @@ class CustomSchema
      */
     private function generateEventSchema(int $postId): array
     {
-        $name = get_post_meta($postId, '_ranksavvy_schema_event_name', true) ?: get_the_title($postId);
-        $startDate = get_post_meta($postId, '_ranksavvy_schema_event_start_date', true);
-        $endDate = get_post_meta($postId, '_ranksavvy_schema_event_end_date', true);
-        $venue = get_post_meta($postId, '_ranksavvy_schema_event_venue', true) ?: 'Online';
-        $address = get_post_meta($postId, '_ranksavvy_schema_event_address', true);
-        $performerName = get_post_meta($postId, '_ranksavvy_schema_event_performer', true);
-        $price = get_post_meta($postId, '_ranksavvy_schema_event_price', true);
-        $currency = get_post_meta($postId, '_ranksavvy_schema_event_currency', true) ?: 'USD';
+        $name = get_post_meta($postId, '_ameverywhere_schema_event_name', true) ?: get_the_title($postId);
+        $startDate = get_post_meta($postId, '_ameverywhere_schema_event_start_date', true);
+        $endDate = get_post_meta($postId, '_ameverywhere_schema_event_end_date', true);
+        $venue = get_post_meta($postId, '_ameverywhere_schema_event_venue', true) ?: 'Online';
+        $address = get_post_meta($postId, '_ameverywhere_schema_event_address', true);
+        $performerName = get_post_meta($postId, '_ameverywhere_schema_event_performer', true);
+        $price = get_post_meta($postId, '_ameverywhere_schema_event_price', true);
+        $currency = get_post_meta($postId, '_ameverywhere_schema_event_currency', true) ?: 'USD';
 
         $schema = [
             '@type'             => 'Event',
@@ -454,7 +454,7 @@ class CustomSchema
      */
     private function mergeCustomProperties(int $postId, array $schema): array
     {
-        $customPropsJson = get_post_meta($postId, '_ranksavvy_custom_schema_properties', true);
+        $customPropsJson = get_post_meta($postId, '_ameverywhere_custom_schema_properties', true);
         if (!empty($customPropsJson)) {
             $customProps = json_decode($customPropsJson, true);
             if (is_array($customProps)) {

@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Sitemap;
+namespace AmEveryWhere\Modules\Sitemap;
 
 /**
  * Generates a Sitemap Index and date-based sub-sitemaps.
@@ -16,8 +16,8 @@ namespace RankSavvy\Modules\Sitemap;
  */
 class SitemapGenerator
 {
-    private const INDEX_TRANSIENT = 'ranksavvy_sitemap_index_cache';
-    private const CHUNK_TRANSIENT_PREFIX = 'ranksavvy_sitemap_chunk_';
+    private const INDEX_TRANSIENT = 'ameverywhere_sitemap_index_cache';
+    private const CHUNK_TRANSIENT_PREFIX = 'ameverywhere_sitemap_chunk_';
     private const CACHE_EXPIRATION = 4 * HOUR_IN_SECONDS;
     private const MAX_URLS_PER_CHUNK = 1000;
 
@@ -97,7 +97,7 @@ class SitemapGenerator
                 "SELECT DISTINCT DATE_FORMAT(p.post_date, '%%Y-%%m') AS period
                  FROM $wpdb->posts p
                  LEFT JOIN $wpdb->postmeta pm
-                   ON p.ID = pm.post_id AND pm.meta_key = '_ranksavvy_noindex'
+                   ON p.ID = pm.post_id AND pm.meta_key = '_ameverywhere_noindex'
                  WHERE p.post_status = 'publish'
                    AND p.post_type IN ($placeholders)
                    AND (pm.meta_value IS NULL OR pm.meta_value != 'yes')
@@ -186,7 +186,7 @@ class SitemapGenerator
                     thumb.meta_value AS thumbnail_id
              FROM $wpdb->posts p
              LEFT JOIN $wpdb->postmeta pm
-               ON p.ID = pm.post_id AND pm.meta_key = '_ranksavvy_noindex'
+               ON p.ID = pm.post_id AND pm.meta_key = '_ameverywhere_noindex'
              LEFT JOIN $wpdb->postmeta thumb
                ON p.ID = thumb.post_id AND thumb.meta_key = '_thumbnail_id'
              WHERE p.post_status = 'publish'
@@ -222,12 +222,14 @@ class SitemapGenerator
             $url = get_permalink($row->ID);
             $modified = mysql2date('c', $row->post_modified_gmt);
 
-            $priority = ($row->post_type === 'page')
-                ? SitemapSettings::get('sitemap_priority_page', '0.8')
-                : SitemapSettings::get('sitemap_priority_post', '0.6');
-            $changefreq = ($row->post_type === 'page')
-                ? SitemapSettings::get('sitemap_changefreq_page', 'weekly')
-                : SitemapSettings::get('sitemap_changefreq_post', 'weekly');
+            // BL-015: per-post-type and per-URL priority/changefreq via SitemapPriorityManager
+            if (\AmEveryWhere\Modules\Sitemap\SitemapPriorityManager::isExcluded((int) $row->ID, $row->post_type)) {
+                continue;
+            }
+
+            $priority   = \AmEveryWhere\Modules\Sitemap\SitemapPriorityManager::getPriority((int) $row->ID, $row->post_type);
+            $changefreq = \AmEveryWhere\Modules\Sitemap\SitemapPriorityManager::getChangefreq((int) $row->ID, $row->post_type);
+
 
             $xml .= "  <url>\n";
             $xml .= "    <loc>" . esc_url($url) . "</loc>\n";

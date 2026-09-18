@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\TechnicalSeo;
+namespace AmEveryWhere\Modules\TechnicalSeo;
 
 /**
  * Monitors and logs front-end 404 errors safely and efficiently.
@@ -13,12 +13,12 @@ namespace RankSavvy\Modules\TechnicalSeo;
  */
 class ErrorMonitor
 {
-    private const OPTION_KEY = 'ranksavvy_404_logs';
-    private const BUFFER_TRANSIENT = 'ranksavvy_404_buffer';
-    private const TABLE_EXISTS_OPTION = 'ranksavvy_404_table_exists';
+    private const OPTION_KEY = 'ameverywhere_404_logs';
+    private const BUFFER_TRANSIENT = 'ameverywhere_404_buffer';
+    private const TABLE_EXISTS_OPTION = 'ameverywhere_404_table_exists';
     private const MAX_LOGS = 100;
     private const MAX_BUFFER = 50; // Cap buffer size to prevent transient bloat
-    private const FLUSH_HOOK = 'ranksavvy_flush_404_buffer';
+    private const FLUSH_HOOK = 'ameverywhere_flush_404_buffer';
 
     /**
      * Boot the error monitor — register the background flush cron.
@@ -104,8 +104,8 @@ class ErrorMonitor
         if (get_option(self::TABLE_EXISTS_OPTION) !== 'yes') {
             // Re-verify once and cache the result
             global $wpdb;
-            $table = $wpdb->prefix . 'ranksavvy_404_logs';
-            if ($wpdb->get_var("SHOW TABLES LIKE '$table'") === $table) {
+            $table = $wpdb->prefix . 'ameverywhere_404_logs';
+            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
                 update_option(self::TABLE_EXISTS_OPTION, 'yes', false);
             } else {
                 return; // Table doesn't exist, skip
@@ -113,7 +113,7 @@ class ErrorMonitor
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+        $table = $wpdb->prefix . 'ameverywhere_404_logs';
 
         foreach ($buffer as $entry) {
             $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE uri = %s", $entry['uri']));
@@ -133,7 +133,7 @@ class ErrorMonitor
                 $wpdb->insert(
                     $table,
                     [
-                        'id'         => uniqid('err_404_', false),
+                        'id'         => function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('err_404_', true),
                         'uri'        => $entry['uri'],
                         'hits'       => intval($entry['hits']),
                         'referer'    => $entry['referer'],
@@ -173,7 +173,7 @@ class ErrorMonitor
      */
     public function registerRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/errors/404', [
+        register_rest_route('ameverywhere/v1', '/errors/404', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'get404LogsEndpoint'],
@@ -184,6 +184,82 @@ class ErrorMonitor
                 'callback'            => [$this, 'clear404LogsEndpoint'],
                 'permission_callback' => [$this, 'checkPermission'],
             ],
+        ]);
+
+        // BL-001: one-click redirect creation from a 404 log entry
+        register_rest_route('ameverywhere/v1', '/errors/404/create-redirect', [
+            'methods'             => \WP_REST_Server::CREATABLE,
+            'callback'            => [$this, 'createRedirectFromLog'],
+            'permission_callback' => [$this, 'checkPermission'],
+        ]);
+    }
+
+    /**
+     * BL-001: Create a redirect rule from an existing 404 log entry.
+     *
+     * Payload: { id: string, target: string, code?: int }
+     */
+    public function createRedirectFromLog(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $params = $request->get_json_params();
+        $id     = sanitize_text_field($params['id'] ?? '');
+        $target = sanitize_text_field($params['target'] ?? '');
+        $code   = in_array((int) ($params['code'] ?? 301), [301, 302, 307, 410, 451], true)
+            ? (int) $params['code']
+            : 301;
+
+        if (empty($id) || empty($target)) {
+            return new \WP_Error('missing_params', 'id and target are required.', ['status' => 400]);
+        }
+
+        global $wpdb;
+        $logTable = $wpdb->prefix . 'ameverywhere_404_logs';
+
+        // Fetch the log entry to get the source URI
+        $entry = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM $logTable WHERE id = %s", $id),
+            ARRAY_A
+        );
+
+        if (empty($entry)) {
+            return new \WP_Error('not_found', '404 log entry not found.', ['status' => 404]);
+        }
+
+        $source = $entry['uri'];
+
+        // Insert into redirect table
+        $redirectTable = $wpdb->prefix . 'ameverywhere_redirects';
+        $redirectId    = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('redir_', true);
+
+        // Check for duplicate
+        $exists = $wpdb->get_var(
+            $wpdb->prepare("SELECT COUNT(*) FROM $redirectTable WHERE source = %s", $source)
+        );
+        if ((int) $exists > 0) {
+            return new \WP_Error('duplicate', 'A redirect for this source already exists.', ['status' => 400]);
+        }
+
+        $inserted = $wpdb->insert($redirectTable, [
+            'id'       => $redirectId,
+            'source'   => $source,
+            'target'   => $target,
+            'code'     => $code,
+            'is_regex' => 0,
+        ]);
+
+        if ($inserted === false) {
+            return new \WP_Error('db_error', 'Failed to create redirect.', ['status' => 500]);
+        }
+
+        // Mark 404 log entry as resolved
+        $wpdb->update($logTable, ['resolved' => 1], ['id' => $id]);
+
+        // Flush regex cache so new rule is live
+        wp_cache_delete('ameverywhere_regex_redirects', 'ameverywhere');
+
+        return rest_ensure_response([
+            'success'  => true,
+            'redirect' => ['source' => $source, 'target' => $target, 'code' => $code],
         ]);
     }
 
@@ -198,7 +274,7 @@ class ErrorMonitor
         $this->flushBufferToDatabase();
 
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+        $table = $wpdb->prefix . 'ameverywhere_404_logs';
 
         if (get_option(self::TABLE_EXISTS_OPTION) !== 'yes') {
             return rest_ensure_response([]);
@@ -211,7 +287,7 @@ class ErrorMonitor
         if (empty($rows) && !empty($legacyLogs) && is_array($legacyLogs)) {
             foreach ($legacyLogs as $log) {
                 $wpdb->insert($table, [
-                    'id'         => $log['id'] ?? uniqid('err_404_', false),
+                    'id'         => $log['id'] ?? (function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('err_404_', true)),
                     'uri'        => $log['uri'] ?? '',
                     'hits'       => intval($log['hits'] ?? 1),
                     'referer'    => $log['referer'] ?? '',
@@ -241,7 +317,7 @@ class ErrorMonitor
         $id = sanitize_text_field($params['id'] ?? '');
 
         global $wpdb;
-        $table = $wpdb->prefix . 'ranksavvy_404_logs';
+        $table = $wpdb->prefix . 'ameverywhere_404_logs';
 
         if (empty($id)) {
             // Clear all logs

@@ -1,51 +1,54 @@
-# RankSavvy MVP (Phase 1)
+# AmEveryWhere (WordPress ClientApp)
 
-RankSavvy is a next-generation WordPress SEO and AEO plugin engineered for the AI-first search era. This plugin represents the **Phase 1 MVP**, aggressively optimized for News Publishers and Bloggers.
+**AmEveryWhere** is a next-generation WordPress SEO and Answer Engine Optimization (AEO) platform engineered for the AI-first search era.
 
-## Features Included in MVP
+## Architecture: Two-Phase Transition
 
-### 1. Core SEO Foundation (`RankSavvy\Modules\Seo`)
-- **Meta Tags**: Dynamically generates `<title>` and `<meta name="description">` tags, hooking securely into `wp_head`.
-- **Canonical URLs**: Intelligent fallback and override system for canonicalization.
-- **Social Metadata**: Automated Open Graph (`og:`) and Twitter (`twitter:`) card generation.
-- **Robots Directives**: Page-level `noindex` and `nofollow` handling.
+The platform follows a decoupled two-phase architecture:
 
-### 2. Custom XML Sitemap Engine (`RankSavvy\Modules\Sitemap`)
-- Disables default WordPress sitemaps for performance.
-- Generates dynamic, virtual standard Sitemaps via `/ranksavvy-sitemap.xml`.
-- Generates **Google News compliant Sitemaps** via `/ranksavvy-news-sitemap.xml` filtering for fresh 48-hour content.
+- **Phase 1 (Current)**:
+  - Complete rebrand from legacy RankSavvy to **AmEveryWhere**.
+  - Serves as the high-performance **Distribution and Data-Collection Layer** (the clientApp) inside the WordPress ecosystem.
+  - Offloads heavy computational workloads (AI content generation, deep site audit algorithms, keyword cannibalization matrix calculations, and SERP rank tracking) to the **AmEveryWhere Backend API** client via `AmEveryWhere\Core\Api\BackendApiClient`.
+  - Supports hybrid fallback to direct user API keys (BYOK) for uninterrupted operation.
+- **Phase 2 (Upcoming)**:
+  - Complete physical separation of the standalone Backend API service.
+  - Enables scale for third-party consumers, headless CMS platforms, and external web clients beyond WordPress.
 
-### 3. Instant Indexing Engine (`RankSavvy\Modules\Indexing`)
-- Background Queue Processor to prevent post-save blocking.
-- Automatically pings the **Google Indexing API** and **Bing IndexNow API** upon post publication or update.
+---
 
-### 4. Technical SEO Automation (`RankSavvy\Modules\TechnicalSeo`)
-- Intercepts requests early (`template_redirect`) to process high-speed 301/302 regex redirects.
-- Monitors and logs valid 404 errors (safely excluding missing image/css assets).
+## Core Layers in the WordPress Plugin
 
-### 5. Automated AI-Ready Schema (`RankSavvy\Modules\Schema`)
-- Generates JSON-LD schema dynamically.
-- Supported Types: `Article`, `NewsArticle` (via toggle), and `BreadcrumbList`.
+### 1. Zero-Latency Distribution Layer (Public Facing)
+- **Meta Tag & Social Graph Engine** (`AmEveryWhere\Modules\Seo`): Injects SEO meta tags (`title`, `description`, `canonical`, `robots`), OpenGraph, and Twitter cards.
+- **Structured Data Engine** (`AmEveryWhere\Modules\Schema`): Automated JSON-LD markup (`Article`, `NewsArticle`, `Product`, `FAQ`, `HowTo`, `LocalBusiness`, `Recipe`, `Event`).
+- **XML & HTML Sitemaps** (`AmEveryWhere\Modules\Sitemap`): Generates dynamic standard XML sitemaps, Google News compliant sitemaps, video sitemaps, and shortcode `[ameverywhere_sitemap]`.
+- **Server Directives & Compliance** (`AmEveryWhere\Modules\TechnicalSeo` & `Compliance`): Dynamic `robots.txt` generator, `llms.txt`, high-speed regex 301/302 redirects, and CCPA/GDPR cookie banner.
 
-### 6. Gutenberg Content Assistant (`RankSavvy\Modules\ContentAssistant`)
-- React-based Sidebar integrated directly into the Block Editor (`edit-post`).
-- Allows editorial teams to define Custom Meta Titles, Meta Descriptions, and toggle News Optimization/Indexation on the fly.
+### 2. Data-Collection & Editorial Layer (WordPress Admin)
+- **Gutenberg Editor Sidebar** (`AmEveryWhere\Modules\ContentAssistant`): Live on-page SEO score, focus keywords, readability metrics, and instant AI title/meta suggestions.
+- **Diagnostic Logging**: 404 error hit logging, broken link checker, and internal link index table.
+- **Publisher Dashboard** (`AmEveryWhere\Modules\Admin`): React-based management interface for global rules, indexing quotas, and audit history.
 
-### 7. Modern Publisher Dashboard (`RankSavvy\Modules\Admin`)
-- React/Tailwind-powered administrative interface.
-- Built via `@wordpress/scripts` to ensure WP UI/UX standards.
+### 3. Backend API Gateway Client (`AmEveryWhere\Core\Api\BackendApiClient`)
+- Central communication gateway connecting WordPress to the remote AmEveryWhere computational backend.
+- Offloads heavy AI generation, content gap analysis, site health scoring, and SERP position checks with automated fallback to local/BYOK providers.
 
-## Architecture
+---
 
-Built using modern PHP 8.2+ practices:
-- **Service Container**: Lightweight Dependency Injection.
-- **Event Manager**: Decoupled WordPress hook management.
-- **PSR-4 Autoloading**: Powered by Composer.
-- **Queue Manager**: Background job stubbing.
+## Backward Compatibility & Migrations
+
+The plugin includes an automated, non-destructive migration engine in `AmEveryWhere\Core\Database\Installer`:
+- Renames legacy `wp_ranksavvy_*` database tables to `wp_ameverywhere_*`.
+- Migrates `ranksavvy_*` option records to `ameverywhere_*`.
+- Migrates `_ranksavvy_*` post meta records to `_ameverywhere_*`.
+- Provides backward-compatible wrappers for shortcodes (`[ranksavvy_sitemap]`, `[ranksavvy_breadcrumbs]`) and action hooks (`ranksavvy_activation`, `ranksavvy_deactivation`).
+
+---
 
 ## Installation & Setup
 
-1. Clone or download to `wp-content/plugins/ranksavvy`.
-2. Run `composer install` to generate the autoloader.
-3. Run `npm install && npm run build` to compile the React/Tailwind frontend assets.
+1. Place in `wp-content/plugins/ameverywhere`.
+2. Run `composer install` to generate autoload mappings for `AmEveryWhere\`.
+3. Run `npm run build` to compile the React admin and Gutenberg editor bundles.
 4. Activate the plugin in WordPress.

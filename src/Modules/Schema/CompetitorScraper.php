@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema;
+namespace AmEveryWhere\Modules\Schema;
 
 /**
  * Handles secure server-side fetching and parsing of competitor JSON-LD schemas.
@@ -8,7 +8,7 @@ namespace RankSavvy\Modules\Schema;
 class CompetitorScraper
 {
     /**
-     * Scrapes a URL, extracts JSON-LD blocks, and maps them to RankSavvy schema structures.
+     * Scrapes a URL, extracts JSON-LD blocks, and maps them to AmEveryWhere schema structures.
      */
     public static function scrapeUrl(string $url): array
     {
@@ -16,14 +16,14 @@ class CompetitorScraper
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
             return [
                 'success' => false,
-                'message' => __('Invalid competitor URL supplied.', 'ranksavvy'),
+                'message' => __('Invalid competitor URL supplied.', 'ameverywhere'),
             ];
         }
 
         // Fetch the remote HTML page securely
         $response = wp_safe_remote_get($url, [
             'timeout'    => 10,
-            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36 RankSavvyProxy/1.0',
+            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36 AmEveryWhereProxy/1.0',
             'headers'    => [
                 'Accept' => 'text/html',
             ],
@@ -32,7 +32,7 @@ class CompetitorScraper
         if (is_wp_error($response)) {
             return [
                 'success' => false,
-                'message' => sprintf(__('Failed to fetch URL: %s', 'ranksavvy'), $response->get_error_message()),
+                'message' => sprintf(__('Failed to fetch URL: %s', 'ameverywhere'), $response->get_error_message()),
             ];
         }
 
@@ -40,7 +40,7 @@ class CompetitorScraper
         if ($code !== 200) {
             return [
                 'success' => false,
-                'message' => sprintf(__('Competitor URL returned status code %d.', 'ranksavvy'), $code),
+                'message' => sprintf(__('Competitor URL returned status code %d.', 'ameverywhere'), $code),
             ];
         }
 
@@ -48,7 +48,7 @@ class CompetitorScraper
         if (empty($html)) {
             return [
                 'success' => false,
-                'message' => __('Competitor URL returned empty content.', 'ranksavvy'),
+                'message' => __('Competitor URL returned empty content.', 'ameverywhere'),
             ];
         }
 
@@ -56,7 +56,7 @@ class CompetitorScraper
         if (!preg_match_all('/<script\b[^>]*type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
             return [
                 'success' => false,
-                'message' => __('No JSON-LD schemas found on the competitor page.', 'ranksavvy'),
+                'message' => __('No JSON-LD schemas found on the competitor page.', 'ameverywhere'),
             ];
         }
 
@@ -76,7 +76,7 @@ class CompetitorScraper
         if (empty($schemas)) {
             return [
                 'success' => false,
-                'message' => __('Could not decode any valid JSON-LD graphs.', 'ranksavvy'),
+                'message' => __('Could not decode any valid JSON-LD graphs.', 'ameverywhere'),
             ];
         }
 

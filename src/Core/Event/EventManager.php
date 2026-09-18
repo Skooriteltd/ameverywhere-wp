@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Core\Event;
+namespace AmEveryWhere\Core\Event;
 
 class EventManager
 {

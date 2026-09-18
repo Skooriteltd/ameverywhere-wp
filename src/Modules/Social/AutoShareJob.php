@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Social;
+namespace AmEveryWhere\Modules\Social;
 
-use RankSavvy\Core\Queue\QueueManager;
+use AmEveryWhere\Core\Queue\QueueManager;
 
 class AutoShareJob
 {
@@ -29,7 +29,7 @@ class AutoShareJob
         }
 
         // Check if social sharing is explicitly disabled for this post
-        $disableShare = get_post_meta($postId, '_ranksavvy_disable_social_share', true);
+        $disableShare = get_post_meta($postId, '_ameverywhere_disable_social_share', true);
         if ($disableShare === '1') {
             return;
         }
@@ -38,7 +38,7 @@ class AutoShareJob
         // Unless it's a manual trigger (manual trigger can bypass this by setting 'manual' => true)
         $isManual = $this->data['manual'] ?? false;
         if (!$isManual) {
-            $alreadyShared = get_post_meta($postId, '_ranksavvy_auto_shared', true);
+            $alreadyShared = get_post_meta($postId, '_ameverywhere_auto_shared', true);
             if ($alreadyShared === '1') {
                 return;
             }
@@ -57,24 +57,24 @@ class AutoShareJob
         $title = get_the_title($postId);
         
         // Custom OG Title
-        $ogTitle = get_post_meta($postId, '_ranksavvy_og_title', true);
+        $ogTitle = get_post_meta($postId, '_ameverywhere_og_title', true);
         if (!empty($ogTitle)) {
             $title = $ogTitle;
         }
 
         // Excerpt / OG Desc
-        $description = get_post_meta($postId, '_ranksavvy_og_description', true);
+        $description = get_post_meta($postId, '_ameverywhere_og_description', true);
         if (empty($description)) {
             $description = wp_trim_words(get_post_field('post_excerpt', $postId), 25);
         }
 
         // OG Image
-        $image = get_post_meta($postId, '_ranksavvy_og_image', true);
+        $image = get_post_meta($postId, '_ameverywhere_og_image', true);
         if (empty($image) && has_post_thumbnail($postId)) {
             $image = get_the_post_thumbnail_url($postId, 'full');
         }
         if (empty($image)) {
-            $image = get_option('ranksavvy_default_share_image', '');
+            $image = get_option('ameverywhere_default_share_image', '');
         }
 
         $payload = [
@@ -130,7 +130,7 @@ class AutoShareJob
             } else {
                 // Successfully shared to this network
                 // We could log this to post meta to show on the dashboard
-                $shareLogs = get_post_meta($postId, '_ranksavvy_share_logs', true);
+                $shareLogs = get_post_meta($postId, '_ameverywhere_share_logs', true);
                 if (!is_array($shareLogs)) {
                     $shareLogs = [];
                 }
@@ -139,13 +139,13 @@ class AutoShareJob
                     'network'    => $account['network'],
                     'timestamp'  => time()
                 ];
-                update_post_meta($postId, '_ranksavvy_share_logs', $shareLogs);
+                update_post_meta($postId, '_ameverywhere_share_logs', $shareLogs);
             }
         }
 
         if (!$hasFailures && !$isManual) {
             // Mark as fully auto-shared
-            update_post_meta($postId, '_ranksavvy_auto_shared', '1');
+            update_post_meta($postId, '_ameverywhere_auto_shared', '1');
         }
     }
 }

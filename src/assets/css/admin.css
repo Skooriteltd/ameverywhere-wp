@@ -2,11 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+.ameverywhere-wrapper,
 .ranksavvy-wrapper {
     /* Namespace our tailwind utilities to prevent conflicts with WP Admin */
     box-sizing: border-box;
 }
 
+.ameverywhere-wrapper *,
 .ranksavvy-wrapper * {
     box-sizing: border-box;
+}
+
+/* Form validation error state */
+.aew-field-error input,
+.aew-field-error textarea,
+.aew-field-error select,
+.components-text-control__input.aew-field-error,
+.rs-field-error input,
+.rs-field-error textarea,
+.rs-field-error select,
+.components-text-control__input.rs-field-error {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 1px #dc2626 !important;
 }

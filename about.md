@@ -4,13 +4,13 @@
 
 # Product Name
 
-**RankSavvy**
+**AmEveryWhere**
 
 
 
 # Executive Summary
 
-ranksavvy is a next-generation WordPress SEO and AEO (Answer Engine Optimization) plugin engineered for the AI-first search era.
+ameverywhere is a next-generation WordPress SEO and AEO (Answer Engine Optimization) plugin engineered for the AI-first search era.
 
 The plugin is designed to outperform traditional SEO plugins such as:
 

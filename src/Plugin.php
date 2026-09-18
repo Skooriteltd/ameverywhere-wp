@@ -1,33 +1,36 @@
 <?php
 
-namespace RankSavvy;
+namespace AmEveryWhere;
 
-use RankSavvy\Core\Container\Container;
-use RankSavvy\Modules\Seo\SeoModule;
-use RankSavvy\Modules\Seo\MetaTagsGenerator;
-use RankSavvy\Modules\Seo\OpenGraphGenerator;
-use RankSavvy\Modules\Admin\AdminModule;
-use RankSavvy\Modules\Admin\AdminMenu;
-use RankSavvy\Modules\Sitemap\SitemapModule;
-use RankSavvy\Modules\Sitemap\SitemapRouteManager;
-use RankSavvy\Modules\Sitemap\SitemapGenerator;
-use RankSavvy\Modules\Sitemap\NewsSitemapGenerator;
-use RankSavvy\Modules\Indexing\IndexingModule;
-use RankSavvy\Modules\TechnicalSeo\TechnicalSeoModule;
-use RankSavvy\Modules\TechnicalSeo\RedirectManager;
-use RankSavvy\Modules\TechnicalSeo\ErrorMonitor;
-use RankSavvy\Modules\Schema\SchemaModule;
-use RankSavvy\Modules\Schema\SchemaGenerator;
-use RankSavvy\Modules\ContentAssistant\ContentAssistantModule;
-use RankSavvy\Modules\Trends\TrendsModule;
-use RankSavvy\Modules\Breadcrumbs\BreadcrumbRenderer;
-use RankSavvy\Modules\ImageSeo\ImageSeoModule;
-use RankSavvy\Modules\TechnicalSeo\RobotsTxtEditor;
-use RankSavvy\Modules\Migration\MigrationManager;
-use RankSavvy\Modules\Onboarding\SetupWizard;
-use RankSavvy\Modules\Social\SocialModule;
-use RankSavvy\Modules\Ai\LlmsTxtGenerator;
-use RankSavvy\Modules\Admin\BulkMetaEditor;
+use AmEveryWhere\Core\Container\Container;
+use AmEveryWhere\Core\Api\BackendApiClient;
+use AmEveryWhere\Modules\Seo\SeoModule;
+use AmEveryWhere\Modules\Seo\MetaTagsGenerator;
+use AmEveryWhere\Modules\Seo\OpenGraphGenerator;
+use AmEveryWhere\Modules\Admin\AdminModule;
+use AmEveryWhere\Modules\Admin\AdminMenu;
+use AmEveryWhere\Modules\Sitemap\SitemapModule;
+use AmEveryWhere\Modules\Sitemap\SitemapRouteManager;
+use AmEveryWhere\Modules\Sitemap\SitemapGenerator;
+use AmEveryWhere\Modules\Sitemap\NewsSitemapGenerator;
+use AmEveryWhere\Modules\Sitemap\VideoSitemapGenerator;
+use AmEveryWhere\Modules\Indexing\IndexingModule;
+use AmEveryWhere\Modules\TechnicalSeo\TechnicalSeoModule;
+use AmEveryWhere\Modules\TechnicalSeo\RedirectManager;
+use AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor;
+use AmEveryWhere\Modules\Schema\SchemaModule;
+use AmEveryWhere\Modules\Schema\SchemaGenerator;
+use AmEveryWhere\Modules\ContentAssistant\ContentAssistantModule;
+use AmEveryWhere\Modules\Trends\TrendsModule;
+use AmEveryWhere\Modules\Breadcrumbs\BreadcrumbRenderer;
+use AmEveryWhere\Modules\ImageSeo\ImageSeoModule;
+use AmEveryWhere\Modules\TechnicalSeo\RobotsTxtEditor;
+use AmEveryWhere\Modules\Migration\MigrationManager;
+use AmEveryWhere\Modules\Onboarding\SetupWizard;
+use AmEveryWhere\Modules\Social\SocialModule;
+use AmEveryWhere\Modules\Ai\LlmsTxtGenerator;
+use AmEveryWhere\Modules\Admin\BulkMetaEditor;
+use AmEveryWhere\Modules\Compliance\CookieBannerModule;
 
 class Plugin
 {
@@ -51,18 +54,18 @@ class Plugin
     {
         $this->registerServices();
         
-        /** @var \RankSavvy\Core\Queue\QueueManager $queueManager */
+        /** @var \AmEveryWhere\Core\Queue\QueueManager $queueManager */
         $queueManager = $this->container->get('queue_manager');
         $queueManager->boot();
 
         $this->bootModules();
     }
 
-
     private function registerServices(): void
     {
-        // Core services will be registered here (Events, Queues, etc.)
-        $this->container->singleton('event_manager', \RankSavvy\Core\Event\EventManager::class);
+        // Core services (Events, Queues, Backend API Client, etc.)
+        $this->container->singleton('event_manager', \AmEveryWhere\Core\Event\EventManager::class);
+        $this->container->singleton('backend_api_client', BackendApiClient::class);
         
         // Register SEO Module Dependencies
         $this->container->singleton('meta_tags_generator', MetaTagsGenerator::class);
@@ -105,9 +108,8 @@ class Plugin
             );
         });
 
-
         // Register Indexing Module Dependencies
-        $this->container->singleton('queue_manager', \RankSavvy\Core\Queue\QueueManager::class);
+        $this->container->singleton('queue_manager', \AmEveryWhere\Core\Queue\QueueManager::class);
         $this->container->singleton('indexing_module', function() {
             return new IndexingModule(
                 $this->container->get('event_manager'),
@@ -193,11 +195,53 @@ class Plugin
         $this->container->singleton('bulk_meta_editor', function() {
             return new BulkMetaEditor();
         });
+
+        // Register Cookie Banner Module
+        $this->container->singleton('cookie_banner_module', function() {
+            return new CookieBannerModule();
+        });
+
+        // ── Backlog Modules ───────────────────────────────────────────────────
+        $this->container->singleton('orphaned_content_finder', \AmEveryWhere\Modules\TechnicalSeo\OrphanedContentFinder::class);
+        $this->container->singleton('image_object_schema', \AmEveryWhere\Modules\ImageSeo\ImageObjectSchema::class);
+        $this->container->singleton('image_filename_enforcer', \AmEveryWhere\Modules\ImageSeo\ImageFilenameEnforcer::class);
+        $this->container->singleton('technical_seo_audit_engine', \AmEveryWhere\Modules\Admin\TechnicalSeoAuditEngine::class);
+        $this->container->singleton('ccpa_privacy_tools', \AmEveryWhere\Modules\Compliance\CcpaPrivacyTools::class);
+        $this->container->singleton('internal_link_suggester', \AmEveryWhere\Modules\ContentAssistant\InternalLinkSuggester::class);
+        $this->container->singleton('usage_metering_manager', \AmEveryWhere\Modules\Ai\UsageMeteringManager::class);
+        $this->container->singleton('upgrade_prompt_manager', \AmEveryWhere\Modules\Admin\UpgradePromptManager::class);
+        $this->container->singleton('htaccess_editor', \AmEveryWhere\Modules\TechnicalSeo\HtaccessEditor::class);
+        $this->container->singleton('ai_disclosure_manager', \AmEveryWhere\Modules\Compliance\AiDisclosureManager::class);
+        $this->container->singleton('index_status_checker', \AmEveryWhere\Modules\Indexing\IndexStatusChecker::class);
+        $this->container->singleton('schema_output_validator', \AmEveryWhere\Modules\Schema\SchemaOutputValidator::class);
+        $this->container->singleton('stale_cornerstone_detector', \AmEveryWhere\Modules\ContentAssistant\StaleCornerStoneDetector::class);
+        $this->container->singleton('audit_scheduler', \AmEveryWhere\Modules\ContentAssistant\AuditScheduler::class);
+        $this->container->singleton('search_intent_classifier', \AmEveryWhere\Modules\ContentAssistant\SearchIntentClassifier::class);
+        $this->container->singleton('inclusive_language_checker', \AmEveryWhere\Modules\ContentAssistant\InclusiveLanguageChecker::class);
+        $this->container->singleton('word_complexity_scorer', \AmEveryWhere\Modules\ContentAssistant\WordComplexityScorer::class);
+        $this->container->singleton('bing_indexnow_api', \AmEveryWhere\Modules\Indexing\BingIndexNowApi::class);
+
+        // ── Phase 2 backlog services ───────────────────────────────────────────
+        $this->container->singleton('morphological_keyword_matcher', \AmEveryWhere\Modules\ContentAssistant\MorphologicalKeywordMatcher::class);
+        $this->container->singleton('woocommerce_product_schema', \AmEveryWhere\Modules\Schema\WooCommerceProductSchema::class);
+        $this->container->singleton('headless_seo_endpoints', \AmEveryWhere\Modules\Api\HeadlessSeoEndpoints::class);
+        $this->container->singleton('content_gap_analyser', \AmEveryWhere\Modules\ContentAssistant\ContentGapAnalyser::class);
+        $this->container->singleton('frontend_seo_inspector', \AmEveryWhere\Modules\Admin\FrontendSeoInspector::class);
+        $this->container->singleton('sitemap_priority_manager', \AmEveryWhere\Modules\Sitemap\SitemapPriorityManager::class);
+        $this->container->singleton('llm_writing_assistant', \AmEveryWhere\Modules\ContentAssistant\LlmWritingAssistant::class);
+        $this->container->singleton('keyword_cannibalization_detector', \AmEveryWhere\Modules\Analytics\KeywordCannibalizationDetector::class);
+        $this->container->singleton('seo_audit_history_log', \AmEveryWhere\Modules\Admin\SeoAuditHistoryLog::class);
+        $this->container->singleton('custom_seo_user_roles', \AmEveryWhere\Modules\Admin\CustomSeoUserRoles::class);
+        $this->container->singleton('pagespeed_dashboard', \AmEveryWhere\Modules\Analytics\PageSpeedDashboard::class);
+        $this->container->singleton('competitor_seo_importer', \AmEveryWhere\Modules\Import\CompetitorSeoImporter::class);
+        $this->container->singleton('multisite_network_seo', \AmEveryWhere\Modules\Analytics\MultisiteNetworkSeo::class);
+        $this->container->singleton('google_search_console', \AmEveryWhere\Modules\Analytics\GoogleSearchConsoleIntegration::class);
+        $this->container->singleton('keyword_rank_tracker', \AmEveryWhere\Modules\Analytics\KeywordRankTracker::class);
+        $this->container->singleton('page_builder_seo_wrappers', \AmEveryWhere\Modules\Admin\PageBuilderSeoWrappers::class);
     }
 
     private function bootModules(): void
     {
-        // Modules will be booted here
         /** @var SeoModule $seoModule */
         $seoModule = $this->container->get('seo_module');
         $seoModule->boot();
@@ -265,6 +309,155 @@ class Plugin
         /** @var BulkMetaEditor $bulkMetaEditor */
         $bulkMetaEditor = $this->container->get('bulk_meta_editor');
         add_action('rest_api_init', [$bulkMetaEditor, 'registerRestRoutes']);
+
+        /** @var CookieBannerModule $cookieBannerModule */
+        $cookieBannerModule = $this->container->get('cookie_banner_module');
+        $cookieBannerModule->boot();
+
+        // HTML Sitemap shortcodes: [ameverywhere_sitemap] and [ranksavvy_sitemap]
+        $htmlSitemapShortcode = new \AmEveryWhere\Modules\Sitemap\HtmlSitemapShortcode();
+        $htmlSitemapShortcode->register();
+
+        /** @var \AmEveryWhere\Modules\TechnicalSeo\OrphanedContentFinder $orphanedFinder */
+        $orphanedFinder = $this->container->get('orphaned_content_finder');
+        $orphanedFinder->register();
+
+        /** @var \AmEveryWhere\Modules\ImageSeo\ImageObjectSchema $imageObjectSchema */
+        $imageObjectSchema = $this->container->get('image_object_schema');
+        $imageObjectSchema->register();
+
+        /** @var \AmEveryWhere\Modules\ImageSeo\ImageFilenameEnforcer $imageFilenameEnforcer */
+        $imageFilenameEnforcer = $this->container->get('image_filename_enforcer');
+        $imageFilenameEnforcer->register();
+
+        /** @var \AmEveryWhere\Modules\Admin\TechnicalSeoAuditEngine $auditEngine */
+        $auditEngine = $this->container->get('technical_seo_audit_engine');
+        $auditEngine->register();
+
+        /** @var \AmEveryWhere\Modules\Compliance\CcpaPrivacyTools $ccpaTools */
+        $ccpaTools = $this->container->get('ccpa_privacy_tools');
+        $ccpaTools->boot();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\InternalLinkSuggester $linkSuggester */
+        $linkSuggester = $this->container->get('internal_link_suggester');
+        $linkSuggester->register();
+
+        /** @var \AmEveryWhere\Modules\Ai\UsageMeteringManager $usageMetering */
+        $usageMetering = $this->container->get('usage_metering_manager');
+        $usageMetering->boot();
+
+        /** @var \AmEveryWhere\Modules\Admin\UpgradePromptManager $upgradePrompt */
+        $upgradePrompt = $this->container->get('upgrade_prompt_manager');
+        $upgradePrompt->boot();
+
+        /** @var \AmEveryWhere\Modules\TechnicalSeo\HtaccessEditor $htaccessEditor */
+        $htaccessEditor = $this->container->get('htaccess_editor');
+        $htaccessEditor->register();
+
+        /** @var \AmEveryWhere\Modules\Compliance\AiDisclosureManager $aiDisclosure */
+        $aiDisclosure = $this->container->get('ai_disclosure_manager');
+        $aiDisclosure->register();
+
+        /** @var \AmEveryWhere\Modules\Indexing\IndexStatusChecker $indexStatusChecker */
+        $indexStatusChecker = $this->container->get('index_status_checker');
+        $indexStatusChecker->register();
+
+        /** @var \AmEveryWhere\Modules\Schema\SchemaOutputValidator $schemaValidator */
+        $schemaValidator = $this->container->get('schema_output_validator');
+        $schemaValidator->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\StaleCornerStoneDetector $staleDetector */
+        $staleDetector = $this->container->get('stale_cornerstone_detector');
+        $staleDetector->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\AuditScheduler $auditScheduler */
+        $auditScheduler = $this->container->get('audit_scheduler');
+        $auditScheduler->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\SearchIntentClassifier $intentClassifier */
+        $intentClassifier = $this->container->get('search_intent_classifier');
+        $intentClassifier->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\InclusiveLanguageChecker $inclusiveChecker */
+        $inclusiveChecker = $this->container->get('inclusive_language_checker');
+        $inclusiveChecker->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\WordComplexityScorer $complexityScorer */
+        $complexityScorer = $this->container->get('word_complexity_scorer');
+        $complexityScorer->register();
+
+        /** @var \AmEveryWhere\Modules\Indexing\BingIndexNowApi $bingIndexNow */
+        $bingIndexNow = $this->container->get('bing_indexnow_api');
+        $bingIndexNow->register();
+
+        // ── Boot Phase 2 Backlog Modules ─────────────────────────────────────
+        /** @var \AmEveryWhere\Modules\ContentAssistant\MorphologicalKeywordMatcher $morphoMatcher */
+        $morphoMatcher = $this->container->get('morphological_keyword_matcher');
+        $morphoMatcher->register();
+
+        /** @var \AmEveryWhere\Modules\Schema\WooCommerceProductSchema $wooSchema */
+        $wooSchema = $this->container->get('woocommerce_product_schema');
+        $wooSchema->register();
+
+        /** @var \AmEveryWhere\Modules\Api\HeadlessSeoEndpoints $headlessEndpoints */
+        $headlessEndpoints = $this->container->get('headless_seo_endpoints');
+        $headlessEndpoints->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\ContentGapAnalyser $contentGap */
+        $contentGap = $this->container->get('content_gap_analyser');
+        $contentGap->register();
+
+        /** @var \AmEveryWhere\Modules\Admin\FrontendSeoInspector $frontendInspector */
+        $frontendInspector = $this->container->get('frontend_seo_inspector');
+        $frontendInspector->register();
+
+        /** @var \AmEveryWhere\Modules\Sitemap\SitemapPriorityManager $sitemapPriority */
+        $sitemapPriority = $this->container->get('sitemap_priority_manager');
+        $sitemapPriority->register();
+
+        /** @var \AmEveryWhere\Modules\ContentAssistant\LlmWritingAssistant $llmAssistant */
+        $llmAssistant = $this->container->get('llm_writing_assistant');
+        $llmAssistant->register();
+
+        /** @var \AmEveryWhere\Modules\Analytics\KeywordCannibalizationDetector $cannibalizationDetector */
+        $cannibalizationDetector = $this->container->get('keyword_cannibalization_detector');
+        $cannibalizationDetector->register();
+
+        /** @var \AmEveryWhere\Modules\Admin\SeoAuditHistoryLog $auditHistoryLog */
+        $auditHistoryLog = $this->container->get('seo_audit_history_log');
+        $auditHistoryLog->register();
+
+        /** @var \AmEveryWhere\Modules\Admin\CustomSeoUserRoles $userRoles */
+        $userRoles = $this->container->get('custom_seo_user_roles');
+        $userRoles->register();
+
+        /** @var \AmEveryWhere\Modules\Analytics\PageSpeedDashboard $pageSpeed */
+        $pageSpeed = $this->container->get('pagespeed_dashboard');
+        $pageSpeed->register();
+
+        /** @var \AmEveryWhere\Modules\Import\CompetitorSeoImporter $competitorImporter */
+        $competitorImporter = $this->container->get('competitor_seo_importer');
+        $competitorImporter->register();
+
+        /** @var \AmEveryWhere\Modules\Analytics\MultisiteNetworkSeo $multisiteNetworkSeo */
+        $multisiteNetworkSeo = $this->container->get('multisite_network_seo');
+        $multisiteNetworkSeo->register();
+
+        /** @var \AmEveryWhere\Modules\Analytics\GoogleSearchConsoleIntegration $gsc */
+        $gsc = $this->container->get('google_search_console');
+        $gsc->register();
+
+        /** @var \AmEveryWhere\Modules\Analytics\KeywordRankTracker $rankTracker */
+        $rankTracker = $this->container->get('keyword_rank_tracker');
+        $rankTracker->register();
+
+        /** @var \AmEveryWhere\Modules\Admin\PageBuilderSeoWrappers $pageBuilderWrappers */
+        $pageBuilderWrappers = $this->container->get('page_builder_seo_wrappers');
+        $pageBuilderWrappers->register();
+
+        // Broken Link Checker (BL-018)
+        $brokenLinkChecker = new \AmEveryWhere\Modules\TechnicalSeo\BrokenLinkChecker();
+        $brokenLinkChecker->register();
     }
 
     public function getContainer(): Container
@@ -274,27 +467,44 @@ class Plugin
 
     public static function activate(): void
     {
-        // 1. Run schema installation (creates/updates all custom tables)
-        $installer = new \RankSavvy\Core\Database\Installer();
+        // 1. Run schema installation and legacy data migration
+        $installer = new \AmEveryWhere\Core\Database\Installer();
         $installer->install();
 
-        // 2. Generate persistent encryption salt for KeyVault (Fix #4)
-        \RankSavvy\Core\Security\KeyVault::ensureSaltExists();
+        // 2. Generate persistent encryption salt for KeyVault
+        \AmEveryWhere\Core\Security\KeyVault::ensureSaltExists();
 
-        // 3. Cache the 404 table existence flag (Fix #3)
-        \RankSavvy\Modules\TechnicalSeo\ErrorMonitor::markTableExists();
+        // 3. Cache the 404 table existence flag
+        \AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor::markTableExists();
 
-        // 4. Trigger dynamic activation actions
-        do_action('ranksavvy_activation');
+        // 4. Create AI usage metering table
+        \AmEveryWhere\Modules\Ai\UsageMeteringManager::createTable();
+
+        // 6. Create SEO audit history log table
+        \AmEveryWhere\Modules\Admin\SeoAuditHistoryLog::createTable();
+
+        // 7. Create keyword rank history table
+        \AmEveryWhere\Modules\Analytics\KeywordRankTracker::createTable();
+
+        // 8. Create broken link checker results table
+        \AmEveryWhere\Modules\TechnicalSeo\BrokenLinkChecker::createTable();
+
+        // 9. Register custom SEO capabilities
+        \AmEveryWhere\Modules\Admin\CustomSeoUserRoles::addCapabilities();
+
+        // 10. Trigger dynamic activation actions (new + backward compatible)
+        do_action('ameverywhere_activation');
+        do_action('ameverywhere_activation');
     }
 
     public static function deactivate(): void
     {
         // Clean up scheduled cron events
-        \RankSavvy\Modules\TechnicalSeo\ErrorMonitor::deactivate();
-        \RankSavvy\Core\Queue\QueueManager::deactivate();
+        \AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor::deactivate();
+        \AmEveryWhere\Core\Queue\QueueManager::deactivate();
 
-        // Trigger dynamic deactivation actions
-        do_action('ranksavvy_deactivation');
+        // Trigger dynamic deactivation actions (new + backward compatible)
+        do_action('ameverywhere_deactivation');
+        do_action('ameverywhere_deactivation');
     }
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Sitemap;
+namespace AmEveryWhere\Modules\Sitemap;
 
 /**
  * Manages rewrite rules and virtual endpoint interception for XML sitemaps and IndexNow keys.
@@ -33,30 +33,30 @@ class SitemapRouteManager
     {
         if (SitemapSettings::get('enable_index_sitemap', 'yes') === 'yes') {
             // Main sitemap index
-            add_rewrite_rule('^sitemap\.xml$', 'index.php?ranksavvy_sitemap=index', 'top');
+            add_rewrite_rule('^sitemap\.xml$', 'index.php?ameverywhere_sitemap=index', 'top');
 
             // Date-based sub-sitemap chunks: sitemap-posts-2024-05.xml
             add_rewrite_rule(
                 '^sitemap-posts-(\d{4}-\d{2})\.xml$',
-                'index.php?ranksavvy_sitemap=chunk&ranksavvy_sitemap_period=$matches[1]',
+                'index.php?ameverywhere_sitemap=chunk&ameverywhere_sitemap_period=$matches[1]',
                 'top'
             );
         }
 
         if (SitemapSettings::get('enable_news_sitemap', 'no') === 'yes') {
             // Primary news sitemap route
-            add_rewrite_rule('^sitemap-news\.xml$', 'index.php?ranksavvy_sitemap=news', 'top');
+            add_rewrite_rule('^sitemap-news\.xml$', 'index.php?ameverywhere_sitemap=news', 'top');
             // Legacy alias for backward compatibility
-            add_rewrite_rule('^news-sitemap\.xml$', 'index.php?ranksavvy_sitemap=news', 'top');
+            add_rewrite_rule('^news-sitemap\.xml$', 'index.php?ameverywhere_sitemap=news', 'top');
         }
 
         if (SitemapSettings::get('enable_video_sitemap', 'no') === 'yes') {
-            add_rewrite_rule('^video-sitemap\.xml$', 'index.php?ranksavvy_sitemap=video', 'top');
+            add_rewrite_rule('^video-sitemap\.xml$', 'index.php?ameverywhere_sitemap=video', 'top');
         }
 
-        $bingKey = get_option('ranksavvy_indexnow_key');
+        $bingKey = get_option('ameverywhere_indexnow_key');
         if (!empty($bingKey)) {
-            add_rewrite_rule('^' . preg_quote($bingKey) . '\.txt$', 'index.php?ranksavvy_bing_key=' . $bingKey, 'top');
+            add_rewrite_rule('^' . preg_quote($bingKey) . '\.txt$', 'index.php?ameverywhere_bing_key=' . $bingKey, 'top');
         }
     }
 
@@ -65,9 +65,9 @@ class SitemapRouteManager
      */
     public function registerQueryVars(array $vars): array
     {
-        $vars[] = 'ranksavvy_sitemap';
-        $vars[] = 'ranksavvy_sitemap_period';
-        $vars[] = 'ranksavvy_bing_key';
+        $vars[] = 'ameverywhere_sitemap';
+        $vars[] = 'ameverywhere_sitemap_period';
+        $vars[] = 'ameverywhere_bing_key';
         return $vars;
     }
 
@@ -122,7 +122,7 @@ class SitemapRouteManager
         }
 
         // ── IndexNow verification file ──
-        $bingKey = get_option('ranksavvy_indexnow_key');
+        $bingKey = get_option('ameverywhere_indexnow_key');
         if (!empty($bingKey) && strpos($path, '/' . $bingKey . '.txt') !== false) {
             header('Content-Type: text/plain; charset=utf-8');
             echo esc_html($bingKey);

@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Social;
+namespace AmEveryWhere\Modules\Social;
 
-use RankSavvy\Core\Security\KeyVault;
+use AmEveryWhere\Core\Security\KeyVault;
 
 class SocialApiGateway
 {
@@ -146,52 +146,90 @@ class SocialApiGateway
              return ['success' => false, 'message' => 'Could not determine LinkedIn author URN.', 'code' => 400];
         }
 
-        $apiUrl = 'https://api.linkedin.com/v2/ugcPosts';
-        
-        $body = [
-            'author' => 'urn:li:person:' . $urn,
-            'lifecycleState' => 'PUBLISHED',
-            'specificContent' => [
-                'com.linkedin.ugc.ShareContent' => [
-                    'shareCommentary' => ['text' => $message],
-                    'shareMediaCategory' => 'ARTICLE',
-                    'media' => [
-                        [
-                            'status' => 'READY',
-                            'originalUrl' => $url
-                        ]
-                    ]
-                ]
+        // Try modern LinkedIn /v2/posts API first
+        $apiUrl = 'https://api.linkedin.com/v2/posts';
+        $body   = [
+            'author'     => 'urn:li:person:' . $urn,
+            'commentary' => $message,
+            'visibility' => 'PUBLIC',
+            'distribution' => [
+                'feedDistribution'                => 'MAIN_FEED',
+                'targetEntities'                  => [],
+                'thirdPartyDistributionChannels' => [],
             ],
-            'visibility' => ['com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC']
+            'content' => [
+                'article' => [
+                    'source' => $url,
+                    'title'  => substr($message, 0, 100),
+                ],
+            ],
+            'lifecycleState'            => 'PUBLISHED',
+            'isReshareDisabledByAuthor' => false,
         ];
 
         $response = wp_remote_post($apiUrl, [
             'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type' => 'application/json',
-                'X-Restli-Protocol-Version' => '2.0.0'
+                'Authorization'            => 'Bearer ' . $token,
+                'Content-Type'             => 'application/json',
+                'LinkedIn-Version'         => '202401',
+                'X-Restli-Protocol-Version'=> '2.0.0',
             ],
-            'body' => wp_json_encode($body)
+            'body'    => wp_json_encode($body),
+            'timeout' => 20,
         ]);
 
-        if (is_wp_error($response)) {
-            return ['success' => false, 'message' => $response->get_error_message(), 'code' => 500];
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) >= 200 && wp_remote_retrieve_response_code($response) < 300) {
+            $headers = wp_remote_retrieve_headers($response);
+            $postId  = $headers['x-restli-id'] ?? $headers['x-linkedin-id'] ?? '';
+            return ['success' => true, 'post_id' => $postId, 'code' => wp_remote_retrieve_response_code($response)];
         }
 
-        $responseCode = wp_remote_retrieve_response_code($response);
+        // Fallback to legacy ugcPosts API
+        $legacyApiUrl = 'https://api.linkedin.com/v2/ugcPosts';
+        $legacyBody   = [
+            'author'         => 'urn:li:person:' . $urn,
+            'lifecycleState' => 'PUBLISHED',
+            'specificContent'=> [
+                'com.linkedin.ugc.ShareContent' => [
+                    'shareCommentary'    => ['text' => $message],
+                    'shareMediaCategory' => 'ARTICLE',
+                    'media'              => [
+                        [
+                            'status'      => 'READY',
+                            'originalUrl' => $url,
+                        ],
+                    ],
+                ],
+            ],
+            'visibility' => ['com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC'],
+        ];
+
+        $legacyResponse = wp_remote_post($legacyApiUrl, [
+            'headers' => [
+                'Authorization'            => 'Bearer ' . $token,
+                'Content-Type'             => 'application/json',
+                'X-Restli-Protocol-Version'=> '2.0.0',
+            ],
+            'body'    => wp_json_encode($legacyBody),
+            'timeout' => 20,
+        ]);
+
+        if (is_wp_error($legacyResponse)) {
+            return ['success' => false, 'message' => $legacyResponse->get_error_message(), 'code' => 500];
+        }
+
+        $responseCode = wp_remote_retrieve_response_code($legacyResponse);
         if ($responseCode >= 200 && $responseCode < 300) {
-            $headers = wp_remote_retrieve_headers($response);
-            $postId = $headers['x-linkedin-id'] ?? '';
+            $headers = wp_remote_retrieve_headers($legacyResponse);
+            $postId  = $headers['x-linkedin-id'] ?? '';
             return ['success' => true, 'post_id' => $postId, 'code' => $responseCode];
         }
-        
-        $responseBody = json_decode(wp_remote_retrieve_body($response), true);
 
+        $responseBody = json_decode(wp_remote_retrieve_body($legacyResponse), true);
         return [
             'success' => false,
             'message' => $responseBody['message'] ?? 'Unknown LinkedIn error',
-            'code' => $responseCode
+            'code'    => $responseCode,
         ];
     }
 

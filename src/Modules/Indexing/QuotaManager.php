@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Indexing;
+namespace AmEveryWhere\Modules\Indexing;
 
 class QuotaManager
 {
@@ -29,13 +29,13 @@ class QuotaManager
 
     private function getDailyCount(string $engine): int
     {
-        $key = 'ranksavvy_quota_' . $engine . '_' . gmdate('Y-m-d');
+        $key = 'ameverywhere_quota_' . $engine . '_' . gmdate('Y-m-d');
         return (int) get_transient($key);
     }
 
     private function incrementCount(string $engine): void
     {
-        $key = 'ranksavvy_quota_' . $engine . '_' . gmdate('Y-m-d');
+        $key = 'ameverywhere_quota_' . $engine . '_' . gmdate('Y-m-d');
         $count = $this->getDailyCount($engine);
         
         if ($count === 0) {

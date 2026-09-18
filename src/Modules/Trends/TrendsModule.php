@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Trends;
+namespace AmEveryWhere\Modules\Trends;
 
-use RankSavvy\Core\Event\EventManager;
+use AmEveryWhere\Core\Event\EventManager;
 
 class TrendsModule
 {
@@ -20,7 +20,7 @@ class TrendsModule
 
     public function registerRestRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/trends', [
+        register_rest_route('ameverywhere/v1', '/trends', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'getTrends'],
             'permission_callback' => [$this, 'checkPermission'],

@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Seo;
+namespace AmEveryWhere\Modules\Seo;
 
-use RankSavvy\Core\Event\EventManager;
+use AmEveryWhere\Core\Event\EventManager;
 
 class SeoModule
 {

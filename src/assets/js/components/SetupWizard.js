@@ -9,6 +9,7 @@ const SITE_TYPES = [
 ];
 
 const SetupWizard = ({ onComplete }) => {
+    const config = window.amEveryWhereAdminConfig || window.rankSavvyAdminConfig || {};
     const [step, setStep] = useState(0); // 0 = loading, 1 = configure, 2 = done
     const [autoData, setAutoData] = useState(null);
     const [siteType, setSiteType] = useState('blog');
@@ -20,8 +21,8 @@ const SetupWizard = ({ onComplete }) => {
 
     // Auto-detect on mount
     useEffect(() => {
-        fetch(`${rankSavvyAdminConfig.apiUrl}/setup/auto-detect`, {
-            headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+        fetch(`${config.apiUrl}/setup/auto-detect`, {
+            headers: { 'X-WP-Nonce': config.nonce }
         })
         .then(r => r.json())
         .then(data => {
@@ -38,9 +39,9 @@ const SetupWizard = ({ onComplete }) => {
     const runMigration = async (pluginId, pluginName) => {
         setIsMigrating(prev => ({ ...prev, [pluginId]: true }));
         try {
-            const response = await fetch(`${rankSavvyAdminConfig.apiUrl}/migration/run`, {
+            const response = await fetch(`${config.apiUrl}/migration/run`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': config.nonce },
                 body: JSON.stringify({ plugin_id: pluginId })
             });
             const result = await response.json();
@@ -55,9 +56,9 @@ const SetupWizard = ({ onComplete }) => {
     const finishSetup = async () => {
         setIsSaving(true);
         try {
-            await fetch(`${rankSavvyAdminConfig.apiUrl}/setup/complete`, {
+            await fetch(`${config.apiUrl}/setup/complete`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': config.nonce },
                 body: JSON.stringify({ site_type: siteType, social })
             });
             setStep(2);
@@ -91,7 +92,7 @@ const SetupWizard = ({ onComplete }) => {
                     <div style={{ textAlign: 'center', padding: '48px 0' }}>
                         <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎉</div>
                         <h2 style={{ margin: '0 0 8px', fontSize: '22px', color: '#0f172a' }}>You're all set!</h2>
-                        <p style={{ margin: 0, color: '#64748b' }}>RankSavvy is fully configured and optimizing your site.</p>
+                        <p style={{ margin: 0, color: '#64748b' }}>AmEveryWhere is fully configured and optimizing your site.</p>
                     </div>
                 </div>
             </div>
@@ -108,7 +109,7 @@ const SetupWizard = ({ onComplete }) => {
                 {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
                     <div style={{ fontSize: '36px', marginBottom: '8px' }}>🚀</div>
-                    <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#0f172a' }}>Welcome to RankSavvy</h2>
+                    <h2 style={{ margin: '0 0 4px', fontSize: '22px', color: '#0f172a' }}>Welcome to AmEveryWhere</h2>
                     <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
                         Everything is already working. Just confirm a few details.
                     </p>

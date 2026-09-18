@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema;
+namespace AmEveryWhere\Modules\Schema;
 
 /**
  * Handles schema graph building, automated video markup inclusion,
@@ -36,11 +36,11 @@ class SchemaGenerator
             return;
         }
 
-        echo "<!-- RankSavvy AI-Ready Schema -->\n";
+        echo "<!-- AmEveryWhere AI-Ready Schema -->\n";
         echo '<script type="application/ld+json">' . "\n";
         echo wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
         echo "</script>\n";
-        echo "<!-- /RankSavvy Schema -->\n";
+        echo "<!-- /AmEveryWhere Schema -->\n";
     }
 
     /**
@@ -83,13 +83,13 @@ class SchemaGenerator
      */
     public static function getEffectivePrimarySchema(int $postId): string
     {
-        $primarySchema = get_post_meta($postId, '_ranksavvy_primary_schema', true);
+        $primarySchema = get_post_meta($postId, '_ameverywhere_primary_schema', true);
         if (!empty($primarySchema) && $primarySchema !== 'none') {
             return $primarySchema;
         }
 
         // Apply global conditional display rules
-        $globalRulesJson = get_option('ranksavvy_global_schema_rules');
+        $globalRulesJson = get_option('ameverywhere_global_schema_rules');
         if (!empty($globalRulesJson)) {
             $rules = json_decode($globalRulesJson, true);
             if (is_array($rules)) {

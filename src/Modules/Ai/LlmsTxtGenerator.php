@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Ai;
+namespace AmEveryWhere\Modules\Ai;
 
 /**
  * LlmsTxtGenerator: Serves a machine-readable /llms.txt file for LLM ingestion.
@@ -8,40 +8,75 @@ namespace RankSavvy\Modules\Ai;
  * The llms.txt standard (proposed by Answer.AI) gives AI assistants
  * a structured overview of the site's content and permission guidelines.
  *
+ * BL-033 enhancements:
+ * - Auto-populates cornerstone content, Disallow/Allow sections from per-post meta
+ * - Manual override mode (stored content served instead of auto-generated)
+ * - Cache invalidation on save_post and option changes
+ * - Preview REST endpoint
+ *
  * @see https://llmstxt.org/
  */
 class LlmsTxtGenerator
 {
+    private const CACHE_TRANSIENT    = 'ameverywhere_llms_txt_content';
+    private const CONFIG_OPTION      = 'ameverywhere_llms_txt_config';
+    private const OVERRIDE_OPTION    = 'ameverywhere_llms_txt_manual_override';
+    private const OVERRIDE_CONTENT   = 'ameverywhere_llms_txt_manual_content';
+
     public function boot(): void
     {
         add_action('init', [$this, 'registerRewriteRule']);
         add_action('template_redirect', [$this, 'serveFile']);
         add_filter('query_vars', [$this, 'registerQueryVar']);
+
+        // BL-033: Cache invalidation hooks
+        add_action('save_post', [$this, 'invalidateCache']);
+        add_action('update_option_ameverywhere_llms_txt_config', [$this, 'invalidateCache']);
+    }
+
+    public function invalidateCache(): void
+    {
+        delete_transient(self::CACHE_TRANSIENT);
     }
 
     public function registerRewriteRule(): void
     {
-        add_rewrite_rule('^llms\.txt$', 'index.php?ranksavvy_llms_txt=1', 'top');
+        add_rewrite_rule('^llms\\.txt$', 'index.php?ameverywhere_llms_txt=1', 'top');
     }
 
     public function registerQueryVar(array $vars): array
     {
-        $vars[] = 'ranksavvy_llms_txt';
+        $vars[] = 'ameverywhere_llms_txt';
         return $vars;
     }
 
     public function serveFile(): void
     {
-        if (!get_query_var('ranksavvy_llms_txt')) {
+        if (!get_query_var('ameverywhere_llms_txt')) {
             return;
         }
-
-        $config = get_option('ranksavvy_llms_txt_config', []);
 
         header('Content-Type: text/plain; charset=utf-8');
         header('X-Robots-Tag: noindex');
 
-        echo $this->buildContent($config);
+        // BL-033: manual override mode
+        if (get_option(self::OVERRIDE_OPTION, false)) {
+            echo (string) get_option(self::OVERRIDE_CONTENT, '');
+            exit;
+        }
+
+        // Try cache
+        $cached = get_transient(self::CACHE_TRANSIENT);
+        if ($cached !== false) {
+            echo $cached;
+            exit;
+        }
+
+        $config  = get_option(self::CONFIG_OPTION, []);
+        $content = $this->buildContent($config);
+
+        set_transient(self::CACHE_TRANSIENT, $content, 12 * HOUR_IN_SECONDS);
+        echo $content;
         exit;
     }
 
@@ -53,7 +88,14 @@ class LlmsTxtGenerator
         $allowIndex  = $config['allow_index'] ?? true;
         $allowTrain  = $config['allow_training'] ?? false;
         $extraNotes  = $config['extra_notes'] ?? '';
-        $contactUrl  = $config['contact_url'] ?? get_option('admin_email');
+
+        // BL-033: find contact page automatically
+        $contactPage = get_pages(['meta_key' => '_wp_page_template', 'number' => 1]);
+        $contactUrl  = $config['contact_url'] ?? '';
+        if (empty($contactUrl)) {
+            $pages = get_posts(['post_type' => 'page', 'post_status' => 'publish', 'name' => 'contact', 'posts_per_page' => 1]);
+            $contactUrl = !empty($pages) ? get_permalink($pages[0]->ID) : get_option('admin_email');
+        }
 
         $output  = "# {$siteName}\n\n";
         $output .= "> {$description}\n\n";
@@ -65,28 +107,70 @@ class LlmsTxtGenerator
         $output .= '- Indexing: ' . ($allowIndex ? 'Allowed' : 'Not Allowed') . "\n";
         $output .= '- Training data use: ' . ($allowTrain ? 'Allowed' : 'Not Allowed') . "\n\n";
 
-        // Append schema map link for LLM ingestion
+        // Structured data link
         $output .= "## Structured Data\n\n";
-        $output .= "- Schema Map: {$siteUrl}/wp-json/ranksavvy/v1/schemamap\n\n";
+        $output .= "- Schema Map: {$siteUrl}/wp-json/ameverywhere/v1/schemamap\n\n";
 
-        // Top content pages
-        $output .= "## Key Pages\n\n";
-        $topPosts = get_posts([
-            'post_type'      => ['post', 'page'],
+        // BL-033: Cornerstone content (auto-populated)
+        $output .= "## Cornerstone Content\n\n";
+        $cornerstones = get_posts([
+            'post_type'      => get_post_types(['public' => true]),
             'post_status'    => 'publish',
             'posts_per_page' => 20,
             'orderby'        => 'modified',
             'order'          => 'DESC',
+            'meta_query'     => [['key' => '_ameverywhere_is_cornerstone', 'value' => 'yes']],
         ]);
 
-        foreach ($topPosts as $post) {
-            $title = get_the_title($post->ID);
-            $url   = get_permalink($post->ID);
-            $output .= "- [{$title}]({$url})\n";
+        if (!empty($cornerstones)) {
+            foreach ($cornerstones as $post) {
+                $output .= "- [{$post->post_title}](" . get_permalink($post->ID) . ")\n";
+            }
+        } else {
+            // Fall back to recent posts if no cornerstone content set
+            $recent = get_posts(['post_type' => ['post', 'page'], 'post_status' => 'publish', 'posts_per_page' => 10, 'orderby' => 'modified', 'order' => 'DESC']);
+            foreach ($recent as $post) {
+                $output .= "- [{$post->post_title}](" . get_permalink($post->ID) . ")\n";
+            }
+        }
+        $output .= "\n";
+
+        // BL-033: Disallow section (posts explicitly opting out of AI training)
+        $disallowed = get_posts([
+            'post_type'      => get_post_types(['public' => true]),
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => [['key' => '_ameverywhere_ai_training_allow', 'value' => 'no']],
+            'fields'         => 'ids',
+        ]);
+
+        if (!empty($disallowed)) {
+            $output .= "## Disallow\n\n";
+            foreach ($disallowed as $id) {
+                $output .= "- " . get_permalink($id) . "\n";
+            }
+            $output .= "\n";
+        }
+
+        // BL-033: Allow section (posts explicitly opting into AI training)
+        $allowed = get_posts([
+            'post_type'      => get_post_types(['public' => true]),
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => [['key' => '_ameverywhere_ai_training_allow', 'value' => 'yes']],
+            'fields'         => 'ids',
+        ]);
+
+        if (!empty($allowed)) {
+            $output .= "## Allow\n\n";
+            foreach ($allowed as $id) {
+                $output .= "- " . get_permalink($id) . "\n";
+            }
+            $output .= "\n";
         }
 
         if (!empty($extraNotes)) {
-            $output .= "\n## Notes\n\n";
+            $output .= "## Notes\n\n";
             $output .= $extraNotes . "\n";
         }
 
@@ -95,32 +179,42 @@ class LlmsTxtGenerator
 
     public function registerRestRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/llms-txt/config', [
+        $adminCap = fn() => current_user_can('manage_options');
+
+        register_rest_route('ameverywhere/v1', '/llms-txt/config', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getConfig'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
+                'permission_callback' => $adminCap,
             ],
             [
                 'methods'             => \WP_REST_Server::CREATABLE,
                 'callback'            => [$this, 'saveConfig'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
+                'permission_callback' => $adminCap,
             ],
+        ]);
+
+        // BL-033: preview endpoint
+        register_rest_route('ameverywhere/v1', '/ai/llms-preview', [
+            'methods'             => \WP_REST_Server::READABLE,
+            'callback'            => [$this, 'previewContent'],
+            'permission_callback' => $adminCap,
         ]);
     }
 
     public function getConfig(): \WP_REST_Response
     {
-        $config = get_option('ranksavvy_llms_txt_config', [
-            'description'    => get_bloginfo('description'),
-            'allow_index'    => true,
-            'allow_training' => false,
-            'contact_url'    => get_option('admin_email'),
-            'extra_notes'    => '',
+        $config = get_option(self::CONFIG_OPTION, [
+            'description'       => get_bloginfo('description'),
+            'allow_index'       => true,
+            'allow_training'    => false,
+            'contact_url'       => get_option('admin_email'),
+            'extra_notes'       => '',
         ]);
 
-        // Return preview too
-        $config['preview'] = $this->buildContent($config);
+        $config['manual_override']  = (bool) get_option(self::OVERRIDE_OPTION, false);
+        $config['manual_content']   = (string) get_option(self::OVERRIDE_CONTENT, '');
+        $config['preview']          = $this->buildContent($config);
 
         return rest_ensure_response($config);
     }
@@ -137,13 +231,28 @@ class LlmsTxtGenerator
             'extra_notes'    => sanitize_textarea_field($params['extra_notes'] ?? ''),
         ];
 
-        update_option('ranksavvy_llms_txt_config', $config);
+        update_option(self::CONFIG_OPTION, $config);
 
-        // Flush rewrite rules so /llms.txt is immediately available
+        // BL-033: manual override
+        if (isset($params['manual_override'])) {
+            update_option(self::OVERRIDE_OPTION, (bool) $params['manual_override']);
+        }
+        if (isset($params['manual_content'])) {
+            update_option(self::OVERRIDE_CONTENT, sanitize_textarea_field($params['manual_content']));
+        }
+
+        $this->invalidateCache();
         flush_rewrite_rules();
 
         $config['preview'] = $this->buildContent($config);
-
         return rest_ensure_response(['success' => true, 'config' => $config]);
+    }
+
+    // BL-033: Preview without saving
+    public function previewContent(\WP_REST_Response $request): \WP_REST_Response
+    {
+        $config  = get_option(self::CONFIG_OPTION, []);
+        $content = $this->buildContent($config);
+        return rest_ensure_response(['content' => $content]);
     }
 }

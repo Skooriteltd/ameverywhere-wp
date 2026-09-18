@@ -1,25 +1,23 @@
 <?php
 
-namespace RankSavvy\Core\Security;
+namespace AmEveryWhere\Core\Security;
 
 /**
  * KeyVault: Encrypts and decrypts sensitive API keys using AES-256-CBC.
  *
  * Encryption key is derived from a persistent, site-specific salt stored in
  * wp_options upon activation. This ensures the master key is STABLE across
- * URL migrations (staging → production), unlike the previous approach of
- * using get_site_url() which would invalidate all stored credentials on migration.
+ * URL migrations (staging → production).
  *
- * Salt derivation order:
- *   1. ranksavvy_encryption_salt (dedicated persistent option — preferred)
- *   2. AUTH_KEY constant (WordPress secret key — fallback)
- *   3. Hard-coded fallback (last resort — warns admin to configure secrets)
+ * Supports both new 'aew_enc::' and legacy 'rs_enc::' cipher prefixes.
  */
 class KeyVault
 {
-    private const CIPHER      = 'aes-256-cbc';
-    private const PREFIX      = 'rs_enc::';
-    private const SALT_OPTION = 'ranksavvy_encryption_salt';
+    private const CIPHER             = 'aes-256-cbc';
+    private const PREFIX             = 'aew_enc::';
+    private const LEGACY_PREFIX      = 'rs_enc::';
+    private const SALT_OPTION        = 'ameverywhere_encryption_salt';
+    private const LEGACY_SALT_OPTION = 'ameverywhere_encryption_salt';
 
     /**
      * Generate and persist a unique encryption salt on plugin activation.
@@ -30,6 +28,13 @@ class KeyVault
     {
         if (get_option(self::SALT_OPTION)) {
             return; // Already generated — do not overwrite
+        }
+
+        // Migrate legacy salt if present
+        $legacySalt = get_option(self::LEGACY_SALT_OPTION);
+        if (!empty($legacySalt)) {
+            add_option(self::SALT_OPTION, $legacySalt, '', false);
+            return;
         }
 
         // Generate 64 cryptographically random hex characters (256 bits of entropy)
@@ -46,9 +51,14 @@ class KeyVault
         // 1. Dedicated persistent salt (stable across URL changes)
         $salt = get_option(self::SALT_OPTION, '');
 
+        // Fallback to legacy salt if new option not yet migrated
+        if (empty($salt)) {
+            $salt = get_option(self::LEGACY_SALT_OPTION, '');
+        }
+
         // 2. Fall back to AUTH_KEY if option is missing (e.g. before first activation)
         if (empty($salt)) {
-            $salt = defined('AUTH_KEY') ? AUTH_KEY : 'ranksavvy-fallback-key-change-me';
+            $salt = defined('AUTH_KEY') ? AUTH_KEY : 'ameverywhere-fallback-key-change-me';
         }
 
         return hash('sha256', $salt, true); // 32 raw bytes
@@ -64,7 +74,7 @@ class KeyVault
         }
 
         // Avoid double-encrypting already-encrypted values
-        if (str_starts_with($plaintext, self::PREFIX)) {
+        if (str_starts_with($plaintext, self::PREFIX) || str_starts_with($plaintext, self::LEGACY_PREFIX)) {
             return $plaintext;
         }
 
@@ -74,7 +84,10 @@ class KeyVault
 
         $cipherRaw = openssl_encrypt($plaintext, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv);
         if ($cipherRaw === false) {
-            return $plaintext; // Fallback: return plaintext if encryption fails
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[AmEveryWhere KeyVault] Encryption failed: ' . (openssl_error_string() ?: 'unknown error'));
+            }
+            return '';
         }
 
         $hmac = hash_hmac('sha256', $cipherRaw, $key, true);
@@ -91,13 +104,18 @@ class KeyVault
             return '';
         }
 
-        // Not encrypted by us — return as-is (handles legacy plain-text keys)
-        if (!str_starts_with($encrypted, self::PREFIX)) {
+        $activePrefix = '';
+        if (str_starts_with($encrypted, self::PREFIX)) {
+            $activePrefix = self::PREFIX;
+        } elseif (str_starts_with($encrypted, self::LEGACY_PREFIX)) {
+            $activePrefix = self::LEGACY_PREFIX;
+        } else {
+            // Not encrypted by us — return as-is (handles legacy plain-text keys)
             return $encrypted;
         }
 
         $key     = self::deriveMasterKey();
-        $decoded = base64_decode(substr($encrypted, strlen(self::PREFIX)));
+        $decoded = base64_decode(substr($encrypted, strlen($activePrefix)));
 
         $ivLen   = openssl_cipher_iv_length(self::CIPHER);
         $hmacLen = 32;
@@ -153,10 +171,17 @@ class KeyVault
     private static function sensitiveKeys(): array
     {
         return [
+            'ameverywhere_api_key',
             'openai_api_key',
             'anthropic_api_key',
             'gsc_api_key',
             'bing_api_key',
+            'ameverywhere_google_indexing_key',
+            'ameverywhere_ga4_credentials',
+            'ameverywhere_google_indexing_key',
+            'ameverywhere_ga4_credentials',
+            'google_indexing_key',
+            'ga4_credentials',
         ];
     }
 }

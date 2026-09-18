@@ -1,0 +1,200 @@
+<?php
+
+namespace AmEveryWhere\Modules\Schema;
+
+/**
+ * SchemaOutputValidator
+ *
+ * Validates the JSON-LD structured data blocks found on a given page
+ * by fetching the page content and parsing the schema locally (no
+ * external API quota). Returns rich result eligibility assessment and
+ * links to Google's online Rich Results Test for manual verification.
+ *
+ * BL-020
+ */
+class SchemaOutputValidator
+{
+    private const CACHE_TTL = HOUR_IN_SECONDS;
+
+    /** Minimum required properties per schema @type */
+    private const REQUIRED_PROPS = [
+        'Article'          => ['headline', 'author', 'datePublished'],
+        'NewsArticle'      => ['headline', 'author', 'datePublished'],
+        'BlogPosting'      => ['headline', 'author', 'datePublished'],
+        'Product'          => ['name', 'offers'],
+        'FAQPage'          => ['mainEntity'],
+        'HowTo'            => ['name', 'step'],
+        'LocalBusiness'    => ['name', 'address'],
+        'Recipe'           => ['name', 'recipeIngredient', 'recipeInstructions'],
+        'Event'            => ['name', 'startDate', 'location'],
+        'Person'           => ['name'],
+        'Organization'     => ['name'],
+        'BreadcrumbList'   => ['itemListElement'],
+        'VideoObject'      => ['name', 'description', 'thumbnailUrl', 'uploadDate'],
+        'ImageObject'      => ['url'],
+        'Review'           => ['reviewRating', 'author'],
+        'JobPosting'       => ['title', 'description', 'datePosted', 'hiringOrganization'],
+    ];
+
+    public function register(): void
+    {
+        add_action('rest_api_init', [$this, 'registerRoutes']);
+    }
+
+    public function registerRoutes(): void
+    {
+        register_rest_route('ameverywhere/v1', '/schema/validate', [
+            'methods'             => \WP_REST_Server::CREATABLE,
+            'callback'            => [$this, 'validateSchema'],
+            'permission_callback' => fn() => current_user_can('edit_posts'),
+        ]);
+    }
+
+    public function validateSchema(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $params = $request->get_json_params();
+        $postId = absint($params['post_id'] ?? 0);
+        $url    = sanitize_url($params['url'] ?? '');
+
+        if ($postId > 0) {
+            $url = get_permalink($postId);
+        }
+
+        if (empty($url)) {
+            return new \WP_Error('missing_target', 'Provide post_id or url.', ['status' => 400]);
+        }
+
+        $cacheKey = 'ameverywhere_schema_validation_' . md5($url);
+        $cached   = get_transient($cacheKey);
+        if ($cached !== false) {
+            return rest_ensure_response(array_merge($cached, ['cached' => true]));
+        }
+
+        $result = $this->runValidation($url);
+        set_transient($cacheKey, $result, self::CACHE_TTL);
+
+        return rest_ensure_response(array_merge($result, ['cached' => false]));
+    }
+
+    // ── Validation engine ─────────────────────────────────────────────────────
+
+    private function runValidation(string $url): array
+    {
+        // Fetch the rendered page
+        $response = wp_remote_get($url, [
+            'timeout'    => 20,
+            'user-agent' => 'AmEveryWhere Schema Validator/1.0',
+        ]);
+
+        if (is_wp_error($response)) {
+            return [
+                'url'           => $url,
+                'error'         => 'Could not fetch page: ' . $response->get_error_message(),
+                'schemas_found' => [],
+                'google_test_url' => $this->googleTestUrl($url),
+                'validated_at'  => current_time('mysql'),
+            ];
+        }
+
+        $html   = wp_remote_retrieve_body($response);
+        $blocks = $this->extractJsonLdBlocks($html);
+
+        $schemasFound = [];
+        foreach ($blocks as $json) {
+            $decoded = json_decode($json, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                $schemasFound[] = [
+                    'type'   => 'unknown',
+                    'valid'  => false,
+                    'errors' => ['Invalid JSON: ' . json_last_error_msg()],
+                    'warnings' => [],
+                    'raw_snippet' => mb_substr($json, 0, 200),
+                ];
+                continue;
+            }
+
+            // Handle @graph arrays
+            if (isset($decoded['@graph']) && is_array($decoded['@graph'])) {
+                foreach ($decoded['@graph'] as $item) {
+                    $schemasFound[] = $this->validateBlock($item);
+                }
+            } else {
+                $schemasFound[] = $this->validateBlock($decoded);
+            }
+        }
+
+        return [
+            'url'             => $url,
+            'schemas_found'   => $schemasFound,
+            'total_schemas'   => count($schemasFound),
+            'total_errors'    => array_sum(array_map(fn($s) => count($s['errors']), $schemasFound)),
+            'google_test_url' => $this->googleTestUrl($url),
+            'validated_at'    => current_time('mysql'),
+        ];
+    }
+
+    private function validateBlock(array $block): array
+    {
+        $type     = $block['@type'] ?? 'unknown';
+        $errors   = [];
+        $warnings = [];
+
+        // Check @context
+        if (empty($block['@context'])) {
+            $errors[] = 'Missing @context. Should be "https://schema.org".';
+        } elseif (!in_array($block['@context'], ['https://schema.org', 'http://schema.org'], true)) {
+            $warnings[] = '@context "' . $block['@context'] . '" is non-standard. Use "https://schema.org".';
+        }
+
+        // Check @type
+        if (empty($type) || $type === 'unknown') {
+            $errors[] = 'Missing or invalid @type.';
+        }
+
+        // Check required properties
+        if (isset(self::REQUIRED_PROPS[$type])) {
+            foreach (self::REQUIRED_PROPS[$type] as $prop) {
+                if (empty($block[$prop])) {
+                    $errors[] = "Required property \"{$prop}\" is missing for {$type}.";
+                }
+            }
+        }
+
+        // Type-specific warnings
+        if (in_array($type, ['Article', 'NewsArticle', 'BlogPosting'], true)) {
+            if (!empty($block['datePublished']) && empty($block['dateModified'])) {
+                $warnings[] = 'Consider adding "dateModified" for freshness signals.';
+            }
+            if (empty($block['image'])) {
+                $warnings[] = '"image" property recommended for Article rich results.';
+            }
+        }
+
+        if ($type === 'Product' && empty($block['offers']['price'])) {
+            $warnings[] = 'Price is missing from the offers object. Required for price-eligible rich snippets.';
+        }
+
+        return [
+            'type'       => $type,
+            'valid'      => empty($errors),
+            'errors'     => $errors,
+            'warnings'   => $warnings,
+        ];
+    }
+
+    private function extractJsonLdBlocks(string $html): array
+    {
+        preg_match_all(
+            '/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/si',
+            $html,
+            $matches
+        );
+
+        return array_map('trim', $matches[1] ?? []);
+    }
+
+    private function googleTestUrl(string $url): string
+    {
+        return 'https://search.google.com/test/rich-results?url=' . rawurlencode($url);
+    }
+}

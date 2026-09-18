@@ -12,6 +12,10 @@ class ComposerStaticInit049b1e5a9d003021bcc6cac5aaa93292
     );
 
     public static $prefixLengthsPsr4 = array (
+        'A' =>
+        array (
+            'AmEveryWhere\\' => 13,
+        ),
         'R' =>
         array (
             'RankSavvy\\' => 10,
@@ -28,6 +32,10 @@ class ComposerStaticInit049b1e5a9d003021bcc6cac5aaa93292
     );
 
     public static $prefixDirsPsr4 = array (
+        'AmEveryWhere\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/src',
+        ),
         'RankSavvy\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',

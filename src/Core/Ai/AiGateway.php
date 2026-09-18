@@ -1,81 +1,92 @@
 <?php
 
-namespace RankSavvy\Core\Ai;
+namespace AmEveryWhere\Core\Ai;
+
+use AmEveryWhere\Core\Security\KeyVault;
+use AmEveryWhere\Core\Api\BackendApiClient;
+use AmEveryWhere\Modules\Ai\UsageMeteringManager;
 
 class AiGateway
 {
-    private string $encryptionKey;
+    private BackendApiClient $apiClient;
 
-    public function __construct()
+    public function __construct(?BackendApiClient $apiClient = null)
     {
-        // Obtain a unique, site-specific key derived from WordPress salts.
-        // If salts are undefined, fallback to site URL to ensure database consistency.
-        if (defined('SECURE_AUTH_KEY') && !empty(SECURE_AUTH_KEY)) {
-            $this->encryptionKey = SECURE_AUTH_KEY;
-        } elseif (function_exists('wp_salt')) {
-            $this->encryptionKey = wp_salt('auth');
-        } else {
-            $this->encryptionKey = hash('sha256', get_bloginfo('url') . 'ranksavvy_salt');
-        }
+        $this->apiClient = $apiClient ?: new BackendApiClient();
     }
 
     /**
-     * Encrypt sensitive data using AES-256-CBC.
+     * Encrypt sensitive data using KeyVault.
      */
     public function encrypt(string $data): string
     {
-        if (empty($data)) {
-            return '';
-        }
-        $cipher = 'aes-256-cbc';
-        $ivLen = openssl_cipher_iv_length($cipher);
-        $iv = openssl_random_pseudo_bytes($ivLen);
-        $encrypted = openssl_encrypt($data, $cipher, $this->encryptionKey, 0, $iv);
-        return base64_encode($iv . $encrypted);
+        return KeyVault::encrypt($data);
     }
 
     /**
-     * Decrypt sensitive data using AES-256-CBC.
+     * Decrypt sensitive data using KeyVault.
      */
     public function decrypt(string $data): string
     {
-        if (empty($data)) {
-            return '';
-        }
-        $cipher = 'aes-256-cbc';
-        $decoded = base64_decode($data);
-        $ivLen = openssl_cipher_iv_length($cipher);
-        
-        if (strlen($decoded) <= $ivLen) {
-            return '';
-        }
-        
-        $iv = substr($decoded, 0, $ivLen);
-        $encrypted = substr($decoded, $ivLen);
-        $decrypted = openssl_decrypt($encrypted, $cipher, $this->encryptionKey, 0, $iv);
-        return $decrypted !== false ? $decrypted : '';
+        return KeyVault::decrypt($data);
     }
 
     /**
-     * Route generative prompts dynamically to the selected AI provider.
+     * Route generative prompts dynamically to the Backend API (cloud) or selected BYOK provider.
      */
     public function queryModel(string $prompt, string $systemPrompt = 'You are a helpful SEO writing assistant.'): array
     {
-        $provider = get_option('ranksavvy_ai_provider', 'openai');
-        
-        switch ($provider) {
-            case 'openai':
-                return $this->queryOpenAi($prompt, $systemPrompt);
-            case 'anthropic':
-                return $this->queryAnthropic($prompt, $systemPrompt);
-            case 'ollama':
-                return $this->queryOllama($prompt, $systemPrompt);
-            default:
+        // 1. If Backend API key is configured, offload heavy computation to Backend API
+        if ($this->apiClient->isConfigured()) {
+            $remoteResult = $this->apiClient->generateAi([
+                'prompt'        => $prompt,
+                'system_prompt' => $systemPrompt,
+            ]);
+
+            if (!empty($remoteResult['success'])) {
                 return [
-                    'success' => false,
-                    'message' => __('Invalid AI provider selected.', 'ranksavvy')
+                    'success' => true,
+                    'text'    => $remoteResult['data']['text'] ?? '',
                 ];
+            }
+
+            // If remote result failed with a non-fallback error, return the error
+            if (empty($remoteResult['fallback'])) {
+                return $remoteResult;
+            }
         }
+
+        // 2. BYOK (Bring Your Own Key) Fallback Mode
+        $provider = get_option('ameverywhere_ai_provider');
+        if (!$provider) {
+            $provider = get_option('ameverywhere_ai_provider', 'openai');
+        }
+
+        $userId = get_current_user_id();
+        $metering = class_exists(UsageMeteringManager::class) ? UsageMeteringManager::getInstance() : null;
+        if ($userId && $metering && !$metering->checkLimit($userId, $provider)) {
+            return [
+                'success' => false,
+                'message' => __('AI token usage limit exceeded for this billing cycle.', 'ameverywhere')
+            ];
+        }
+
+        $result = match ($provider) {
+            'openai'    => $this->queryOpenAi($prompt, $systemPrompt),
+            'anthropic' => $this->queryAnthropic($prompt, $systemPrompt),
+            'ollama'    => $this->queryOllama($prompt, $systemPrompt),
+            default     => [
+                'success' => false,
+                'message' => __('Invalid AI provider selected.', 'ameverywhere')
+            ],
+        };
+
+        if ($userId && $metering && !empty($result['success'])) {
+            $tokensUsed = (int) ceil((strlen($prompt . $systemPrompt) + strlen($result['text'] ?? '')) / 4);
+            $metering->record($userId, $provider, 'content_assistant', $tokensUsed);
+        }
+
+        return $result;
     }
 
     /**
@@ -83,19 +94,33 @@ class AiGateway
      */
     private function queryOpenAi(string $prompt, string $systemPrompt): array
     {
-        $encryptedKey = get_option('ranksavvy_openai_key', '');
-        $apiKey = $this->decrypt($encryptedKey);
+        $encryptedKey = get_option('ameverywhere_openai_key', '');
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_openai_api_key', '');
+        }
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_openai_key', '');
+        }
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_openai_api_key', '');
+        }
+        $apiKey = KeyVault::decrypt($encryptedKey);
 
         if (empty($apiKey)) {
             return [
                 'success' => false,
-                'message' => __('OpenAI API key is missing or not configured.', 'ranksavvy')
+                'message' => __('OpenAI API key is missing or not configured.', 'ameverywhere')
             ];
+        }
+
+        $model = get_option('ameverywhere_openai_model');
+        if (!$model) {
+            $model = get_option('ameverywhere_openai_model', 'gpt-4o-mini');
         }
 
         $url = 'https://api.openai.com/v1/chat/completions';
         $body = [
-            'model' => 'gpt-4o-mini',
+            'model' => $model,
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $prompt]
@@ -125,7 +150,7 @@ class AiGateway
         $data = json_decode($responseBody, true);
 
         if ($responseCode !== 200) {
-            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('OpenAI API Error.', 'ranksavvy');
+            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('OpenAI API Error.', 'ameverywhere');
             return [
                 'success' => false,
                 'message' => $errMsg
@@ -144,19 +169,33 @@ class AiGateway
      */
     private function queryAnthropic(string $prompt, string $systemPrompt): array
     {
-        $encryptedKey = get_option('ranksavvy_anthropic_key', '');
-        $apiKey = $this->decrypt($encryptedKey);
+        $encryptedKey = get_option('ameverywhere_anthropic_key', '');
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_anthropic_api_key', '');
+        }
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_anthropic_key', '');
+        }
+        if (empty($encryptedKey)) {
+            $encryptedKey = get_option('ameverywhere_anthropic_api_key', '');
+        }
+        $apiKey = KeyVault::decrypt($encryptedKey);
 
         if (empty($apiKey)) {
             return [
                 'success' => false,
-                'message' => __('Anthropic API key is missing or not configured.', 'ranksavvy')
+                'message' => __('Anthropic API key is missing or not configured.', 'ameverywhere')
             ];
+        }
+
+        $model = get_option('ameverywhere_anthropic_model');
+        if (!$model) {
+            $model = get_option('ameverywhere_anthropic_model', 'claude-3-5-sonnet-20241022');
         }
 
         $url = 'https://api.anthropic.com/v1/messages';
         $body = [
-            'model' => 'claude-3-5-sonnet-20241022',
+            'model' => $model,
             'max_tokens' => 1000,
             'system' => $systemPrompt,
             'messages' => [
@@ -187,7 +226,7 @@ class AiGateway
         $data = json_decode($responseBody, true);
 
         if ($responseCode !== 200) {
-            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('Anthropic API Error.', 'ranksavvy');
+            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('Anthropic API Error.', 'ameverywhere');
             return [
                 'success' => false,
                 'message' => $errMsg
@@ -206,12 +245,15 @@ class AiGateway
      */
     private function queryOllama(string $prompt, string $systemPrompt): array
     {
-        $ollamaUrl = get_option('ranksavvy_ollama_url', 'http://localhost:11434');
+        $ollamaUrl = get_option('ameverywhere_ollama_url');
+        if (!$ollamaUrl) {
+            $ollamaUrl = get_option('ameverywhere_ollama_url', 'http://localhost:11434');
+        }
         $ollamaUrl = rtrim($ollamaUrl, '/');
         
         $url = $ollamaUrl . '/api/chat';
         $body = [
-            'model' => 'llama3', // sensible default model
+            'model' => 'llama3',
             'messages' => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user', 'content' => $prompt]
@@ -233,7 +275,7 @@ class AiGateway
         if (is_wp_error($response)) {
             return [
                 'success' => false,
-                'message' => sprintf(__('Ollama Connection Error: %s', 'ranksavvy'), $response->get_error_message())
+                'message' => sprintf(__('Ollama Connection Error: %s', 'ameverywhere'), $response->get_error_message())
             ];
         }
 
@@ -244,7 +286,7 @@ class AiGateway
         if ($responseCode !== 200) {
             return [
                 'success' => false,
-                'message' => __('Ollama local instance returned an error.', 'ranksavvy')
+                'message' => __('Ollama local instance returned an error.', 'ameverywhere')
             ];
         }
 

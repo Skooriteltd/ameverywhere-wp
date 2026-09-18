@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Onboarding;
+namespace AmEveryWhere\Modules\Onboarding;
 
 /**
  * Minimal setup wizard with zero-configuration philosophy.
@@ -13,7 +13,7 @@ namespace RankSavvy\Modules\Onboarding;
  */
 class SetupWizard
 {
-    private const COMPLETED_OPTION = 'ranksavvy_setup_complete';
+    private const COMPLETED_OPTION = 'ameverywhere_setup_complete';
 
     /**
      * Register hooks.
@@ -36,18 +36,18 @@ class SetupWizard
     {
         $screen = get_current_screen();
         
-        // Don't show on the RankSavvy page itself
-        if ($screen && $screen->id === 'toplevel_page_ranksavvy') {
+        // Don't show on the AmEveryWhere page itself
+        if ($screen && ($screen->id === 'toplevel_page_ameverywhere' || $screen->id === 'toplevel_page_ranksavvy')) {
             return;
         }
 
-        $setupUrl = admin_url('admin.php?page=ranksavvy#setup');
+        $setupUrl = admin_url('admin.php?page=ameverywhere#setup');
         
         echo '<div class="notice notice-info is-dismissible" style="border-left-color: #3b82f6; padding: 16px 20px;">';
         echo '<div style="display:flex; align-items:center; gap:12px;">';
         echo '<span style="font-size:24px;">🚀</span>';
         echo '<div>';
-        echo '<p style="margin:0; font-size:15px; font-weight:600; color:#0f172a;">Welcome to RankSavvy!</p>';
+        echo '<p style="margin:0; font-size:15px; font-weight:600; color:#0f172a;">Welcome to AmEveryWhere!</p>';
         echo '<p style="margin:4px 0 0; color:#475569;">Your SEO is already working with smart defaults. ';
         echo '<a href="' . esc_url($setupUrl) . '" style="color:#3b82f6; font-weight:500;">Complete the 30-second setup</a>';
         echo ' to customize site type and import existing SEO data.</p>';
@@ -61,13 +61,13 @@ class SetupWizard
      */
     public function registerRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/setup/auto-detect', [
+        register_rest_route('ameverywhere/v1', '/setup/auto-detect', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'autoDetect'],
             'permission_callback' => function () { return current_user_can('manage_options'); },
         ]);
 
-        register_rest_route('ranksavvy/v1', '/setup/complete', [
+        register_rest_route('ameverywhere/v1', '/setup/complete', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'completeSetup'],
             'permission_callback' => function () { return current_user_can('manage_options'); },
@@ -87,12 +87,12 @@ class SetupWizard
         $socialProfiles = $this->detectSocialProfiles();
 
         // Detect if other SEO plugins have data to import
-        $migrationManager = new \RankSavvy\Modules\Migration\MigrationManager();
+        $migrationManager = new \AmEveryWhere\Modules\Migration\MigrationManager();
         $detectedPlugins = $migrationManager->detectPlugins();
 
         // Check what's already configured
-        $hasGoogleKey = !empty(get_option('ranksavvy_google_indexing_key', ''));
-        $hasBingKey = !empty(get_option('ranksavvy_indexnow_key', ''));
+        $hasGoogleKey = !empty(get_option('ameverywhere_google_indexing_key', ''));
+        $hasBingKey = !empty(get_option('ameverywhere_indexnow_key', ''));
 
         return rest_ensure_response([
             'site_type'        => $siteType,
@@ -114,14 +114,14 @@ class SetupWizard
 
         // Save site type (affects schema output)
         if (!empty($params['site_type'])) {
-            update_option('ranksavvy_site_type', sanitize_text_field($params['site_type']));
+            update_option('ameverywhere_site_type', sanitize_text_field($params['site_type']));
         }
 
         // Save social profiles
         $socialFields = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube'];
         foreach ($socialFields as $field) {
             if (isset($params['social'][$field])) {
-                update_option('ranksavvy_social_' . $field, esc_url_raw($params['social'][$field]));
+                update_option('ameverywhere_social_' . $field, esc_url_raw($params['social'][$field]));
             }
         }
 
@@ -131,7 +131,7 @@ class SetupWizard
         // Flush rewrite rules to ensure sitemaps work
         flush_rewrite_rules(false);
 
-        return rest_ensure_response(['success' => true, 'message' => 'Setup complete! RankSavvy is fully configured.']);
+        return rest_ensure_response(['success' => true, 'message' => 'Setup complete! AmEveryWhere is fully configured.']);
     }
 
     /**
@@ -193,9 +193,9 @@ class SetupWizard
             $profiles['twitter']   = $profiles['twitter']   ?: ($rmOptions['twitter_author_names'] ?? '');
         }
 
-        // Check already-saved RankSavvy values
+        // Check already-saved AmEveryWhere values
         foreach ($profiles as $key => &$val) {
-            $existing = get_option('ranksavvy_social_' . $key, '');
+            $existing = get_option('ameverywhere_social_' . $key, '');
             if (!empty($existing)) {
                 $val = $existing;
             }

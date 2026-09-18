@@ -1,12 +1,12 @@
 <?php
 
-namespace RankSavvy\Modules\Social;
+namespace AmEveryWhere\Modules\Social;
 
-use RankSavvy\Core\Security\KeyVault;
+use AmEveryWhere\Core\Security\KeyVault;
 
 class SocialAccountManager
 {
-    private const OPTION_KEY = 'ranksavvy_social_accounts';
+    private const OPTION_KEY = 'ameverywhere_social_accounts';
 
     public function getAccounts(): array
     {
@@ -25,8 +25,8 @@ class SocialAccountManager
     {
         $accounts = $this->getAccounts();
         
-        // Use a simple ID generation based on network and profile ID or random
-        $accountId = $accountData['id'] ?? uniqid($accountData['network'] . '_');
+        // Use a standard unique ID based on network and uuid
+        $accountId = $accountData['id'] ?? (($accountData['network'] ?? 'account') . '_' . (function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('', true)));
         $accountData['id'] = $accountId;
 
         if (!empty($accountData['access_token'])) {

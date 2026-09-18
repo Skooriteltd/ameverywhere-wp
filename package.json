@@ -1,10 +1,11 @@
 {
-  "name": "ranksavvy-frontend",
+  "name": "ameverywhere-frontend",
   "version": "1.0.0",
-  "description": "Frontend assets for RankSavvy plugin",
+  "description": "Frontend assets for AmEveryWhere plugin",
   "scripts": {
-    "build": "wp-scripts build src/assets/js/index.js src/assets/js/editor.js",
-    "start": "wp-scripts start src/assets/js/index.js src/assets/js/editor.js"
+    "build": "wp-scripts build src/assets/js/index.js src/assets/js/editor.js src/assets/js/cookie-banner.js",
+    "start": "wp-scripts start src/assets/js/index.js src/assets/js/editor.js src/assets/js/cookie-banner.js",
+    "make-pot": "wp-scripts make-pot"
   },
   "dependencies": {
     "@wordpress/components": "^28.5.0",

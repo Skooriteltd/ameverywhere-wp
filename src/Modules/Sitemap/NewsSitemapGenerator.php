@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Sitemap;
+namespace AmEveryWhere\Modules\Sitemap;
 
 class NewsSitemapGenerator
 {
@@ -28,7 +28,7 @@ class NewsSitemapGenerator
         $siteName = get_bloginfo('name');
 
         foreach ($posts as $post) {
-            $noindex = get_post_meta($post->ID, '_ranksavvy_noindex', true);
+            $noindex = get_post_meta($post->ID, '_ameverywhere_noindex', true);
             if ($noindex === 'yes') {
                 continue;
             }

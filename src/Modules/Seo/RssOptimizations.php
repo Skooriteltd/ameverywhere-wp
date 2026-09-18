@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Seo;
+namespace AmEveryWhere\Modules\Seo;
 
 /**
  * Optimizes RSS feeds by prepending/appending custom HTML/text,
@@ -26,8 +26,8 @@ class RssOptimizations
             return $content;
         }
 
-        $before = get_option('ranksavvy_rss_before_content', '');
-        $after = get_option('ranksavvy_rss_after_content', '');
+        $before = get_option('ameverywhere_rss_before_content', '');
+        $after = get_option('ameverywhere_rss_after_content', '');
 
         // If both are empty, apply premium default attribution to prevent site scraping
         if (empty($before) && empty($after)) {

@@ -1,9 +1,9 @@
 <?php
 
-namespace RankSavvy\Modules\Indexing;
+namespace AmEveryWhere\Modules\Indexing;
 
-use RankSavvy\Core\Event\EventManager;
-use RankSavvy\Core\Queue\QueueManager;
+use AmEveryWhere\Core\Event\EventManager;
+use AmEveryWhere\Core\Queue\QueueManager;
 
 class IndexingModule
 {
@@ -28,13 +28,13 @@ class IndexingModule
             return;
         }
 
-        $autoIndex = get_option('ranksavvy_auto_index', 'yes');
+        $autoIndex = get_option('ameverywhere_auto_index', 'yes');
         if ($autoIndex !== 'yes') {
             return; // Skip automatic indexing if disabled in settings
         }
 
         // Check if the post is set to noindex
-        $noindex = get_post_meta($post->ID, '_ranksavvy_noindex', true);
+        $noindex = get_post_meta($post->ID, '_ameverywhere_noindex', true);
         if ($noindex === 'yes') {
             return;
         }

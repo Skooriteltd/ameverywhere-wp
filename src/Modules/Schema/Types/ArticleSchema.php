@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Schema\Types;
+namespace AmEveryWhere\Modules\Schema\Types;
 
 class ArticleSchema
 {
@@ -22,7 +22,7 @@ class ArticleSchema
         $schemaType = 'Article';
 
         // Check if News optimization is needed
-        $isNews = get_post_meta($post->ID, '_ranksavvy_is_news', true);
+        $isNews = get_post_meta($post->ID, '_ameverywhere_is_news', true);
         if ($isNews === 'yes') {
             $schemaType = 'NewsArticle';
         }

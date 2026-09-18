@@ -1,8 +1,8 @@
 <?php
 
-namespace RankSavvy\Modules\Sitemap;
+namespace AmEveryWhere\Modules\Sitemap;
 
-use RankSavvy\Modules\Schema\VideoExtractor;
+use AmEveryWhere\Modules\Schema\VideoExtractor;
 
 /**
  * Generates and caches the Google-compliant Video XML sitemap.
@@ -10,7 +10,7 @@ use RankSavvy\Modules\Schema\VideoExtractor;
  */
 class VideoSitemapGenerator
 {
-    private const CACHE_TRANSIENT = 'ranksavvy_video_sitemap_xml_cache';
+    private const CACHE_TRANSIENT = 'ameverywhere_video_sitemap_xml_cache';
     private const CACHE_EXPIRATION = 4 * HOUR_IN_SECONDS;
 
     /**
@@ -83,7 +83,7 @@ class VideoSitemapGenerator
 
         foreach ($posts as $post) {
             // Check if there is a noindex tag
-            $noindex = get_post_meta($post->ID, '_ranksavvy_noindex', true);
+            $noindex = get_post_meta($post->ID, '_ameverywhere_noindex', true);
             if ($noindex === 'yes') {
                 continue;
             }

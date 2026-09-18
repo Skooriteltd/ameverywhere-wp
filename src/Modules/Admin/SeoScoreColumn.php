@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Admin;
+namespace AmEveryWhere\Modules\Admin;
 
 /**
  * Adds an SEO Score column to the WordPress Posts and Pages list tables.
@@ -32,7 +32,7 @@ class SeoScoreColumn
             $newColumns[$key] = $label;
             // Insert our column right after the title column
             if ($key === 'title') {
-                $newColumns['ranksavvy_seo'] = 'SEO';
+                $newColumns['ameverywhere_seo'] = 'SEO';
             }
         }
         return $newColumns;
@@ -43,7 +43,7 @@ class SeoScoreColumn
      */
     public function renderColumn(string $column, int $postId): void
     {
-        if ($column !== 'ranksavvy_seo') {
+        if ($column !== 'ameverywhere_seo') {
             return;
         }
 
@@ -69,7 +69,7 @@ class SeoScoreColumn
      */
     public function makeSortable(array $columns): array
     {
-        $columns['ranksavvy_seo'] = 'ranksavvy_seo';
+        $columns['ameverywhere_seo'] = 'ameverywhere_seo';
         return $columns;
     }
 
@@ -90,9 +90,9 @@ class SeoScoreColumn
         $title = $post->post_title;
         $content = wp_strip_all_tags($post->post_content);
         $wordCount = str_word_count($content);
-        $focusKeyword = get_post_meta($postId, '_ranksavvy_focus_keyword', true);
-        $metaTitle = get_post_meta($postId, '_ranksavvy_meta_title', true);
-        $metaDescription = get_post_meta($postId, '_ranksavvy_meta_description', true);
+        $focusKeyword = get_post_meta($postId, '_ameverywhere_focus_keyword', true);
+        $metaTitle = get_post_meta($postId, '_ameverywhere_meta_title', true);
+        $metaDescription = get_post_meta($postId, '_ameverywhere_meta_description', true);
 
         $effectiveTitle = $metaTitle ?: $title;
 
@@ -163,6 +163,6 @@ class SeoScoreColumn
             return;
         }
 
-        echo '<style>.column-ranksavvy_seo { width: 60px; text-align: center; }</style>';
+        echo '<style>.column-ameverywhere_seo, .column-ranksavvy_seo { width: 60px; text-align: center; }</style>';
     }
 }

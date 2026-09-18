@@ -1,13 +1,38 @@
-import { useState, useEffect } from '@wordpress/element';
+import { useState, useEffect, useCallback } from '@wordpress/element';
 import { Button, TextControl, TextareaControl, Notice, Spinner, ToggleControl } from '@wordpress/components';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import SetupWizard from './components/SetupWizard';
 
 const App = () => {
-    // Show wizard if URL hash is #setup or if setup_complete flag is false
-    const shouldShowSetup = window.location.hash === '#setup' || (typeof rankSavvyAdminConfig !== 'undefined' && rankSavvyAdminConfig.setupComplete === '0');
+    const amEveryWhereAdminConfig = window.amEveryWhereAdminConfig || window.rankSavvyAdminConfig || {};
+    const rankSavvyAdminConfig = amEveryWhereAdminConfig;
+    const shouldShowSetup = window.location.hash === '#setup' || (typeof amEveryWhereAdminConfig !== 'undefined' && amEveryWhereAdminConfig.setupComplete === '0');
     const [showSetup, setShowSetup] = useState(shouldShowSetup);
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [gscData, setGscData] = useState(null);
+
+    // GSC Dashboard
+    const [gscData, setGscData]         = useState(null);
+    const [gscLoading, setGscLoading]   = useState(false);
+    const [gscError, setGscError]       = useState(null);
+    const [gscSubTab, setGscSubTab]     = useState('overview');
+    const [cannData, setCannData]       = useState(null);
+    const [cannLoading, setCannLoading] = useState(false);
+
+    // GA4 Analytics
+    const [ga4Report, setGa4Report]     = useState(null);
+    const [ga4Loading, setGa4Loading]   = useState(false);
+    const [ga4Error, setGa4Error]       = useState(null);
+    const [ga4Settings, setGa4Settings] = useState({ measurement_id: '', property_id: '', credentials: '', credentials_set: false });
+    const [ga4Saving, setGa4Saving]     = useState(false);
+    const [ga4SaveMsg, setGa4SaveMsg]   = useState(null);
+
+    // Link Health
+    const [orphanData, setOrphanData]           = useState(null);
+    const [orphanLoading, setOrphanLoading]     = useState(false);
+    const [linkStats, setLinkStats]             = useState(null);
+    const [linkStatsLoading, setLinkStatsLoading] = useState(false);
+    const [linksSubTab, setLinksSubTab]         = useState('orphans');
+
 
     // Settings State
     const [settings, setSettings] = useState({
@@ -35,11 +60,11 @@ const App = () => {
         setIsTestingAi(true);
         setAiTestResult(null);
         try {
-            const response = await fetch(`${rankSavvyAdminConfig.apiUrl}/settings/ai/test-connection`, {
+            const response = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/ai/test-connection`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-WP-Nonce': rankSavvyAdminConfig.nonce,
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce,
                 },
                 body: JSON.stringify({
                     ai_provider: settings.ai_provider,
@@ -80,21 +105,44 @@ const App = () => {
     const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
     useEffect(() => {
-        // MVP: Simulate loading Google Search Console data
-        if (activeTab === 'dashboard' && !gscData) {
-            setTimeout(() => {
-                setGscData({
-                    totalClicks: '24,592',
-                    totalImpressions: '1.2M',
-                    avgCtr: '2.4%',
-                    avgPosition: '14.2',
-                    topKeywords: [
-                        { keyword: 'seo plugin for wordpress', clicks: 1200, pos: 3 },
-                        { keyword: 'ai search optimization', clicks: 840, pos: 2 },
-                        { keyword: 'rank higher on google', clicks: 650, pos: 5 },
-                    ]
-                });
-            }, 1000);
+        // GSC Dashboard — fetch real data
+        if (activeTab === 'dashboard' && !gscData && !gscLoading) {
+            setGscLoading(true); setGscError(null);
+            fetch(`${amEveryWhereAdminConfig.apiUrl}/gsc/dashboard`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                .then(r => r.json())
+                .then(d => { if (d.success) setGscData(d); else setGscError(d.message || 'GSC not connected. Add your Service Account JSON under Settings → Indexing.'); })
+                .catch(() => setGscError('Failed to load GSC data.'))
+                .finally(() => setGscLoading(false));
+        }
+
+        // GA4 Analytics
+        if (activeTab === 'analytics') {
+            if (!ga4Report && !ga4Loading) {
+                setGa4Loading(true); setGa4Error(null);
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/ga4/report`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                    .then(r => r.json())
+                    .then(d => { if (d.success) setGa4Report(d); else setGa4Error(d.message || 'GA4 not configured.'); })
+                    .catch(() => setGa4Error('Failed to load GA4 data.'))
+                    .finally(() => setGa4Loading(false));
+            }
+            if (!ga4Settings.measurement_id && !ga4Settings.credentials_set) {
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/ga4`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                    .then(r => r.json()).then(d => setGa4Settings(prev => ({ ...prev, ...d, credentials: '' })));
+            }
+        }
+
+        // Link Health
+        if (activeTab === 'links') {
+            if (!orphanData && !orphanLoading) {
+                setOrphanLoading(true);
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/links/orphans`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                    .then(r => r.json()).then(d => { if (d.success) setOrphanData(d); }).finally(() => setOrphanLoading(false));
+            }
+            if (!linkStats && !linkStatsLoading) {
+                setLinkStatsLoading(true);
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/links/stats`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                    .then(r => r.json()).then(d => { if (d.success) setLinkStats(d); }).finally(() => setLinkStatsLoading(false));
+            }
         }
 
         if (activeTab === 'settings' && isLoadingSettings) {
@@ -102,11 +150,140 @@ const App = () => {
         }
     }, [activeTab]);
 
+    // Cannibalization lazy-load only when sub-tab is selected
+    useEffect(() => {
+        if (activeTab === 'dashboard' && gscSubTab === 'cannibalization' && !cannData && !cannLoading) {
+            setCannLoading(true);
+            fetch(`${amEveryWhereAdminConfig.apiUrl}/gsc/cannibalization`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                .then(r => r.json()).then(d => { if (d.success) setCannData(d); }).finally(() => setCannLoading(false));
+        }
+    }, [activeTab, gscSubTab]);
+
+    const saveGa4Settings = useCallback(async () => {
+        setGa4Saving(true); setGa4SaveMsg(null);
+        try {
+            const res = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/ga4`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(ga4Settings),
+            });
+            const d = await res.json();
+            setGa4SaveMsg(d.success ? { type: 'success', text: 'GA4 settings saved.' } : { type: 'error', text: d.message || 'Save failed.' });
+            if (d.success) { setGa4Report(null); } // force reload on next visit
+        } catch (e) { setGa4SaveMsg({ type: 'error', text: 'Network error.' }); }
+        finally { setGa4Saving(false); }
+    }, [ga4Settings]);
+
+    // Chart/display helpers
+    const CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#0ea5e9', '#a855f7', '#ec4899', '#14b8a6'];
+    const posColor = (p) => p <= 3 ? '#22c55e' : p <= 10 ? '#f59e0b' : p <= 20 ? '#0ea5e9' : '#94a3b8';
+    const fmtNum = (n) => n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n ?? 0);
+
+    // ── Phase 3 state ────────────────────────────────────────────────────────
+    // Import / Export
+    const [exportMsg, setExportMsg]   = useState(null);
+    const [importMsg, setImportMsg]   = useState(null);
+    const [importBusy, setImportBusy] = useState(false);
+
+    // HTML Sitemap
+    const [sitemapCfg, setSitemapCfg]           = useState(null);
+    const [sitemapPreview, setSitemapPreview]   = useState(null);
+    const [sitemapSaving, setSitemapSaving]     = useState(false);
+    const [sitemapSaveMsg, setSitemapSaveMsg]   = useState(null);
+    const [sitemapLoading, setSitemapLoading]   = useState(false);
+
+    // .htaccess editor
+    const [htaccess, setHtaccess]               = useState(null);
+    const [htaccessContent, setHtaccessContent] = useState('');
+    const [htaccessSaving, setHtaccessSaving]   = useState(false);
+    const [htaccessMsg, setHtaccessMsg]         = useState(null);
+    const [htaccessLoading, setHtaccessLoading] = useState(false);
+
+    // Phase 3 data fetch effects
+    useEffect(() => {
+        if (activeTab === 'html_sitemap' && !sitemapCfg && !sitemapLoading) {
+            setSitemapLoading(true);
+            fetch(`${amEveryWhereAdminConfig.apiUrl}/html-sitemap`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                .then(r => r.json()).then(d => setSitemapCfg(d)).finally(() => setSitemapLoading(false));
+        }
+        if (activeTab === 'technical' && !htaccess && !htaccessLoading) {
+            setHtaccessLoading(true);
+            fetch(`${amEveryWhereAdminConfig.apiUrl}/htaccess`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+                .then(r => r.json()).then(d => { setHtaccess(d); if (d.content) setHtaccessContent(d.content); }).finally(() => setHtaccessLoading(false));
+        }
+    }, [activeTab]);
+
+    const loadSitemapPreview = useCallback(() => {
+        fetch(`${amEveryWhereAdminConfig.apiUrl}/html-sitemap/preview`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } })
+            .then(r => r.json()).then(d => setSitemapPreview(d));
+    }, []);
+
+    const saveSitemapCfg = useCallback(async () => {
+        setSitemapSaving(true); setSitemapSaveMsg(null);
+        try {
+            const res = await fetch(`${amEveryWhereAdminConfig.apiUrl}/html-sitemap`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(sitemapCfg),
+            });
+            const d = await res.json();
+            setSitemapSaveMsg(d.success ? { type: 'success', text: 'Sitemap settings saved.' } : { type: 'error', text: d.message || 'Save failed.' });
+            if (d.success) loadSitemapPreview();
+        } catch (e) { setSitemapSaveMsg({ type: 'error', text: 'Network error.' }); }
+        finally { setSitemapSaving(false); }
+    }, [sitemapCfg, loadSitemapPreview]);
+
+    const saveHtaccess = useCallback(async () => {
+        setHtaccessSaving(true); setHtaccessMsg(null);
+        try {
+            const res = await fetch(`${amEveryWhereAdminConfig.apiUrl}/htaccess`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({ content: htaccessContent }),
+            });
+            const d = await res.json();
+            setHtaccessMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.message || 'Save failed.' });
+            if (d.success) setHtaccess(prev => ({ ...prev, has_backup: true }));
+        } catch (e) { setHtaccessMsg({ type: 'error', text: 'Network error.' }); }
+        finally { setHtaccessSaving(false); }
+    }, [htaccessContent]);
+
+    const downloadExport = useCallback(async () => {
+        setExportMsg(null);
+        try {
+            const res = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/export`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await res.json();
+            if (!d.success) { setExportMsg({ type: 'error', text: 'Export failed.' }); return; }
+            const blob = new Blob([JSON.stringify(d.data, null, 2)], { type: 'application/json' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = `ameverywhere-settings-${new Date().toISOString().slice(0,10)}.json`; a.click();
+            URL.revokeObjectURL(url);
+            setExportMsg({ type: 'success', text: 'Settings file downloaded.' });
+        } catch (e) { setExportMsg({ type: 'error', text: 'Export error.' }); }
+    }, []);
+
+    const handleImportFile = useCallback(async (file) => {
+        if (!file) return;
+        setImportBusy(true); setImportMsg(null);
+        try {
+            const text = await file.text();
+            const json = JSON.parse(text);
+            const res  = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/import`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(json),
+            });
+            const d = await res.json();
+            setImportMsg(d.success ? { type: 'success', text: d.message } : { type: 'error', text: d.message || 'Import failed.' });
+            if (d.success) { setIsLoadingSettings(true); fetchSettings(); }
+        } catch (e) { setImportMsg({ type: 'error', text: 'Invalid file or parse error.' }); }
+        finally { setImportBusy(false); }
+    }, []);
+    // ────────────────────────────────────────────────────────────────────────
+
     const fetchSettings = async () => {
         try {
-            const response = await fetch(`${rankSavvyAdminConfig.apiUrl}/settings`, {
+            const response = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings`, {
                 headers: {
-                    'X-WP-Nonce': rankSavvyAdminConfig.nonce,
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce,
                 }
             });
             if (response.ok) {
@@ -136,23 +313,48 @@ const App = () => {
         }
     };
 
+    const [formErrors, setFormErrors] = useState({});
+
+    const validateSettings = () => {
+        const errors = {};
+        if (settings.ai_provider === 'openai' && !settings.openai_key.trim()) {
+            errors.openai_key = 'OpenAI API key is required when OpenAI is selected as the provider.';
+        }
+        if (settings.ai_provider === 'anthropic' && !settings.anthropic_key.trim()) {
+            errors.anthropic_key = 'Anthropic API key is required when Anthropic is selected as the provider.';
+        }
+        if (settings.ai_provider === 'ollama' && !settings.ollama_url.trim()) {
+            errors.ollama_url = 'Ollama URL is required when Ollama is selected as the provider.';
+        }
+        return errors;
+    };
+
     const saveSettings = async () => {
+        const errors = validateSettings();
+        setFormErrors(errors);
+        if (Object.keys(errors).length > 0) {
+            setSaveStatus({ type: 'error', message: 'Please fix the errors below before saving.' });
+            return;
+        }
+
         setIsSaving(true);
         setSaveStatus(null);
         try {
-            const response = await fetch(`${rankSavvyAdminConfig.apiUrl}/settings`, {
+            const response = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-WP-Nonce': rankSavvyAdminConfig.nonce,
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce,
                 },
                 body: JSON.stringify(settings)
             });
             
             if (response.ok) {
                 setSaveStatus({ type: 'success', message: 'Settings saved successfully!' });
+                setFormErrors({});
             } else {
-                setSaveStatus({ type: 'error', message: 'Failed to save settings.' });
+                const data = await response.json().catch(() => ({}));
+                setSaveStatus({ type: 'error', message: data.message || 'Failed to save settings.' });
             }
         } catch (error) {
             setSaveStatus({ type: 'error', message: 'An error occurred while saving.' });
@@ -160,6 +362,7 @@ const App = () => {
             setIsSaving(false);
         }
     };
+
 
     // Robots.txt State
     const [robotsTxt, setRobotsTxt] = useState('');
@@ -172,8 +375,8 @@ const App = () => {
     useEffect(() => {
         if (activeTab === 'technical' && !robotsLoaded) {
             setIsLoadingRobots(true);
-            fetch(`${rankSavvyAdminConfig.apiUrl}/robots-txt`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            fetch(`${amEveryWhereAdminConfig.apiUrl}/robots-txt`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             })
             .then(r => r.json())
             .then(data => {
@@ -190,9 +393,9 @@ const App = () => {
         setIsSavingRobots(true);
         setRobotsStatus(null);
         try {
-            const response = await fetch(`${rankSavvyAdminConfig.apiUrl}/robots-txt`, {
+            const response = await fetch(`${amEveryWhereAdminConfig.apiUrl}/robots-txt`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({ content: robotsTxt, block_ai_bots: blockAiBots })
             });
             setRobotsStatus(response.ok
@@ -237,9 +440,9 @@ const App = () => {
     const fetchSchemaRules = async () => {
         setIsLoadingSchemaRules(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/schema/global-rules`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/schema/global-rules`, {
                 headers: {
-                    'X-WP-Nonce': rankSavvyAdminConfig.nonce
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce
                 }
             });
             const data = await r.json();
@@ -258,11 +461,11 @@ const App = () => {
         setIsSavingSchemaRules(true);
         setSchemaRulesStatus(null);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/schema/global-rules`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/schema/global-rules`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-WP-Nonce': rankSavvyAdminConfig.nonce
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce
                 },
                 body: JSON.stringify({ rules: newRules })
             });
@@ -292,8 +495,8 @@ const App = () => {
     const fetchSocialAccounts = async () => {
         setIsLoadingSocial(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/social/accounts`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/accounts`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             const data = await r.json();
             if (data) {
@@ -302,8 +505,8 @@ const App = () => {
                 setSocialCategories(data.categories || []);
             }
             
-            const rSettings = await fetch(`${rankSavvyAdminConfig.apiUrl}/social/settings`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const rSettings = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/settings`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             const settingsData = await rSettings.json();
             if (settingsData && settingsData.apps) {
@@ -316,9 +519,9 @@ const App = () => {
     const updateSocialAccount = async (id, payload) => {
         setIsSavingAccount(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/social/accounts/${id}`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/accounts/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify(payload)
             });
             const data = await r.json();
@@ -333,9 +536,9 @@ const App = () => {
     const deleteSocialAccount = async (id) => {
         if (!confirm('Are you sure you want to disconnect this account?')) return;
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/social/accounts/${id}`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/accounts/${id}`, {
                 method: 'DELETE',
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             const data = await r.json();
             if (data.success) {
@@ -347,9 +550,9 @@ const App = () => {
     const toggleGlobalAutoShare = async (val) => {
         setGlobalAutoShare(val);
         try {
-            await fetch(`${rankSavvyAdminConfig.apiUrl}/social/accounts`, {
+            await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/accounts`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({ global_auto_share: val })
             });
         } catch (e) {}
@@ -362,7 +565,7 @@ const App = () => {
         }
 
         const clientId = socialApps[network].app_id;
-        const redirectUri = encodeURIComponent(`${rankSavvyAdminConfig.apiUrl}/social/oauth-callback?network=${network}`);
+        const redirectUri = encodeURIComponent(`${amEveryWhereAdminConfig.apiUrl}/social/oauth-callback?network=${network}`);
 
         let authUrl = '';
         if (network === 'facebook') {
@@ -382,9 +585,9 @@ const App = () => {
     const saveSocialSettings = async () => {
         setIsSavingSocialApps(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/social/settings`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/settings`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify(socialApps)
             });
             const data = await r.json();
@@ -404,14 +607,45 @@ const App = () => {
     // 404 logs State
     const [logs404, setLogs404] = useState([]);
     const [isLoading404, setIsLoading404] = useState(false);
+
+    // Custom 404 page selector state
+    const [custom404PageId, setCustom404PageId] = useState(0);
+    const [available404Pages, setAvailable404Pages] = useState([]);
+    const [isLoading404Page, setIsLoading404Page] = useState(false);
+    const [isSaving404Page, setIsSaving404Page] = useState(false);
+    const [custom404Msg, setCustom404Msg] = useState(null);
+
+    // Cookie banner settings state
+    const [cookieBanner, setCookieBanner] = useState({ enabled: false, mode: 'ccpa', message: '', accept_label: 'Accept', decline_label: 'Decline', policy_url: '' });
+    const [isLoadingCookieBanner, setIsLoadingCookieBanner] = useState(false);
+    const [isSavingCookieBanner, setIsSavingCookieBanner] = useState(false);
+    const [cookieBannerMsg, setCookieBannerMsg] = useState(null);
+
+    // Image compression state
+    const [compressionStats, setCompressionStats] = useState(null);
+    const [compressionConfig, setCompressionConfig] = useState({ enabled: true, quality: 82, webp: true, preserve: true });
+    const [isLoadingCompression, setIsLoadingCompression] = useState(false);
+    const [isSavingCompression, setIsSavingCompression] = useState(false);
+    const [isBulkCompressing, setIsBulkCompressing] = useState(false);
+    const [compressionProgress, setCompressionProgress] = useState(null);
+    const [compressionMsg, setCompressionMsg] = useState(null);
+
+    // Image alt audit state
+    const [altAuditItems, setAltAuditItems] = useState([]);
+    const [altAuditTotal, setAltAuditTotal] = useState(0);
+    const [altAuditPage, setAltAuditPage] = useState(1);
+    const [isLoadingAltAudit, setIsLoadingAltAudit] = useState(false);
+    const [isAutoFillingAlt, setIsAutoFillingAlt] = useState(false);
+    const [altAuditMsg, setAltAuditMsg] = useState(null);
+    const [altEdits, setAltEdits] = useState({});
     const [logs404Status, setLogs404Status] = useState(null);
 
     // Fetch Sitemaps Config
     const fetchSitemapsSettings = async () => {
         setIsLoadingSitemaps(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/settings/sitemaps`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/sitemaps`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             if (r.ok) {
                 const data = await r.json();
@@ -426,9 +660,9 @@ const App = () => {
         setIsSavingSitemaps(true);
         setSitemapsStatus(null);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/settings/sitemaps`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/sitemaps`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify(sitemapsData)
             });
             if (r.ok) {
@@ -442,12 +676,416 @@ const App = () => {
         setIsSavingSitemaps(false);
     };
 
+
+    // Load Custom 404 page settings when sub-tab opens
+    const loadCustom404 = async () => {
+        setIsLoading404Page(true);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/404-page`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await r.json();
+            setCustom404PageId(d.page_id || 0);
+            setAvailable404Pages(d.pages || []);
+        } catch(e) {}
+        setIsLoading404Page(false);
+    };
+
+    const saveCustom404Page = async () => {
+        setIsSaving404Page(true); setCustom404Msg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/404-page`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({ page_id: custom404PageId }),
+            });
+            const d = await r.json();
+            setCustom404Msg(d.success ? { type: 'success', text: 'Custom 404 page saved.' } : { type: 'error', text: 'Failed to save.' });
+        } catch(e) { setCustom404Msg({ type: 'error', text: 'Network error.' }); }
+        setIsSaving404Page(false);
+    };
+
+    // Load cookie banner settings
+    const loadCookieBanner = async () => {
+        setIsLoadingCookieBanner(true);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/cookie-banner`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await r.json();
+            setCookieBanner(d);
+        } catch(e) {}
+        setIsLoadingCookieBanner(false);
+    };
+
+    const saveCookieBanner = async () => {
+        setIsSavingCookieBanner(true); setCookieBannerMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/cookie-banner`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(cookieBanner),
+            });
+            const d = await r.json();
+            setCookieBannerMsg(d.success ? { type: 'success', text: 'Cookie banner settings saved.' } : { type: 'error', text: 'Failed to save.' });
+        } catch(e) { setCookieBannerMsg({ type: 'error', text: 'Network error.' }); }
+        setIsSavingCookieBanner(false);
+    };
+
+    // Load image compression stats + settings
+    const loadCompressionData = async () => {
+        setIsLoadingCompression(true);
+        try {
+            const [statsRes, cfgRes] = await Promise.all([
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/images/compression-stats`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/image-compression`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+            ]);
+            const [stats, cfg] = await Promise.all([statsRes.json(), cfgRes.json()]);
+            setCompressionStats(stats); setCompressionConfig(cfg);
+        } catch(e) {}
+        setIsLoadingCompression(false);
+    };
+
+    const saveCompressionConfig = async () => {
+        setIsSavingCompression(true); setCompressionMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/image-compression`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(compressionConfig),
+            });
+            const d = await r.json();
+            setCompressionMsg(d.success ? { type: 'success', text: 'Settings saved.' } : { type: 'error', text: 'Failed to save.' });
+        } catch(e) { setCompressionMsg({ type: 'error', text: 'Network error.' }); }
+        setIsSavingCompression(false);
+    };
+
+    const runBulkCompress = async () => {
+        setIsBulkCompressing(true); setCompressionProgress(null);
+        const processNext = async () => {
+            try {
+                const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/images/compress-bulk`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                    body: JSON.stringify({ batch_size: 20 }),
+                });
+                const d = await r.json();
+                setCompressionProgress(d);
+                if (!d.done) { setTimeout(processNext, 500); }
+                else { setIsBulkCompressing(false); loadCompressionData(); }
+            } catch(e) { setIsBulkCompressing(false); }
+        };
+        processNext();
+    };
+
+    // Load alt audit items
+    const loadAltAudit = async (page = 1) => {
+        setIsLoadingAltAudit(true); setAltAuditMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/images/missing-alt?page=${page}&per_page=20`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await r.json();
+            setAltAuditItems(d.items || []); setAltAuditTotal(d.total || 0); setAltAuditPage(page);
+        } catch(e) {}
+        setIsLoadingAltAudit(false);
+    };
+
+    const autoFillAltText = async () => {
+        setIsAutoFillingAlt(true); setAltAuditMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/images/auto-fill-alt`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({}),
+            });
+            const d = await r.json();
+            setAltAuditMsg({ type: 'success', text: `Auto-filled alt text for ${d.updated} images.` });
+            loadAltAudit(1);
+        } catch(e) { setAltAuditMsg({ type: 'error', text: 'Failed to auto-fill.' }); }
+        setIsAutoFillingAlt(false);
+    };
+
+    const saveAltEdits = async () => {
+        const items = Object.entries(altEdits).map(([id, alt]) => ({ id: Number(id), alt }));
+        if (!items.length) return;
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/images/bulk-alt`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({ items }),
+            });
+            const d = await r.json();
+            setAltAuditMsg({ type: 'success', text: `Saved ${d.updated} alt texts.` });
+            setAltEdits({}); loadAltAudit(altAuditPage);
+        } catch(e) { setAltAuditMsg({ type: 'error', text: 'Failed to save.' }); }
+    };
+
+    // ── RBAC: Roles & Capabilities ───────────────────────────────────────────
+    const [rolesData, setRolesData]         = useState(null);
+    const [rolesLoading, setRolesLoading]   = useState(false);
+    const [rolesSaving, setRolesSaving]     = useState(false);
+    const [rolesMsg, setRolesMsg]           = useState(null);
+    const [roleEdits, setRoleEdits]         = useState({});
+
+    const loadRoles = async () => {
+        setRolesLoading(true);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/roles/capabilities`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+            });
+            const d = await r.json();
+            setRolesData(d);
+            // Seed edits from current values
+            const initial = {};
+            Object.entries(d.roles || {}).forEach(([slug, role]) => {
+                initial[slug] = { ...role.capabilities };
+            });
+            setRoleEdits(initial);
+        } catch(e) {}
+        setRolesLoading(false);
+    };
+
+    const saveRoles = async () => {
+        setRolesSaving(true); setRolesMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/roles/capabilities`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(roleEdits),
+            });
+            const d = await r.json();
+            setRolesMsg(d.success ? { type: 'success', text: 'Capabilities saved.' } : { type: 'error', text: 'Failed to save.' });
+        } catch(e) { setRolesMsg({ type: 'error', text: 'Network error.' }); }
+        setRolesSaving(false);
+    };
+
+    const toggleCap = (roleSlug, cap, value) => {
+        if (roleSlug === 'administrator') return; // Immutable
+        setRoleEdits(prev => ({
+            ...prev,
+            [roleSlug]: { ...(prev[roleSlug] || {}), [cap]: value },
+        }));
+    };
+
+    // ── Network SEO (Multisite) ───────────────────────────────────────────────
+    const isMultisite = amEveryWhereAdminConfig.isMultisite === '1';
+    const [networkSettings, setNetworkSettings]     = useState(null);
+    const [networkSites, setNetworkSites]           = useState([]);
+    const [networkLoading, setNetworkLoading]       = useState(false);
+    const [networkSaving, setNetworkSaving]         = useState(false);
+    const [networkMsg, setNetworkMsg]               = useState(null);
+
+    const loadNetworkData = async () => {
+        setNetworkLoading(true);
+        try {
+            const [settingsRes, sitesRes] = await Promise.all([
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/network/settings`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/network/sites`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+            ]);
+            const [settings, sites] = await Promise.all([settingsRes.json(), sitesRes.json()]);
+            setNetworkSettings(settings);
+            setNetworkSites(sites.sites || []);
+        } catch(e) {}
+        setNetworkLoading(false);
+    };
+
+    const saveNetworkSettings = async () => {
+        setNetworkSaving(true); setNetworkMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/network/settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(networkSettings),
+            });
+            const d = await r.json();
+            setNetworkMsg(d.success ? { type: 'success', text: 'Network settings saved.' } : { type: 'error', text: 'Failed to save.' });
+        } catch(e) { setNetworkMsg({ type: 'error', text: 'Network error.' }); }
+        setNetworkSaving(false);
+    };
+
+    // ── Technical SEO Site Audit ─────────────────────────────────────────────
+    const [auditResults, setAuditResults]     = useState(null);
+    const [auditProgress, setAuditProgress]   = useState({ status: 'idle', percent: 0, current_check: '' });
+    const [auditRunning, setAuditRunning]     = useState(false);
+    const [auditPolling, setAuditPolling]     = useState(null);
+
+    const loadAuditResults = async () => {
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/audit/technical`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await r.json();
+            if (d.checks) setAuditResults(d);
+        } catch(e) {}
+    };
+
+    const runSiteAudit = async () => {
+        setAuditRunning(true); setAuditResults(null);
+        setAuditProgress({ status: 'running', percent: 0, current_check: 'Starting…' });
+        try {
+            await fetch(`${amEveryWhereAdminConfig.apiUrl}/audit/technical/run`, {
+                method: 'POST', headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+            });
+            // Poll progress every 3s until done
+            const poll = setInterval(async () => {
+                try {
+                    const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/audit/technical/progress`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+                    const d = await r.json();
+                    setAuditProgress(d);
+                    if (d.status === 'done') {
+                        clearInterval(poll);
+                        setAuditRunning(false);
+                        loadAuditResults();
+                    }
+                } catch(e) { clearInterval(poll); setAuditRunning(false); }
+            }, 3000);
+            setAuditPolling(poll);
+        } catch(e) { setAuditRunning(false); }
+    };
+
+    // ── Broken Link Checker ───────────────────────────────────────────────────
+    const [blcResults, setBlcResults]         = useState([]);
+    const [blcTotal, setBlcTotal]             = useState(0);
+    const [blcPage, setBlcPage]               = useState(1);
+    const [blcProgress, setBlcProgress]       = useState({ status: 'idle', scanned: 0, total: 0, found: 0 });
+    const [blcLoading, setBlcLoading]         = useState(false);
+    const [blcScanning, setBlcScanning]       = useState(false);
+    const [blcShowResolved, setBlcShowResolved] = useState(false);
+    const [blcMsg, setBlcMsg]                 = useState(null);
+
+    const loadBlcResults = async (page = 1, resolved = false) => {
+        setBlcLoading(true);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/broken-links?per_page=20&page=${page}&resolved=${resolved ? 1 : 0}`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+            });
+            const d = await r.json();
+            setBlcResults(d.items || []); setBlcTotal(d.total || 0); setBlcPage(page);
+        } catch(e) {}
+        setBlcLoading(false);
+    };
+
+    const loadBlcProgress = async () => {
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/broken-links/progress`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const d = await r.json();
+            setBlcProgress(d);
+            return d.status;
+        } catch(e) { return 'idle'; }
+    };
+
+    const startBlcScan = async () => {
+        setBlcScanning(true); setBlcMsg(null);
+        setBlcProgress({ status: 'running', scanned: 0, total: 0, found: 0 });
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/broken-links/scan`, {
+                method: 'POST', headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+            });
+            const d = await r.json();
+            if (d.success) {
+                setBlcMsg({ type: 'info', text: d.message });
+                // Poll for progress
+                const poll = setInterval(async () => {
+                    const status = await loadBlcProgress();
+                    if (status === 'done') {
+                        clearInterval(poll);
+                        setBlcScanning(false);
+                        loadBlcResults(1, blcShowResolved);
+                    }
+                }, 4000);
+            }
+        } catch(e) { setBlcScanning(false); }
+    };
+
+    const resolveBlcLink = async (id) => {
+        try {
+            await fetch(`${amEveryWhereAdminConfig.apiUrl}/broken-links/${id}/resolve`, {
+                method: 'POST', headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+            });
+            loadBlcResults(blcPage, blcShowResolved);
+        } catch(e) {}
+    };
+
+    const recheckBlcLink = async (id, url) => {
+        setBlcMsg({ type: 'info', text: `Rechecking ${url}…` });
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/broken-links/recheck`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({ id, url }),
+            });
+            const d = await r.json();
+            setBlcMsg({ type: d.broken ? 'error' : 'success', text: `Status: HTTP ${d.http_code} — ${d.broken ? 'Still broken' : 'Now reachable'}` });
+            loadBlcResults(blcPage, blcShowResolved);
+        } catch(e) { setBlcMsg({ type: 'error', text: 'Recheck failed.' }); }
+    };
+
+    // ── Keyword Rank Tracker ──────────────────────────────────────────────────
+    const [rankKeywords, setRankKeywords]     = useState([]);
+    const [rankHistory, setRankHistory]       = useState({});
+    const [rankDays, setRankDays]             = useState(30);
+    const [rankLoading, setRankLoading]       = useState(false);
+    const [rankChecking, setRankChecking]     = useState(false);
+    const [rankSaving, setRankSaving]         = useState(false);
+    const [rankMsg, setRankMsg]               = useState(null);
+    const [newKeyword, setNewKeyword]         = useState('');
+    const [serpApiKey, setSerpApiKey]         = useState('');
+
+    const loadRankData = async () => {
+        setRankLoading(true);
+        try {
+            const [kwRes, histRes] = await Promise.all([
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/rank-tracker/keywords`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/rank-tracker/history?days=${rankDays}`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+            ]);
+            const [kw, hist] = await Promise.all([kwRes.json(), histRes.json()]);
+            setRankKeywords(kw.keywords || []);
+            setRankHistory(hist.history || {});
+            // Load SerpApi key from settings
+            const sRes = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } });
+            const s = await sRes.json();
+            setSerpApiKey(s.serpapi_key || '');
+        } catch(e) {}
+        setRankLoading(false);
+    };
+
+    const saveRankKeywords = async (keywords) => {
+        setRankSaving(true); setRankMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/rank-tracker/keywords`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({ keywords }),
+            });
+            const d = await r.json();
+            setRankMsg(d.success ? { type: 'success', text: `${d.count} keywords saved.` } : { type: 'error', text: 'Failed to save.' });
+            setRankKeywords(keywords);
+        } catch(e) { setRankMsg({ type: 'error', text: 'Network error.' }); }
+        setRankSaving(false);
+    };
+
+    const checkRankNow = async (keyword = null) => {
+        setRankChecking(true); setRankMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/rank-tracker/check-now`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify(keyword ? { keyword } : {}),
+            });
+            const d = await r.json();
+            if (d.results) {
+                const errors = Object.values(d.results).filter(r => r.error);
+                if (errors.length) {
+                    setRankMsg({ type: 'error', text: errors[0].error });
+                } else {
+                    setRankMsg({ type: 'success', text: 'Rank check complete. Refreshing history…' });
+                    setTimeout(() => loadRankData(), 1500);
+                }
+            }
+        } catch(e) { setRankMsg({ type: 'error', text: 'Check failed.' }); }
+        setRankChecking(false);
+    };
+
+    const addKeyword = () => {
+        const kw = newKeyword.trim();
+        if (!kw || rankKeywords.includes(kw)) return;
+        const updated = [...rankKeywords, kw];
+        setNewKeyword('');
+        saveRankKeywords(updated);
+    };
+
+    const removeKeyword = (kw) => saveRankKeywords(rankKeywords.filter(k => k !== kw));
+
     // Fetch Redirects
     const fetchRedirects = async () => {
         setIsLoadingRedirects(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/redirects`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/redirects`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             if (r.ok) {
                 const data = await r.json();
@@ -465,9 +1103,9 @@ const App = () => {
             return;
         }
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/redirects`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/redirects`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify(newRedirect)
             });
             const res = await r.json();
@@ -487,9 +1125,9 @@ const App = () => {
     const deleteRedirect = async (id) => {
         setRedirectsStatus(null);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/redirects/delete`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/redirects/delete`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({ id })
             });
             const res = await r.json();
@@ -504,8 +1142,8 @@ const App = () => {
     const fetch404Logs = async () => {
         setIsLoading404(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/errors/404`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/errors/404`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             if (r.ok) {
                 const data = await r.json();
@@ -518,9 +1156,9 @@ const App = () => {
     // Clear specific 404 Log
     const delete404Log = async (id) => {
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/errors/404`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/errors/404`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({ id })
             });
             const res = await r.json();
@@ -533,9 +1171,9 @@ const App = () => {
     // Clear all 404 Logs
     const clearAll404Logs = async () => {
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/errors/404`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/errors/404`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({})
             });
             const res = await r.json();
@@ -567,8 +1205,8 @@ const App = () => {
     const fetchLlmsSettings = async () => {
         setIsLoadingLlms(true);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/llms-txt/config`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/llms-txt/config`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             if (r.ok) {
                 const data = await r.json();
@@ -582,9 +1220,9 @@ const App = () => {
         setIsSavingLlms(true);
         setLlmsStatus(null);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/llms-txt/config`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/llms-txt/config`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify(llmsData)
             });
             if (r.ok) {
@@ -612,8 +1250,8 @@ const App = () => {
         setIsLoadingBulkMeta(true);
         try {
             const params = new URLSearchParams(bulkMetaParams).toString();
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/bulk-meta?${params}`, {
-                headers: { 'X-WP-Nonce': rankSavvyAdminConfig.nonce }
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/bulk-meta?${params}`, {
+                headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce }
             });
             if (r.ok) {
                 const data = await r.json();
@@ -637,9 +1275,9 @@ const App = () => {
         setIsSavingBulkMeta(true);
         setBulkMetaStatus(null);
         try {
-            const r = await fetch(`${rankSavvyAdminConfig.apiUrl}/bulk-meta`, {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/bulk-meta`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': rankSavvyAdminConfig.nonce },
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
                 body: JSON.stringify({ updates })
             });
             if (r.ok) {
@@ -656,6 +1294,14 @@ const App = () => {
 
     // Auto-fetch data on active tab transitions
     useEffect(() => {
+        if (activeTab === 'compliance') { loadCookieBanner(); }
+        if (activeTab === 'image_seo') { loadCompressionData(); loadAltAudit(1); }
+        if (activeTab === 'roles') { loadRoles(); }
+        if (activeTab === 'network_seo' && isMultisite) { loadNetworkData(); }
+        if (activeTab === 'site_audit') { loadAuditResults(); }
+        if (activeTab === 'broken_links') { loadBlcProgress(); loadBlcResults(1, false); }
+        if (activeTab === 'rank_tracker') { loadRankData(); }
+
         if (activeTab === 'sitemaps') {
             fetchSitemapsSettings();
         }
@@ -683,15 +1329,15 @@ const App = () => {
     return (
         <>
         {showSetup && (
-            <div className="ranksavvy-wrapper mt-5 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="ameverywhere-wrapper mt-5 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
                 <SetupWizard onComplete={() => { setShowSetup(false); window.location.hash = ''; }} />
             </div>
         )}
         {!showSetup && (
-        <div className="ranksavvy-wrapper mt-5 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="ameverywhere-wrapper mt-5 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
             <header className="mb-8 border-b pb-4 flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 m-0">RankSavvy</h1>
+                    <h1 className="text-2xl font-bold text-slate-900 m-0">AmEveryWhere</h1>
                     <p className="text-slate-500 m-0 mt-1">AI-First Search Engine Optimization</p>
                 </div>
                 <div className="flex gap-2">
@@ -704,7 +1350,9 @@ const App = () => {
             <div className="flex gap-6">
                 <aside className="w-64 flex-shrink-0">
                     <nav className="flex flex-col gap-1">
-                        <NavItem label="Dashboard & GSC" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                        <NavItem label="📊 Dashboard & GSC" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                        <NavItem label="📈 Analytics (GA4)" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
+                        <NavItem label="🔗 Link Health" active={activeTab === 'links'} onClick={() => setActiveTab('links')} />
                         <NavItem label="Settings & Integrations" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                         <NavItem label="Technical SEO" active={activeTab === 'technical'} onClick={() => setActiveTab('technical')} />
                         <NavItem label="XML Sitemaps" active={activeTab === 'sitemaps'} onClick={() => setActiveTab('sitemaps')} />
@@ -712,47 +1360,361 @@ const App = () => {
                         <NavItem label="Social & Sharing" active={activeTab === 'social'} onClick={() => setActiveTab('social')} />
                         <NavItem label="LLM Agent Config" active={activeTab === 'llms'} onClick={() => setActiveTab('llms')} />
                         <NavItem label="Bulk Meta Editor" active={activeTab === 'bulk_meta'} onClick={() => setActiveTab('bulk_meta')} />
+                        <NavItem label="🗺 HTML Sitemap" active={activeTab === 'html_sitemap'} onClick={() => setActiveTab('html_sitemap')} />
+                        <NavItem label="🖼 Image SEO" active={activeTab === 'image_seo'} onClick={() => setActiveTab('image_seo')} />
+                        <NavItem label="🍪 Cookie & Compliance" active={activeTab === 'compliance'} onClick={() => setActiveTab('compliance')} />
+                        <NavItem label="🔐 Roles & Capabilities" active={activeTab === 'roles'} onClick={() => setActiveTab('roles')} />
+                        {isMultisite && <NavItem label="🌐 Network SEO" active={activeTab === 'network_seo'} onClick={() => setActiveTab('network_seo')} />}
+                        <NavItem label="🔍 Site Audit" active={activeTab === 'site_audit'} onClick={() => setActiveTab('site_audit')} />
+                        <NavItem label="🔗 Broken Links" active={activeTab === 'broken_links'} onClick={() => setActiveTab('broken_links')} />
+                        <NavItem label="📈 Rank Tracker" active={activeTab === 'rank_tracker'} onClick={() => setActiveTab('rank_tracker')} />
                     </nav>
                 </aside>
 
                 <main className="flex-1">
+                {/* ══════════════ GSC DASHBOARD ══════════════ */}
                     {activeTab === 'dashboard' && (
                         <div className="space-y-6">
-                            <h2 className="text-xl font-semibold m-0 text-slate-800">Google Search Console Overview</h2>
-                            {!gscData ? (
-                                <div className="p-8 text-center text-slate-500">Loading Search Console Data...</div>
-                            ) : (
-                                <>
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <StatCard title="Total Clicks" value={gscData.totalClicks} type="success" />
-                                        <StatCard title="Impressions" value={gscData.totalImpressions} />
-                                        <StatCard title="Avg. CTR" value={gscData.avgCtr} />
-                                        <StatCard title="Avg. Position" value={gscData.avgPosition} type="success" />
-                                    </div>
-                                    <div className="mt-8 border rounded-lg overflow-hidden">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold m-0 text-slate-800">Google Search Console</h2>
+                                    {gscData?.period && <p className="text-sm text-slate-500 mt-1 mb-0">{gscData.period.start} → {gscData.period.end} &nbsp;·&nbsp; {gscData.cached ? '⚡ Cached' : '🔄 Live'}</p>}
+                                </div>
+                                <button onClick={() => { setGscData(null); setCannData(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
+                            </div>
+
+                            {gscLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Connecting to Google Search Console…</span></div>}
+                            {gscError && <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">⚠ {gscError}</div>}
+
+                            {gscData?.summary && (
+                                <div className="grid grid-cols-4 gap-4">
+                                    <StatCard title="Total Clicks" value={fmtNum(gscData.summary.clicks)} type="success" />
+                                    <StatCard title="Impressions" value={fmtNum(gscData.summary.impressions)} />
+                                    <StatCard title="Avg. CTR" value={gscData.summary.avg_ctr + '%'} />
+                                    <StatCard title="Avg. Position" value={String(gscData.summary.avg_position)} type="success" />
+                                </div>
+                            )}
+
+                            {gscData && (
+                                <div className="flex gap-2 border-b border-slate-200">
+                                    {[['overview','📋 Overview'],['pages','📄 Top Pages'],['cannibalization','⚠ Cannibalization']].map(([id, label]) => (
+                                        <button key={id} onClick={() => setGscSubTab(id)}
+                                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors bg-transparent cursor-pointer ${gscSubTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {gscData && gscSubTab === 'overview' && (
+                                <div className="space-y-6">
+                                    {gscData.trend?.length > 0 && (
+                                        <div className="bg-white border rounded-lg p-4">
+                                            <h3 className="text-sm font-semibold text-slate-700 mb-3 m-0">28-Day Click Trend</h3>
+                                            <ResponsiveContainer width="100%" height={180}>
+                                                <LineChart data={gscData.trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                                                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+                                                    <YAxis tick={{ fontSize: 10 }} />
+                                                    <Tooltip formatter={(v, n) => [fmtNum(v), n === 'clicks' ? 'Clicks' : 'Impressions']} />
+                                                    <Line type="monotone" dataKey="clicks" stroke="#6366f1" strokeWidth={2} dot={false} name="clicks" />
+                                                    <Line type="monotone" dataKey="impressions" stroke="#cbd5e1" strokeWidth={1} dot={false} name="impressions" />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    )}
+                                    <div className="bg-white border rounded-lg overflow-hidden">
+                                        <div className="px-4 py-3 border-b bg-slate-50"><span className="text-sm font-semibold text-slate-700">Top Queries (28 days)</span></div>
                                         <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-50 border-b">
-                                                    <th className="p-3 text-sm font-semibold text-slate-600">Top Keywords</th>
-                                                    <th className="p-3 text-sm font-semibold text-slate-600">Clicks</th>
-                                                    <th className="p-3 text-sm font-semibold text-slate-600">Position</th>
-                                                </tr>
-                                            </thead>
+                                            <thead><tr className="bg-slate-50 border-b">
+                                                <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Query</th>
+                                                <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Clicks</th>
+                                                <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Impr.</th>
+                                                <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">CTR</th>
+                                                <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Pos.</th>
+                                            </tr></thead>
                                             <tbody>
-                                                {gscData.topKeywords.map((kw, i) => (
+                                                {(gscData.top_queries || []).map((kw, i) => (
                                                     <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
-                                                        <td className="p-3 text-sm font-medium text-slate-800">{kw.keyword}</td>
-                                                        <td className="p-3 text-sm text-slate-600">{kw.clicks}</td>
-                                                        <td className="p-3 text-sm text-slate-600">{kw.pos}</td>
+                                                        <td className="p-3 text-sm text-slate-800">{kw.query}</td>
+                                                        <td className="p-3 text-sm font-medium text-slate-700 text-right">{fmtNum(kw.clicks)}</td>
+                                                        <td className="p-3 text-sm text-slate-500 text-right">{fmtNum(kw.impressions)}</td>
+                                                        <td className="p-3 text-sm text-slate-500 text-right">{kw.ctr}%</td>
+                                                        <td className="p-3 text-sm font-semibold text-right" style={{ color: posColor(kw.position) }}>{kw.position}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
+                                </div>
+                            )}
+
+                            {gscData && gscSubTab === 'pages' && (
+                                <div className="bg-white border rounded-lg overflow-hidden">
+                                    <div className="px-4 py-3 border-b bg-slate-50"><span className="text-sm font-semibold text-slate-700">Top Pages by Clicks (28 days)</span></div>
+                                    <table className="w-full text-left border-collapse">
+                                        <thead><tr className="bg-slate-50 border-b">
+                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Page</th>
+                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Clicks</th>
+                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Impr.</th>
+                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">CTR</th>
+                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Pos.</th>
+                                        </tr></thead>
+                                        <tbody>
+                                            {(gscData.top_pages || []).map((pg, i) => (
+                                                <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                    <td className="p-3 text-sm">
+                                                        <div className="font-medium text-slate-800">{pg.label}</div>
+                                                        <div className="text-xs text-slate-400 truncate max-w-xs">{pg.url}</div>
+                                                    </td>
+                                                    <td className="p-3 text-sm font-medium text-slate-700 text-right">{fmtNum(pg.clicks)}</td>
+                                                    <td className="p-3 text-sm text-slate-500 text-right">{fmtNum(pg.impressions)}</td>
+                                                    <td className="p-3 text-sm text-slate-500 text-right">{pg.ctr}%</td>
+                                                    <td className="p-3 text-sm font-semibold text-right" style={{ color: posColor(pg.position) }}>{pg.position}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {gscData && gscSubTab === 'cannibalization' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">Keyword cannibalization occurs when multiple pages compete for the same search query. Consolidate or differentiate these pages to improve rankings.</div>
+                                    {cannLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Analysing 90-day GSC data…</span></div>}
+                                    {cannData && cannData.conflicts.length === 0 && <div className="p-6 text-center text-green-700 bg-green-50 rounded-lg border border-green-200">✅ No cannibalization detected in the last 90 days.</div>}
+                                    {(cannData?.conflicts || []).map((c, i) => (
+                                        <div key={i} className="border rounded-lg overflow-hidden">
+                                            <div className={`px-4 py-2 flex items-center gap-2 text-sm font-semibold ${c.severity === 'high' ? 'bg-red-50 text-red-800 border-b border-red-200' : 'bg-amber-50 text-amber-800 border-b border-amber-200'}`}>
+                                                <span>{c.severity === 'high' ? '🔴' : '🟡'}</span>
+                                                <span className="flex-1">"{c.query}"</span>
+                                                <span className="text-xs font-normal opacity-75">{c.page_count} competing pages</span>
+                                            </div>
+                                            <table className="w-full text-left border-collapse"><tbody>
+                                                {c.pages.map((p, j) => (
+                                                    <tr key={j} className="border-b last:border-0 hover:bg-slate-50">
+                                                        <td className="p-3 text-sm"><div className="font-medium text-slate-800">{p.title}</div><div className="text-xs text-slate-400">{p.url}</div></td>
+                                                        <td className="p-3 text-sm text-slate-600 text-right">{p.clicks} clicks</td>
+                                                        <td className="p-3 text-sm font-semibold text-right" style={{ color: posColor(p.position) }}>#{p.position}</td>
+                                                        {p.post_id && <td className="p-3"><a href={`/wp-admin/post.php?post=${p.post_id}&action=edit`} className="text-xs text-indigo-600 hover:underline">Edit →</a></td>}
+                                                    </tr>
+                                                ))}
+                                            </tbody></table>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ══════════════ GA4 ANALYTICS TAB ══════════════ */}
+                    {activeTab === 'analytics' && (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold m-0 text-slate-800">Google Analytics 4</h2>
+                                    {ga4Report?.period && <p className="text-sm text-slate-500 mt-1 mb-0">{ga4Report.period.start} → {ga4Report.period.end} &nbsp;·&nbsp; {ga4Report.cached ? '⚡ Cached' : '🔄 Live'}</p>}
+                                </div>
+                                <button onClick={() => { setGa4Report(null); setGa4Error(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
+                            </div>
+
+                            {ga4Loading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Connecting to Google Analytics 4…</span></div>}
+
+                            {ga4Error && (
+                                <div className="bg-white border rounded-lg p-6 space-y-4">
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">⚠ {ga4Error}</div>
+                                    <h3 className="text-base font-semibold text-slate-800 m-0">Connect Google Analytics 4</h3>
+                                    <p className="text-sm text-slate-500 m-0">Enter your GA4 Measurement ID and Property ID, then paste your Service Account JSON credentials.</p>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Measurement ID <span className="font-normal text-slate-400">(G-XXXXXXXXXX)</span></label>
+                                            <input type="text" placeholder="G-XXXXXXXXXX" value={ga4Settings.measurement_id} onChange={e => setGa4Settings(s => ({ ...s, measurement_id: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 mb-1">Property ID <span className="font-normal text-slate-400">(numeric)</span></label>
+                                            <input type="text" placeholder="123456789" value={ga4Settings.property_id} onChange={e => setGa4Settings(s => ({ ...s, property_id: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Service Account JSON {ga4Settings.credentials_set && <span className="text-green-600 font-normal">(✓ saved)</span>}</label>
+                                        <textarea rows={4} placeholder={'{ "type": "service_account", "client_email": "...", "private_key": "..." }'} value={ga4Settings.credentials} onChange={e => setGa4Settings(s => ({ ...s, credentials: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm font-mono" />
+                                    </div>
+                                    {ga4SaveMsg && <div className={`text-sm p-3 rounded ${ga4SaveMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{ga4SaveMsg.text}</div>}
+                                    <button onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save & Connect'}</button>
+                                </div>
+                            )}
+
+                            {ga4Report?.summary && (
+                                <>
+                                    <div className="grid grid-cols-5 gap-3">
+                                        {[
+                                            ['Sessions', fmtNum(ga4Report.summary.sessions), 'success'],
+                                            ['Users', fmtNum(ga4Report.summary.users), 'default'],
+                                            ['Pageviews', fmtNum(ga4Report.summary.pageviews), 'default'],
+                                            ['Bounce Rate', ga4Report.summary.bounce_rate + '%', 'default'],
+                                            ['Avg. Session', Math.floor(ga4Report.summary.avg_session / 60) + 'm ' + (ga4Report.summary.avg_session % 60) + 's', 'success'],
+                                        ].map(([t, v, type]) => <StatCard key={t} title={t} value={v} type={type} />)}
+                                    </div>
+
+                                    {ga4Report.trend?.length > 0 && (
+                                        <div className="bg-white border rounded-lg p-4">
+                                            <h3 className="text-sm font-semibold text-slate-700 mb-3 m-0">28-Day Session Trend</h3>
+                                            <ResponsiveContainer width="100%" height={180}>
+                                                <LineChart data={ga4Report.trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                                                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={d => d.slice(5)} />
+                                                    <YAxis tick={{ fontSize: 10 }} />
+                                                    <Tooltip />
+                                                    <Line type="monotone" dataKey="sessions" stroke="#6366f1" strokeWidth={2} dot={false} name="Sessions" />
+                                                    <Line type="monotone" dataKey="pageviews" stroke="#22c55e" strokeWidth={1} dot={false} name="Pageviews" />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="bg-white border rounded-lg overflow-hidden">
+                                            <div className="px-4 py-3 border-b bg-slate-50 text-sm font-semibold text-slate-700">Top Pages</div>
+                                            <table className="w-full text-left"><tbody>
+                                                {(ga4Report.top_pages || []).map((p, i) => (
+                                                    <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                        <td className="p-3 text-sm"><div className="font-medium text-slate-700 truncate max-w-xs" title={p.title}>{p.title || p.path}</div><div className="text-xs text-slate-400">{p.path}</div></td>
+                                                        <td className="p-3 text-sm text-right text-slate-600 whitespace-nowrap">{fmtNum(p.pageviews)} pvs</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody></table>
+                                        </div>
+
+                                        {ga4Report.channels?.length > 0 && (
+                                            <div className="bg-white border rounded-lg p-4">
+                                                <div className="text-sm font-semibold text-slate-700 mb-3">Traffic Channels</div>
+                                                <ResponsiveContainer width="100%" height={200}>
+                                                    <PieChart>
+                                                        <Pie data={ga4Report.channels} dataKey="sessions" nameKey="channel" cx="50%" cy="50%" outerRadius={80} label={({ channel, percent }) => `${channel} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                                                            {ga4Report.channels.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                                                        </Pie>
+                                                        <Tooltip />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <details className="bg-slate-50 border rounded-lg">
+                                        <summary className="px-4 py-3 text-sm font-medium text-slate-600 cursor-pointer">⚙ GA4 Connection Settings</summary>
+                                        <div className="px-4 pb-4 space-y-3">
+                                            <div className="grid grid-cols-2 gap-4 mt-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Measurement ID</label>
+                                                    <input type="text" value={ga4Settings.measurement_id} onChange={e => setGa4Settings(s => ({ ...s, measurement_id: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Property ID</label>
+                                                    <input type="text" value={ga4Settings.property_id} onChange={e => setGa4Settings(s => ({ ...s, property_id: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Service Account JSON {ga4Settings.credentials_set && <span className="text-green-600 font-normal">(✓ saved)</span>}</label>
+                                                <textarea rows={3} placeholder="Paste new credentials to replace…" value={ga4Settings.credentials} onChange={e => setGa4Settings(s => ({ ...s, credentials: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm font-mono" />
+                                            </div>
+                                            {ga4SaveMsg && <div className={`text-sm p-3 rounded ${ga4SaveMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{ga4SaveMsg.text}</div>}
+                                            <button onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save Changes'}</button>
+                                        </div>
+                                    </details>
                                 </>
                             )}
                         </div>
                     )}
+
+                    {/* ══════════════ LINK HEALTH TAB ══════════════ */}
+                    {activeTab === 'links' && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-semibold m-0 text-slate-800">Link Health</h2>
+
+                            <div className="flex gap-2 border-b border-slate-200">
+                                {[['orphans','🏝 Orphan Pages'],['stats','📊 Link Statistics']].map(([id, label]) => (
+                                    <button key={id} onClick={() => setLinksSubTab(id)}
+                                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors bg-transparent cursor-pointer ${linksSubTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>
+                                ))}
+                            </div>
+
+                            {linksSubTab === 'orphans' && (
+                                <div className="space-y-4">
+                                    {orphanLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Scanning internal link index…</span></div>}
+                                    {orphanData && (
+                                        <>
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <StatCard title="Total Posts/Pages" value={String(orphanData.total)} />
+                                                <StatCard title="Orphan Pages" value={String(orphanData.orphan_count)} type={orphanData.orphan_count > 0 ? 'default' : 'success'} />
+                                                <StatCard title="Linked Pages" value={String(orphanData.linked_count)} type="success" />
+                                            </div>
+                                            {orphanData.orphan_count === 0 ? (
+                                                <div className="p-6 text-center text-green-700 bg-green-50 rounded-lg border border-green-200">✅ No orphan pages detected. Every page has at least one incoming internal link.</div>
+                                            ) : (
+                                                <div className="bg-white border rounded-lg overflow-hidden">
+                                                    <div className="px-4 py-3 border-b bg-slate-50 flex items-center justify-between">
+                                                        <span className="text-sm font-semibold text-slate-700">Orphan Pages — No Incoming Internal Links</span>
+                                                        <span className="text-xs text-slate-400">{orphanData.orphan_count} pages need links</span>
+                                                    </div>
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead><tr className="bg-slate-50 border-b">
+                                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Page</th>
+                                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Modified</th>
+                                                            <th className="p-3 text-xs font-semibold text-slate-500 uppercase text-right">Actions</th>
+                                                        </tr></thead>
+                                                        <tbody>
+                                                            {orphanData.orphans.map((p, i) => (
+                                                                <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                                    <td className="p-3"><div className="text-sm font-medium text-slate-800">{p.title}</div><div className="text-xs text-slate-400 truncate max-w-sm">{p.url}</div></td>
+                                                                    <td className="p-3"><span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{p.post_type}</span></td>
+                                                                    <td className="p-3 text-xs text-slate-500">{p.modified}</td>
+                                                                    <td className="p-3 text-right">{p.edit_url && <a href={p.edit_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">Edit →</a>}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {linksSubTab === 'stats' && (
+                                <div className="space-y-6">
+                                    {linkStatsLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Loading link statistics…</span></div>}
+                                    {linkStats?.message && <div className="p-4 bg-slate-50 border rounded-lg text-sm text-slate-600">ℹ {linkStats.message}</div>}
+                                    {linkStats && linkStats.total_links !== undefined && (
+                                        <>
+                                            <StatCard title="Total Indexed Internal Links" value={fmtNum(linkStats.total_links)} type="success" />
+                                            <div className="grid grid-cols-2 gap-6">
+                                                <div className="bg-white border rounded-lg overflow-hidden">
+                                                    <div className="px-4 py-3 border-b bg-slate-50 text-sm font-semibold text-slate-700">Most Linked-To Pages</div>
+                                                    <table className="w-full text-left"><tbody>
+                                                        {(linkStats.top_targets || []).map((t, i) => (
+                                                            <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                                <td className="p-3 text-sm"><div className="font-medium text-slate-700 truncate max-w-xs">{t.title}</div><div className="text-xs text-slate-400">{t.target_url}</div></td>
+                                                                <td className="p-3 text-sm text-right text-indigo-600 font-semibold whitespace-nowrap">{t.link_count} links</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody></table>
+                                                </div>
+                                                <div className="bg-white border rounded-lg overflow-hidden">
+                                                    <div className="px-4 py-3 border-b bg-slate-50 text-sm font-semibold text-slate-700">Pages With Most Outgoing Links</div>
+                                                    <table className="w-full text-left"><tbody>
+                                                        {(linkStats.top_sources || []).map((s, i) => (
+                                                            <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                                <td className="p-3 text-sm"><div className="font-medium text-slate-700 truncate max-w-xs">{s.title}</div></td>
+                                                                <td className="p-3 text-sm text-right text-green-600 font-semibold whitespace-nowrap">{s.link_count} links</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody></table>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
 
                     {activeTab === 'settings' && (
                         <div className="space-y-6 max-w-3xl">
@@ -849,7 +1811,7 @@ const App = () => {
                                             </select>
                                         </div>
                                         <p className="text-xs text-slate-400">
-                                            You can manually place breadcrumbs anywhere in your template files with: <code>&lt;?php ranksavvy_breadcrumbs(); ?&gt;</code> or shortcode: <code>[ranksavvy_breadcrumbs]</code>.
+                                            You can manually place breadcrumbs anywhere in your template files with: <code>&lt;?php ameverywhere_breadcrumbs(); ?&gt;</code> or shortcode: <code>[ameverywhere_breadcrumbs]</code>.
                                         </p>
                                     </div>
 
@@ -883,9 +1845,11 @@ const App = () => {
                                                     label="OpenAI API Key"
                                                     value={settings.openai_key}
                                                     type="password"
-                                                    onChange={(val) => setSettings({ ...settings, openai_key: val })}
+                                                    onChange={(val) => { setSettings({ ...settings, openai_key: val }); setFormErrors(e => ({ ...e, openai_key: '' })); }}
                                                     placeholder="sk-..."
+                                                    className={formErrors.openai_key ? 'rs-field-error' : ''}
                                                 />
+                                                {formErrors.openai_key && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.openai_key}</p>}
                                             </div>
                                         )}
 
@@ -895,9 +1859,11 @@ const App = () => {
                                                     label="Anthropic API Key"
                                                     value={settings.anthropic_key}
                                                     type="password"
-                                                    onChange={(val) => setSettings({ ...settings, anthropic_key: val })}
+                                                    onChange={(val) => { setSettings({ ...settings, anthropic_key: val }); setFormErrors(e => ({ ...e, anthropic_key: '' })); }}
                                                     placeholder="sk-ant-..."
+                                                    className={formErrors.anthropic_key ? 'rs-field-error' : ''}
                                                 />
+                                                {formErrors.anthropic_key && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.anthropic_key}</p>}
                                             </div>
                                         )}
 
@@ -906,9 +1872,11 @@ const App = () => {
                                                 <TextControl
                                                     label="Ollama Host URL"
                                                     value={settings.ollama_url}
-                                                    onChange={(val) => setSettings({ ...settings, ollama_url: val })}
+                                                    onChange={(val) => { setSettings({ ...settings, ollama_url: val }); setFormErrors(e => ({ ...e, ollama_url: '' })); }}
                                                     placeholder="http://localhost:11434"
+                                                    className={formErrors.ollama_url ? 'rs-field-error' : ''}
                                                 />
+                                                {formErrors.ollama_url && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.ollama_url}</p>}
                                             </div>
                                         )}
 
@@ -953,6 +1921,37 @@ const App = () => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* ── Import / Export ── */}
+                            <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-5">
+                                <div>
+                                    <h3 className="text-base font-semibold text-slate-800 m-0">Import / Export Settings</h3>
+                                    <p className="text-sm text-slate-500 mt-1 mb-0">Back up your configuration or migrate settings between sites. API keys and private credentials are excluded from import for security.</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    {/* Export */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-sm font-semibold text-slate-700 m-0">Export</h4>
+                                        <p className="text-xs text-slate-500 m-0">Download all AmEveryWhere settings as a JSON file. Save it as a backup or use it to clone settings to another site.</p>
+                                        {exportMsg && <div className={`text-xs px-3 py-2 rounded ${exportMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{exportMsg.text}</div>}
+                                        <button onClick={downloadExport} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">
+                                            ⬇ Download Settings JSON
+                                        </button>
+                                    </div>
+
+                                    {/* Import */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-sm font-semibold text-slate-700 m-0">Import</h4>
+                                        <p className="text-xs text-slate-500 m-0">Upload a previously exported AmEveryWhere settings file to restore or copy configuration. Existing API keys will not be overwritten.</p>
+                                        {importMsg && <div className={`text-xs px-3 py-2 rounded ${importMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{importMsg.text}</div>}
+                                        <label className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded cursor-pointer border-2 border-dashed border-slate-300 hover:border-indigo-400 text-slate-600 hover:text-indigo-600 transition-colors ${importBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                                            <input type="file" accept=".json,application/json" className="hidden" onChange={e => handleImportFile(e.target.files?.[0])} />
+                                            {importBusy ? '⏳ Importing…' : '⬆ Choose JSON File'}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -978,6 +1977,18 @@ const App = () => {
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === '404s' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         404 Error Monitor
+                                    </button>
+                                    <button
+                                        onClick={() => setTechSubTab('htaccess')}
+                                        className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'htaccess' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        .htaccess Editor
+                                    </button>
+                                    <button
+                                        onClick={() => { setTechSubTab('custom_pages'); loadCustom404(); }}
+                                        className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'custom_pages' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                    >
+                                        Custom Error Pages
                                     </button>
                                 </div>
                             </div>
@@ -1178,6 +2189,163 @@ const App = () => {
                                                     ))}
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* .htaccess Editor */}
+                            {techSubTab === 'htaccess' && (
+                                <div className="space-y-4">
+                                    {htaccessLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Reading .htaccess…</span></div>}
+                                    {htaccess && !htaccess.success && (
+                                        <div className="p-5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">⚠ {htaccess.message}</div>
+                                    )}
+                                    {htaccess?.success && (
+                                        <>
+                                            <div className="flex flex-wrap gap-4 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
+                                                <span>📄 <strong className="text-slate-700">.htaccess</strong></span>
+                                                <span>Size: <strong>{htaccess.size} bytes</strong></span>
+                                                <span>Modified: <strong>{htaccess.modified}</strong></span>
+                                                <span className={htaccess.writable ? 'text-green-700' : 'text-red-600'}>{htaccess.writable ? '✓ Writable' : '✗ Read-only'}</span>
+                                                {htaccess.has_backup && <span className="text-indigo-600">🛡 Backup: {htaccess.backup_mtime}</span>}
+                                            </div>
+                                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                                ⚠ <strong>Caution:</strong> Incorrect rules can make your site inaccessible. A backup is created at <code className="font-mono text-xs">.htaccess.ameverywhere.bak</code> before every save. PHP execution directives are blocked.
+                                            </div>
+                                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                                <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+                                                    <span className="text-xs font-mono font-semibold text-slate-600">.htaccess</span>
+                                                    <span className="text-xs text-slate-400">{htaccessContent.split('\n').length} lines</span>
+                                                </div>
+                                                <textarea value={htaccessContent} onChange={e => setHtaccessContent(e.target.value)} disabled={!htaccess.writable} rows={20} spellCheck={false}
+                                                    className="w-full font-mono text-xs p-4 border-0 outline-none resize-y bg-slate-900 text-green-300 leading-relaxed"
+                                                    style={{ minHeight: '320px' }} />
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {htaccessMsg && <span className={`text-sm px-3 py-1.5 rounded ${htaccessMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{htaccessMsg.text}</span>}
+                                                <button onClick={saveHtaccess} disabled={htaccessSaving || !htaccess.writable} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                                    {htaccessSaving ? 'Saving…' : '💾 Save .htaccess'}
+                                                </button>
+                                                {!htaccess.writable && <span className="text-xs text-slate-500">Set permissions to 644 to enable editing.</span>}
+                                            </div>
+                                        </>
+                                    )}
+
+                            {/* Custom Error Pages */}
+                            {techSubTab === 'custom_pages' && (
+                                <div className="space-y-6">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-slate-800 mb-1">Custom 404 Page</h3>
+                                        <p className="text-sm text-slate-500 mb-4">Select a published page to display when visitors hit a missing URL. HTTP 404 status is preserved for correct SEO signalling.</p>
+                                        {isLoading404Page ? (
+                                            <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Loading pages…</span></div>
+                                        ) : (
+                                            <div className="flex gap-3 items-end">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-semibold text-slate-700 mb-1">404 Template Page</label>
+                                                    <select
+                                                        value={custom404PageId}
+                                                        onChange={e => setCustom404PageId(Number(e.target.value))}
+                                                        className="w-full p-2 border border-slate-300 rounded text-sm bg-white"
+                                                    >
+                                                        <option value={0}>— Use theme default 404.php —</option>
+                                                        {available404Pages.map(p => (
+                                                            <option key={p.id} value={p.id}>{p.title}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <button onClick={saveCustom404Page} disabled={isSaving404Page} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                                    {isSaving404Page ? 'Saving…' : 'Save'}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {custom404Msg && <p className={`mt-2 text-sm ${custom404Msg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{custom404Msg.text}</p>}
+                                    </div>
+                                    <div className="pt-5 border-t border-slate-200">
+                                        <h3 className="text-base font-semibold text-slate-800 mb-1">Custom 403 Page</h3>
+                                        <p className="text-sm text-slate-500">A branded HTML 403 response is served automatically when AI bot blocking is enabled. No further configuration required — enable AI blocking in the robots.txt tab above.</p>
+                                    </div>
+                                </div>
+                            )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ══════════════ HTML SITEMAP TAB ══════════════ */}
+                    {activeTab === 'html_sitemap' && (
+                        <div className="space-y-6 max-w-3xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">HTML Sitemap Builder</h2>
+                                <p className="text-slate-500 text-sm mt-1">Configure and preview your visual HTML sitemap. Use the shortcode <code className="bg-slate-100 px-1.5 py-0.5 rounded text-indigo-700 font-mono text-xs">[ameverywhere_sitemap]</code> to embed it on any page.</p>
+                            </div>
+
+                            {sitemapLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Loading sitemap settings…</span></div>}
+
+                            {sitemapCfg && (
+                                <div className="bg-white border rounded-lg divide-y">
+                                    {/* Settings form */}
+                                    <div className="p-6 space-y-4">
+                                        <h3 className="text-sm font-semibold text-slate-700 m-0">Configuration</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Post Types <span className="font-normal text-slate-400">(comma-separated slugs)</span></label>
+                                                <input type="text" value={sitemapCfg.post_types} onChange={e => setSitemapCfg(c => ({ ...c, post_types: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" placeholder="post,page" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Exclude Post IDs <span className="font-normal text-slate-400">(comma-separated)</span></label>
+                                                <input type="text" value={sitemapCfg.exclude_ids} onChange={e => setSitemapCfg(c => ({ ...c, exclude_ids: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm" placeholder="12,34,56" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Sort Order</label>
+                                                <select value={sitemapCfg.order} onChange={e => setSitemapCfg(c => ({ ...c, order: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm bg-white">
+                                                    <option value="menu_order">Menu Order</option>
+                                                    <option value="title">Title (A–Z)</option>
+                                                    <option value="date">Date Published</option>
+                                                    <option value="modified">Last Modified</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center gap-3 pt-5">
+                                                <input type="checkbox" id="show_count" checked={!!sitemapCfg.show_count} onChange={e => setSitemapCfg(c => ({ ...c, show_count: e.target.checked }))} className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
+                                                <label htmlFor="show_count" className="text-sm text-slate-700">Show post count next to section headings</label>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 pt-2">
+                                            {sitemapSaveMsg && <span className={`text-sm ${sitemapSaveMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{sitemapSaveMsg.text}</span>}
+                                            <button onClick={saveSitemapCfg} disabled={sitemapSaving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{sitemapSaving ? 'Saving…' : 'Save Settings'}</button>
+                                            <button onClick={loadSitemapPreview} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded hover:bg-slate-200">👁 Preview</button>
+                                        </div>
+                                    </div>
+
+                                    {/* Shortcode helper */}
+                                    <div className="p-4 bg-slate-50 flex items-center gap-3">
+                                        <span className="text-xs text-slate-500">Shortcode:</span>
+                                        <code className="bg-white border border-slate-200 text-indigo-700 font-mono text-xs px-3 py-1.5 rounded select-all">[ameverywhere_sitemap]</code>
+                                        <span className="text-xs text-slate-400">or override per-instance: <code className="font-mono">[ameverywhere_sitemap post_types="post" order="title"]</code></span>
+                                    </div>
+
+                                    {/* Preview */}
+                                    {sitemapPreview && (
+                                        <div className="p-6 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="text-sm font-semibold text-slate-700 m-0">Live Preview — {sitemapPreview.total} pages</h3>
+                                                <button onClick={() => setSitemapPreview(null)} className="text-xs text-slate-400 hover:text-slate-600 bg-transparent border-none cursor-pointer">✕ Close</button>
+                                            </div>
+                                            {sitemapPreview.tree.map((section, i) => (
+                                                <div key={i}>
+                                                    <h4 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-1 mb-2">
+                                                        {section.label} {sitemapPreview.show_count && <span className="font-normal text-slate-400 text-xs">({section.count})</span>}
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {section.items.map((item, j) => (
+                                                            <a key={j} href={item.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                                                {item.title || '(no title)'}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
@@ -1821,6 +2989,638 @@ const App = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+
+                    {/* ══════════════ IMAGE SEO TAB ══════════════ */}
+                    {activeTab === 'image_seo' && (
+                        <div className="space-y-8 max-w-4xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">Image SEO</h2>
+                                <p className="text-slate-500 text-sm mt-1">Compress images, generate WebP variants, and audit missing alt text across your media library.</p>
+                            </div>
+
+                            {/* Compression Settings */}
+                            <div className="bg-white border rounded-lg p-6 space-y-4">
+                                <h3 className="text-base font-semibold text-slate-800 m-0">Image Compression & WebP</h3>
+                                {isLoadingCompression && <div className="flex items-center gap-3"><Spinner /><span className="text-slate-500">Loading…</span></div>}
+                                {compressionStats && (
+                                    <div className="grid grid-cols-3 gap-4 mb-4">
+                                        <div className="bg-slate-50 p-4 rounded-lg text-center">
+                                            <div className="text-2xl font-bold text-slate-800">{compressionStats.total}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Total Images</div>
+                                        </div>
+                                        <div className="bg-green-50 p-4 rounded-lg text-center">
+                                            <div className="text-2xl font-bold text-green-700">{compressionStats.compressed}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Compressed</div>
+                                        </div>
+                                        <div className="bg-amber-50 p-4 rounded-lg text-center">
+                                            <div className="text-2xl font-bold text-amber-700">{compressionStats.uncompressed}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Pending</div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-6 flex-wrap">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={compressionConfig.enabled} onChange={e => setCompressionConfig({...compressionConfig, enabled: e.target.checked})} />
+                                        <span className="text-sm font-medium">Auto-compress new uploads</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={compressionConfig.webp} onChange={e => setCompressionConfig({...compressionConfig, webp: e.target.checked})} />
+                                        <span className="text-sm font-medium">Generate WebP variants</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={compressionConfig.preserve} onChange={e => setCompressionConfig({...compressionConfig, preserve: e.target.checked})} />
+                                        <span className="text-sm font-medium">Keep originals (.original backup)</span>
+                                    </label>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <label className="text-sm font-medium text-slate-700">Quality: <strong>{compressionConfig.quality}</strong></label>
+                                    <input type="range" min="40" max="95" value={compressionConfig.quality} onChange={e => setCompressionConfig({...compressionConfig, quality: Number(e.target.value)})} className="flex-1 max-w-xs" />
+                                    <span className="text-xs text-slate-400">40 = smaller · 95 = higher quality</span>
+                                </div>
+                                {compressionStats && <p className="text-xs text-slate-400">Engine: <strong>{compressionStats.engine}</strong> · WebP: <strong>{compressionStats.webp_supported ? 'supported' : 'not available'}</strong></p>}
+                                {compressionMsg && <p className={`text-sm ${compressionMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{compressionMsg.text}</p>}
+                                <div className="flex gap-3 pt-2">
+                                    <button onClick={saveCompressionConfig} disabled={isSavingCompression} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                        {isSavingCompression ? 'Saving…' : 'Save Settings'}
+                                    </button>
+                                    {compressionStats && compressionStats.uncompressed > 0 && (
+                                        <button onClick={runBulkCompress} disabled={isBulkCompressing} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
+                                            {isBulkCompressing ? `Compressing… (${compressionProgress ? compressionProgress.processed : 0} done, ${compressionProgress ? compressionProgress.remaining : '?'} remaining)` : `Compress ${compressionStats.uncompressed} Pending Images`}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Alt Text Audit */}
+                            <div className="bg-white border rounded-lg p-6 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-slate-800 m-0">Alt Text Audit</h3>
+                                        <p className="text-sm text-slate-500 mt-1">{altAuditTotal} images in your media library are missing alt text.</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={autoFillAltText} disabled={isAutoFillingAlt} className="px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded hover:bg-amber-600 disabled:opacity-50">
+                                            {isAutoFillingAlt ? 'Auto-filling…' : '✨ Auto-fill from Filenames'}
+                                        </button>
+                                        {Object.keys(altEdits).length > 0 && (
+                                            <button onClick={saveAltEdits} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700">
+                                                Save {Object.keys(altEdits).length} Edits
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                {altAuditMsg && <p className={`text-sm ${altAuditMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{altAuditMsg.text}</p>}
+                                {isLoadingAltAudit ? (
+                                    <div className="flex items-center gap-3 p-4"><Spinner /><span className="text-slate-500">Loading images…</span></div>
+                                ) : (
+                                    <div className="overflow-hidden border rounded">
+                                        <table className="w-full text-sm text-left">
+                                            <thead><tr className="bg-slate-50 border-b"><th className="p-3 font-semibold text-slate-600">Image</th><th className="p-3 font-semibold text-slate-600">Filename</th><th className="p-3 font-semibold text-slate-600">Alt Text</th></tr></thead>
+                                            <tbody>
+                                                {altAuditItems.map(item => (
+                                                    <tr key={item.id} className="border-b hover:bg-slate-50">
+                                                        <td className="p-3 w-16">{item.thumb && <img src={item.thumb} alt="" className="w-12 h-12 object-cover rounded" />}</td>
+                                                        <td className="p-3 text-xs text-slate-500 w-48">{item.filename}</td>
+                                                        <td className="p-3">
+                                                            <input
+                                                                type="text"
+                                                                value={altEdits[item.id] !== undefined ? altEdits[item.id] : (item.alt || '')}
+                                                                onChange={e => setAltEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                                                placeholder="Describe this image…"
+                                                                className="w-full p-1.5 border border-slate-300 rounded text-sm"
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {altAuditItems.length === 0 && (
+                                                    <tr><td colSpan="3" className="text-center p-8 text-slate-500">🎉 All images have alt text!</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                        {altAuditTotal > 20 && (
+                                            <div className="flex justify-between items-center p-3 border-t bg-slate-50">
+                                                <button onClick={() => loadAltAudit(altAuditPage - 1)} disabled={altAuditPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
+                                                <span className="text-xs text-slate-500">Page {altAuditPage} · {altAuditTotal} total</span>
+                                                <button onClick={() => loadAltAudit(altAuditPage + 1)} disabled={altAuditItems.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ══════════════ COMPLIANCE TAB ══════════════ */}
+                    {activeTab === 'compliance' && (
+                        <div className="space-y-6 max-w-3xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">Cookie & Compliance</h2>
+                                <p className="text-slate-500 text-sm mt-1">Configure your cookie consent banner for CCPA and GDPR compliance.</p>
+                            </div>
+                            {isLoadingCookieBanner ? (
+                                <div className="flex items-center gap-3 p-6"><Spinner /><span className="text-slate-500">Loading settings…</span></div>
+                            ) : (
+                                <div className="bg-white border rounded-lg p-6 space-y-5">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-semibold text-slate-800 m-0">Enable Cookie Banner</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">Show a consent bar to visitors on the front end.</p>
+                                        </div>
+                                        <input type="checkbox" checked={cookieBanner.enabled} onChange={e => setCookieBanner({...cookieBanner, enabled: e.target.checked})} className="w-5 h-5 cursor-pointer" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Jurisdiction Mode</label>
+                                        <select value={cookieBanner.mode} onChange={e => setCookieBanner({...cookieBanner, mode: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                            <option value="ccpa">CCPA — Opt-out (consent assumed, decline available)</option>
+                                            <option value="gdpr">GDPR — Opt-in (must accept before scripts run)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Message</label>
+                                        <textarea value={cookieBanner.message} onChange={e => setCookieBanner({...cookieBanner, message: e.target.value})} rows={3} className="w-full p-2 border border-slate-300 rounded text-sm" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Accept Button Label</label>
+                                            <input type="text" value={cookieBanner.accept_label} onChange={e => setCookieBanner({...cookieBanner, accept_label: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Decline Button Label <span className="text-slate-400 font-normal">(GDPR only)</span></label>
+                                            <input type="text" value={cookieBanner.decline_label} onChange={e => setCookieBanner({...cookieBanner, decline_label: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Privacy Policy URL</label>
+                                        <input type="url" value={cookieBanner.policy_url} onChange={e => setCookieBanner({...cookieBanner, policy_url: e.target.value})} placeholder="https://example.com/privacy-policy" className="w-full p-2 border border-slate-300 rounded text-sm" />
+                                    </div>
+                                    {cookieBannerMsg && <p className={`text-sm ${cookieBannerMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{cookieBannerMsg.text}</p>}
+                                    <button onClick={saveCookieBanner} disabled={isSavingCookieBanner} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                        {isSavingCookieBanner ? 'Saving…' : 'Save Cookie Banner Settings'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {/* ══════════════ ROLES & CAPABILITIES TAB ══════════════ */}
+                    {activeTab === 'roles' && (
+                        <div className="space-y-6 max-w-4xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">Roles & Capabilities</h2>
+                                <p className="text-slate-500 text-sm mt-1">Control which WordPress roles can access AmEveryWhere features. Administrators always retain full access.</p>
+                            </div>
+
+                            {rolesLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Loading roles…</span></div>}
+
+                            {rolesData && (
+                                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                    {/* Capability legend */}
+                                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 grid grid-cols-4 gap-4 text-xs font-semibold text-slate-600">
+                                        <div className="col-span-4 grid grid-cols-5 gap-2 items-center">
+                                            <span className="text-slate-500 font-medium">Role</span>
+                                            {rolesData.seo_capabilities.map(cap => (
+                                                <span key={cap} className="text-center text-xs font-mono bg-slate-200 text-slate-700 px-2 py-1 rounded">{cap.replace(/_/g, ' ')}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Role rows */}
+                                    <div className="divide-y divide-slate-100">
+                                        {Object.entries(rolesData.roles).map(([slug, role]) => {
+                                            const isAdmin = slug === 'administrator';
+                                            return (
+                                                <div key={slug} className={`px-6 py-4 grid grid-cols-5 gap-2 items-center ${isAdmin ? 'bg-indigo-50' : 'hover:bg-slate-50'}`}>
+                                                    <div>
+                                                        <span className="text-sm font-semibold text-slate-800">{role.label}</span>
+                                                        {isAdmin && <span className="ml-2 text-xs text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded">Full Access</span>}
+                                                    </div>
+                                                    {rolesData.seo_capabilities.map(cap => {
+                                                        const granted = isAdmin ? true : !!(roleEdits[slug]?.[cap]);
+                                                        return (
+                                                            <div key={cap} className="flex justify-center">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={granted}
+                                                                    disabled={isAdmin}
+                                                                    onChange={e => toggleCap(slug, cap, e.target.checked)}
+                                                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Capability descriptions */}
+                                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                                        <div>🛡 <strong className="text-slate-700">manage_seo</strong> — Full access to all AmEveryWhere settings, integrations, and configuration</div>
+                                        <div>📊 <strong className="text-slate-700">view_seo_reports</strong> — Read-only access to GSC dashboard, GA4 analytics, link health reports</div>
+                                        <div>↩️ <strong className="text-slate-700">manage_redirects</strong> — Create, edit, and delete redirect rules; import/export CSV</div>
+                                        <div>✏️ <strong className="text-slate-700">edit_seo_meta</strong> — Edit per-post SEO meta title, description, canonical, OG fields</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {rolesData && (
+                                <div className="flex items-center gap-3">
+                                    {rolesMsg && <span className={`text-sm px-3 py-1.5 rounded ${rolesMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{rolesMsg.text}</span>}
+                                    <button onClick={saveRoles} disabled={rolesSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                        {rolesSaving ? 'Saving…' : 'Save Capabilities'}
+                                    </button>
+                                    <button onClick={loadRoles} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded hover:bg-slate-200">↺ Reset</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ══════════════ NETWORK SEO TAB (Multisite only) ══════════════ */}
+                    {activeTab === 'network_seo' && isMultisite && (
+                        <div className="space-y-6 max-w-4xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">Network SEO</h2>
+                                <p className="text-slate-500 text-sm mt-1">Configure network-wide SEO defaults for your WordPress Multisite. Individual sites can override these when allowed.</p>
+                            </div>
+
+                            {networkLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Loading network data…</span></div>}
+
+                            {networkSettings && (
+                                <div className="grid grid-cols-5 gap-6">
+                                    {/* Settings panel — left 3/5 */}
+                                    <div className="col-span-3 space-y-5">
+                                        <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-5">
+                                            <h3 className="text-sm font-semibold text-slate-700 m-0 border-b border-slate-200 pb-3">Network Defaults</h3>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Default Schema Type</label>
+                                                <select value={networkSettings.default_schema_type} onChange={e => setNetworkSettings(s => ({ ...s, default_schema_type: e.target.value }))} className="w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                                                    {['Article', 'WebPage', 'BlogPosting', 'NewsArticle', 'FAQPage', 'LocalBusiness', 'Organization', 'Product'].map(t => (
+                                                        <option key={t} value={t}>{t}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Shared IndexNow API Key</label>
+                                                <input type="text" value={networkSettings.shared_indexnow_key} onChange={e => setNetworkSettings(s => ({ ...s, shared_indexnow_key: e.target.value }))} placeholder="Shared across all network sites" className="w-full p-2 border border-slate-300 rounded text-sm" />
+                                                <p className="text-xs text-slate-400 mt-1">Leave blank to let each site use its own key.</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-semibold text-slate-600 mb-1">Network-wide robots.txt Rules</label>
+                                                <textarea value={networkSettings.network_robots_rules} onChange={e => setNetworkSettings(s => ({ ...s, network_robots_rules: e.target.value }))} rows={5} placeholder="# Rules appended to every site's robots.txt&#10;User-agent: *&#10;Disallow: /wp-admin/" className="w-full p-2 border border-slate-300 rounded text-sm font-mono text-xs" />
+                                            </div>
+
+                                            <div className="space-y-3 pt-2 border-t border-slate-200">
+                                                {[
+                                                    ['force_ssl', 'Force HTTPS across all sites', 'Adds HSTS headers and redirects HTTP to HTTPS network-wide'],
+                                                    ['block_ai_bots', 'Block AI bots network-wide', 'Applies the AmEveryWhere AI bot firewall to every site in the network'],
+                                                    ['allow_site_overrides', 'Allow site admins to override network defaults', 'When enabled, individual site admins can customize their own SEO settings'],
+                                                ].map(([key, label, help]) => (
+                                                    <label key={key} className="flex items-start gap-3 cursor-pointer">
+                                                        <input type="checkbox" checked={!!networkSettings[key]} onChange={e => setNetworkSettings(s => ({ ...s, [key]: e.target.checked }))} className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600" />
+                                                        <div>
+                                                            <span className="text-sm font-medium text-slate-800">{label}</span>
+                                                            <p className="text-xs text-slate-400 m-0 mt-0.5">{help}</p>
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            </div>
+
+                                            {networkMsg && <div className={`text-sm px-3 py-2 rounded ${networkMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{networkMsg.text}</div>}
+                                            <button onClick={saveNetworkSettings} disabled={networkSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                                {networkSaving ? 'Saving…' : 'Save Network Settings'}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Sites health panel — right 2/5 */}
+                                    <div className="col-span-2">
+                                        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                                                <span className="text-sm font-semibold text-slate-700">Network Sites</span>
+                                                <span className="text-xs text-slate-400">{networkSites.length} sites</span>
+                                            </div>
+                                            <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+                                                {networkSites.map(site => (
+                                                    <div key={site.blog_id} className="px-4 py-3 hover:bg-slate-50">
+                                                        <div className="text-sm font-medium text-slate-800 truncate">{site.name || site.domain}</div>
+                                                        <div className="text-xs text-slate-400 truncate">{site.domain}</div>
+                                                        <div className="flex items-center gap-3 mt-1">
+                                                            <span className="text-xs text-slate-500">{site.post_count ?? '—'} posts</span>
+                                                            <span className="text-xs text-slate-400">{site.admin_email}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {networkSites.length === 0 && <div className="p-8 text-center text-slate-400 text-sm">No sites found.</div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ══════════════ SITE AUDIT TAB ══════════════ */}
+                    {activeTab === 'site_audit' && (
+                        <div className="space-y-6 max-w-4xl">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold m-0 text-slate-800">Technical SEO Audit</h2>
+                                    <p className="text-slate-500 text-sm mt-1">Run a 14-point site-wide audit across meta, schema, redirects, robots, SSL, and more.</p>
+                                </div>
+                                <button onClick={runSiteAudit} disabled={auditRunning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
+                                    {auditRunning ? '⏳ Running…' : '▶ Run Audit'}
+                                </button>
+                            </div>
+
+                            {/* Progress bar */}
+                            {auditRunning && (
+                                <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600 font-medium">{auditProgress.current_check}</span>
+                                        <span className="text-slate-400">{auditProgress.percent}%</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${auditProgress.percent}%` }} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Summary badges */}
+                            {auditResults?.summary && (
+                                <div className="grid grid-cols-3 gap-4">
+                                    {[
+                                        { label: 'Critical', count: auditResults.summary.critical, color: 'red' },
+                                        { label: 'Warnings', count: auditResults.summary.warnings, color: 'amber' },
+                                        { label: 'Passed',   count: auditResults.summary.passed,   color: 'green' },
+                                    ].map(({ label, count, color }) => (
+                                        <div key={label} className={`bg-${color}-50 border border-${color}-200 rounded-lg p-4 text-center`}>
+                                            <div className={`text-3xl font-bold text-${color}-700`}>{count}</div>
+                                            <div className={`text-xs text-${color}-600 mt-1`}>{label}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Checks list */}
+                            {auditResults?.checks && (
+                                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
+                                    {auditResults.checks.map(check => {
+                                        const icon = check.status === 'critical' ? '🔴' : check.status === 'warning' ? '🟡' : check.status === 'passed' ? '🟢' : 'ℹ️';
+                                        const bg   = check.status === 'critical' ? 'bg-red-50' : check.status === 'warning' ? 'bg-amber-50' : '';
+                                        return (
+                                            <div key={check.id} className={`px-5 py-4 ${bg}`}>
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex items-start gap-3 flex-1">
+                                                        <span className="text-lg mt-0.5">{icon}</span>
+                                                        <div>
+                                                            <div className="text-sm font-semibold text-slate-800">{check.name}</div>
+                                                            <div className="text-sm text-slate-500 mt-0.5">{check.message}</div>
+                                                            {check.items?.length > 0 && check.status !== 'passed' && (
+                                                                <ul className="mt-2 space-y-1">
+                                                                    {check.items.slice(0, 5).map((item, i) => (
+                                                                        <li key={i} className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">
+                                                                            {item.title || item.source || item.issue || item.message || JSON.stringify(item).slice(0, 100)}
+                                                                        </li>
+                                                                    ))}
+                                                                    {check.items.length > 5 && <li className="text-xs text-slate-400">…and {check.items.length - 5} more</li>}
+                                                                </ul>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {!auditResults && !auditRunning && (
+                                <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg p-12 text-center">
+                                    <div className="text-4xl mb-3">🔍</div>
+                                    <p className="text-slate-500 font-medium">No audit results yet.</p>
+                                    <p className="text-sm text-slate-400 mt-1">Click "Run Audit" to scan your site. Runs in the background — results appear when complete.</p>
+                                </div>
+                            )}
+
+                            {auditResults?.generated_at && (
+                                <p className="text-xs text-slate-400 text-right">Last run: {auditResults.generated_at}</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ══════════════ BROKEN LINKS TAB ══════════════ */}
+                    {activeTab === 'broken_links' && (
+                        <div className="space-y-6 max-w-5xl">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h2 className="text-xl font-semibold m-0 text-slate-800">Broken Link Checker</h2>
+                                    <p className="text-slate-500 text-sm mt-1">Scan all published posts and pages for dead outbound links. Batched across background jobs — never slows your server.</p>
+                                </div>
+                                <button onClick={startBlcScan} disabled={blcScanning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
+                                    {blcScanning ? '⏳ Scanning…' : '▶ Start Scan'}
+                                </button>
+                            </div>
+
+                            {/* Progress / status bar */}
+                            {blcProgress.status !== 'idle' && (
+                                <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-6 flex-wrap text-sm">
+                                    <span className={`font-semibold ${blcProgress.status === 'done' ? 'text-green-700' : 'text-indigo-700'}`}>
+                                        {blcProgress.status === 'done' ? '✅ Scan complete' : '⏳ Scanning…'}
+                                    </span>
+                                    <span className="text-slate-500">Scanned: <strong>{blcProgress.scanned}</strong> / {blcProgress.total}</span>
+                                    <span className="text-red-600">Broken: <strong>{blcProgress.found}</strong></span>
+                                    {blcProgress.status !== 'done' && blcProgress.total > 0 && (
+                                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[120px]">
+                                            <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${Math.round((blcProgress.scanned / blcProgress.total) * 100)}%` }} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {blcMsg && <div className={`text-sm px-3 py-2 rounded ${blcMsg.type === 'success' ? 'bg-green-50 text-green-800' : blcMsg.type === 'error' ? 'bg-red-50 text-red-800' : 'bg-blue-50 text-blue-800'}`}>{blcMsg.text}</div>}
+
+                            {/* Filter + table */}
+                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-slate-700">{blcShowResolved ? 'Resolved Links' : 'Broken Links'} <span className="text-slate-400 font-normal">({blcTotal})</span></span>
+                                    <button onClick={() => { const r = !blcShowResolved; setBlcShowResolved(r); loadBlcResults(1, r); }} className="text-xs text-indigo-600 hover:underline">
+                                        {blcShowResolved ? 'Show broken' : 'Show resolved'}
+                                    </button>
+                                </div>
+                                {blcLoading ? (
+                                    <div className="flex items-center gap-3 p-8"><Spinner /><span className="text-slate-500">Loading…</span></div>
+                                ) : (
+                                    <table className="w-full text-sm text-left">
+                                        <thead><tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="p-3 font-semibold text-slate-600 w-16">Code</th>
+                                            <th className="p-3 font-semibold text-slate-600">Broken URL</th>
+                                            <th className="p-3 font-semibold text-slate-600">Found In</th>
+                                            <th className="p-3 font-semibold text-slate-600">Anchor</th>
+                                            <th className="p-3 font-semibold text-slate-600 w-32">Actions</th>
+                                        </tr></thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {blcResults.map(row => (
+                                                <tr key={row.id} className="hover:bg-slate-50">
+                                                    <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs font-bold ${Number(row.http_code) >= 500 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{row.http_code ?? '?'}</span></td>
+                                                    <td className="p-3 max-w-xs"><a href={row.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline truncate block" title={row.url}>{row.url}</a></td>
+                                                    <td className="p-3 text-xs text-slate-500"><a href={row.edit_url} target="_blank" rel="noopener noreferrer" className="hover:underline">{row.post_title || `#${row.post_id}`}</a></td>
+                                                    <td className="p-3 text-xs text-slate-400 truncate max-w-[120px]">{row.anchor_text || '—'}</td>
+                                                    <td className="p-3">
+                                                        <div className="flex gap-1.5">
+                                                            <button onClick={() => recheckBlcLink(row.id, row.url)} className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded">↻</button>
+                                                            <button onClick={() => resolveBlcLink(row.id)} className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded">✓</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {blcResults.length === 0 && (
+                                                <tr><td colSpan="5" className="p-10 text-center text-slate-400">
+                                                    {blcProgress.status === 'done' ? '🎉 No broken links found!' : 'Run a scan to detect broken links.'}
+                                                </td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                )}
+                                {blcTotal > 20 && (
+                                    <div className="flex justify-between items-center p-3 border-t bg-slate-50">
+                                        <button onClick={() => loadBlcResults(blcPage - 1, blcShowResolved)} disabled={blcPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
+                                        <span className="text-xs text-slate-500">Page {blcPage} · {blcTotal} total</span>
+                                        <button onClick={() => loadBlcResults(blcPage + 1, blcShowResolved)} disabled={blcResults.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ══════════════ KEYWORD RANK TRACKER TAB ══════════════ */}
+                    {activeTab === 'rank_tracker' && (
+                        <div className="space-y-6 max-w-4xl">
+                            <div>
+                                <h2 className="text-xl font-semibold m-0 text-slate-800">Keyword Rank Tracker</h2>
+                                <p className="text-slate-500 text-sm mt-1">Track your Google ranking positions over time. Checks run daily via SerpApi.</p>
+                            </div>
+
+                            {/* SerpApi key notice */}
+                            {!serpApiKey && (
+                                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                    ⚠ <strong>SerpApi key required.</strong> Add your <code className="font-mono text-xs">serpapi_key</code> in the Settings tab to enable rank checking.
+                                    <a href="https://serpapi.com" target="_blank" rel="noopener" className="ml-2 underline">Get a free key →</a>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-5 gap-6">
+                                {/* Keyword manager — left 2/5 */}
+                                <div className="col-span-2 space-y-4">
+                                    <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
+                                        <h3 className="text-sm font-semibold text-slate-700 m-0">Tracked Keywords <span className="text-slate-400 font-normal">({rankKeywords.length}/100)</span></h3>
+
+                                        <div className="flex gap-2">
+                                            <input type="text" value={newKeyword} onChange={e => setNewKeyword(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && addKeyword()}
+                                                placeholder="Add keyword…" className="flex-1 p-2 border border-slate-300 rounded text-sm" />
+                                            <button onClick={addKeyword} disabled={rankSaving} className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50">+</button>
+                                        </div>
+
+                                        <div className="space-y-1 max-h-72 overflow-y-auto">
+                                            {rankKeywords.map(kw => {
+                                                const latest = rankHistory[kw]?.[0];
+                                                const prev   = rankHistory[kw]?.[1];
+                                                const delta  = latest && prev ? prev.position - latest.position : null;
+                                                return (
+                                                    <div key={kw} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded hover:bg-slate-100 group">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm text-slate-700 truncate max-w-[130px]">{kw}</span>
+                                                            {latest?.position && (
+                                                                <span className="text-xs font-bold text-slate-800">#{latest.position}</span>
+                                                            )}
+                                                            {delta !== null && (
+                                                                <span className={`text-xs ${delta > 0 ? 'text-green-600' : delta < 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                                                                    {delta > 0 ? `▲${delta}` : delta < 0 ? `▼${Math.abs(delta)}` : '—'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => checkRankNow(kw)} disabled={rankChecking} title="Check now" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50">↻</button>
+                                                            <button onClick={() => removeKeyword(kw)} title="Remove" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-red-50 text-red-500">✕</button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {rankKeywords.length === 0 && <p className="text-sm text-slate-400 text-center py-4">No keywords yet. Add one above.</p>}
+                                        </div>
+
+                                        {rankMsg && <div className={`text-xs px-2 py-1.5 rounded ${rankMsg.type === 'success' ? 'bg-green-50 text-green-700' : rankMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>{rankMsg.text}</div>}
+
+                                        <div className="flex gap-2 pt-1">
+                                            <button onClick={() => checkRankNow()} disabled={rankChecking || rankKeywords.length === 0 || !serpApiKey} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 disabled:opacity-50">
+                                                {rankChecking ? 'Checking…' : '⚡ Check Top 5 Now'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* History panel — right 3/5 */}
+                                <div className="col-span-3">
+                                    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                                            <span className="text-sm font-semibold text-slate-700">Position History</span>
+                                            <div className="flex gap-1.5">
+                                                {[7, 30, 90].map(d => (
+                                                    <button key={d} onClick={() => setRankDays(d)} className={`px-2 py-0.5 text-xs rounded ${rankDays === d ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{d}d</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        {rankLoading ? (
+                                            <div className="flex items-center gap-3 p-8"><Spinner /><span className="text-slate-500">Loading history…</span></div>
+                                        ) : Object.keys(rankHistory).length > 0 ? (
+                                            <div className="divide-y divide-slate-100">
+                                                {Object.entries(rankHistory).map(([kw, history]) => {
+                                                    const latest = history[0];
+                                                    const best   = Math.min(...history.map(h => h.position).filter(Boolean));
+                                                    return (
+                                                        <div key={kw} className="px-5 py-4">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <span className="text-sm font-semibold text-slate-800">{kw}</span>
+                                                                <div className="flex gap-4 text-xs text-slate-500">
+                                                                    <span>Current: <strong className="text-slate-800">#{latest?.position ?? '—'}</strong></span>
+                                                                    <span>Best: <strong className="text-slate-800">#{best || '—'}</strong></span>
+                                                                    <span>{history.length} data points</span>
+                                                                </div>
+                                                            </div>
+                                                            {/* Mini sparkline using SVG */}
+                                                            <svg viewBox={`0 0 200 40`} className="w-full h-10" preserveAspectRatio="none">
+                                                                {(() => {
+                                                                    const pts = history.slice(0, 30).reverse().map(h => h.position).filter(Boolean);
+                                                                    if (pts.length < 2) return null;
+                                                                    const maxPos = Math.max(...pts);
+                                                                    const minPos = Math.min(...pts);
+                                                                    const range  = maxPos - minPos || 1;
+                                                                    const points = pts.map((p, i) => {
+                                                                        const x = (i / (pts.length - 1)) * 200;
+                                                                        const y = 38 - ((maxPos - p) / range) * 34; // Lower rank = higher y
+                                                                        return `${x},${y}`;
+                                                                    }).join(' ');
+                                                                    return <polyline points={points} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />;
+                                                                })()}
+                                                            </svg>
+                                                            {latest?.url && <a href={latest.url} target="_blank" rel="noopener" className="text-xs text-indigo-500 hover:underline truncate block mt-1">{latest.url}</a>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="p-10 text-center text-slate-400 text-sm">
+                                                No history yet. Add keywords and run a check to start tracking.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 

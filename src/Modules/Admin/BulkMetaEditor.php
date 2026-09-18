@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Modules\Admin;
+namespace AmEveryWhere\Modules\Admin;
 
 /**
  * BulkMetaEditor: Provides a REST endpoint for reading and batch-saving
@@ -10,7 +10,7 @@ class BulkMetaEditor
 {
     public function registerRestRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/bulk-meta', [
+        register_rest_route('ameverywhere/v1', '/bulk-meta', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getPosts'],
@@ -54,9 +54,9 @@ class BulkMetaEditor
         $items = [];
 
         foreach ($query->posts as $post) {
-            $seoTitle = get_post_meta($post->ID, '_ranksavvy_seo_title', true);
-            $seoDesc  = get_post_meta($post->ID, '_ranksavvy_meta_description', true);
-            $noIndex  = get_post_meta($post->ID, '_ranksavvy_noindex', true);
+            $seoTitle = get_post_meta($post->ID, '_ameverywhere_seo_title', true);
+            $seoDesc  = get_post_meta($post->ID, '_ameverywhere_meta_description', true);
+            $noIndex  = get_post_meta($post->ID, '_ameverywhere_noindex', true);
 
             // Compute a simple SEO score indicator
             $score = 0;
@@ -107,13 +107,13 @@ class BulkMetaEditor
             }
 
             if (isset($update['seo_title'])) {
-                update_post_meta($postId, '_ranksavvy_seo_title', sanitize_text_field($update['seo_title']));
+                update_post_meta($postId, '_ameverywhere_seo_title', sanitize_text_field($update['seo_title']));
             }
             if (isset($update['seo_desc'])) {
-                update_post_meta($postId, '_ranksavvy_meta_description', sanitize_textarea_field($update['seo_desc']));
+                update_post_meta($postId, '_ameverywhere_meta_description', sanitize_textarea_field($update['seo_desc']));
             }
             if (isset($update['noindex'])) {
-                update_post_meta($postId, '_ranksavvy_noindex', $update['noindex'] ? 'yes' : 'no');
+                update_post_meta($postId, '_ameverywhere_noindex', $update['noindex'] ? 'yes' : 'no');
             }
 
             $saved[] = $postId;

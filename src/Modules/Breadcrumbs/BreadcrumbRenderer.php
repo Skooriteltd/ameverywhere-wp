@@ -1,11 +1,11 @@
 <?php
 
-namespace RankSavvy\Modules\Breadcrumbs;
+namespace AmEveryWhere\Modules\Breadcrumbs;
 
 /**
  * Renders front-end breadcrumb navigation and registers:
- * - Shortcode: [ranksavvy_breadcrumbs]
- * - PHP function: ranksavvy_breadcrumbs()
+ * - Shortcode: [ameverywhere_breadcrumbs]
+ * - PHP function: ameverywhere_breadcrumbs()
  * 
  * Also outputs BreadcrumbList JSON-LD schema automatically.
  */
@@ -16,8 +16,8 @@ class BreadcrumbRenderer
 
     public function __construct()
     {
-        $this->separator = get_option('ranksavvy_breadcrumb_separator', '›');
-        $this->homeLabel = get_option('ranksavvy_breadcrumb_home_label', 'Home');
+        $this->separator = get_option('ameverywhere_breadcrumb_separator', '›');
+        $this->homeLabel = get_option('ameverywhere_breadcrumb_home_label', 'Home');
     }
 
     /**
@@ -25,10 +25,10 @@ class BreadcrumbRenderer
      */
     public function register(): void
     {
-        add_shortcode('ranksavvy_breadcrumbs', [$this, 'renderShortcode']);
+        add_shortcode('ameverywhere_breadcrumbs', [$this, 'renderShortcode']);
         add_action('wp_footer', [$this, 'outputSchema']);
 
-        $autoInsert = get_option('ranksavvy_breadcrumb_auto_insert', 'none');
+        $autoInsert = get_option('ameverywhere_breadcrumb_auto_insert', 'none');
         if ($autoInsert === 'before_content') {
             add_filter('the_content', [$this, 'autoInsertBeforeContent'], 9);
         }
@@ -67,27 +67,27 @@ class BreadcrumbRenderer
             return '';
         }
 
-        $sep = '<span class="ranksavvy-breadcrumb-sep" aria-hidden="true"> ' . esc_html($this->separator) . ' </span>';
+        $sep = '<span class="ameverywhere-breadcrumb-sep" aria-hidden="true"> ' . esc_html($this->separator) . ' </span>';
         $parts = [];
 
         foreach ($items as $i => $item) {
             $isLast = ($i === count($items) - 1);
 
             if ($isLast) {
-                $parts[] = '<span class="ranksavvy-breadcrumb-current" aria-current="page">' . esc_html($item['name']) . '</span>';
+                $parts[] = '<span class="ameverywhere-breadcrumb-current" aria-current="page">' . esc_html($item['name']) . '</span>';
             } else {
-                $parts[] = '<a href="' . esc_url($item['url']) . '" class="ranksavvy-breadcrumb-link">' . esc_html($item['name']) . '</a>';
+                $parts[] = '<a href="' . esc_url($item['url']) . '" class="ameverywhere-breadcrumb-link">' . esc_html($item['name']) . '</a>';
             }
         }
 
-        $html = '<nav class="ranksavvy-breadcrumbs" aria-label="Breadcrumb">';
-        $html .= '<ol class="ranksavvy-breadcrumb-list">';
+        $html = '<nav class="ameverywhere-breadcrumbs" aria-label="Breadcrumb">';
+        $html .= '<ol class="ameverywhere-breadcrumb-list">';
         $html .= '<li>' . implode('</li><li>' . $sep, $parts) . '</li>';
         $html .= '</ol>';
         $html .= '</nav>';
 
         // Inline minimal styles
-        $html .= '<style>.ranksavvy-breadcrumbs{font-size:14px;line-height:1.4;margin:8px 0 16px;color:#64748b}.ranksavvy-breadcrumb-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0}.ranksavvy-breadcrumb-list li{display:inline-flex;align-items:center}.ranksavvy-breadcrumb-link{color:#3b82f6;text-decoration:none}.ranksavvy-breadcrumb-link:hover{text-decoration:underline}.ranksavvy-breadcrumb-sep{margin:0 6px;color:#94a3b8}.ranksavvy-breadcrumb-current{color:#334155;font-weight:500}</style>';
+        $html .= '<style>.ameverywhere-breadcrumbs{font-size:14px;line-height:1.4;margin:8px 0 16px;color:#64748b}.ameverywhere-breadcrumb-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0}.ameverywhere-breadcrumb-list li{display:inline-flex;align-items:center}.ameverywhere-breadcrumb-link{color:#3b82f6;text-decoration:none}.ameverywhere-breadcrumb-link:hover{text-decoration:underline}.ameverywhere-breadcrumb-sep{margin:0 6px;color:#94a3b8}.ameverywhere-breadcrumb-current{color:#334155;font-weight:500}</style>';
 
         return $html;
     }
@@ -230,10 +230,17 @@ class BreadcrumbRenderer
 
 /**
  * Global helper function for themes to call directly.
- * Usage: <?php ranksavvy_breadcrumbs(); ?>
+ * Usage: <?php ameverywhere_breadcrumbs(); ?>
  */
-function ranksavvy_breadcrumbs(): void
+function ameverywhere_breadcrumbs(): void
 {
     $renderer = new BreadcrumbRenderer();
     echo $renderer->render();
+}
+
+
+if (!function_exists('ameverywhere_breadcrumbs')) {
+    function ameverywhere_breadcrumbs(): void {
+        ameverywhere_breadcrumbs();
+    }
 }

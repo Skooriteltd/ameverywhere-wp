@@ -1,10 +1,10 @@
 <?php
 
-namespace RankSavvy\Modules\Social;
+namespace AmEveryWhere\Modules\Social;
 
-use RankSavvy\Core\Event\EventManager;
-use RankSavvy\Core\Queue\QueueManager;
-use RankSavvy\Core\Security\KeyVault;
+use AmEveryWhere\Core\Event\EventManager;
+use AmEveryWhere\Core\Queue\QueueManager;
+use AmEveryWhere\Core\Security\KeyVault;
 
 class SocialModule
 {
@@ -27,7 +27,7 @@ class SocialModule
         if ($newStatus === 'publish' && $oldStatus !== 'publish') {
             
             // Check global auto-share toggle setting
-            $globalAutoShare = get_option('ranksavvy_global_auto_share', 'yes');
+            $globalAutoShare = get_option('ameverywhere_global_auto_share', 'yes');
             if ($globalAutoShare !== 'yes') {
                 return;
             }
@@ -44,7 +44,7 @@ class SocialModule
 
     public function registerRestRoutes(): void
     {
-        register_rest_route('ranksavvy/v1', '/social/accounts', [
+        register_rest_route('ameverywhere/v1', '/social/accounts', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getAccounts'],
@@ -57,7 +57,7 @@ class SocialModule
             ]
         ]);
 
-        register_rest_route('ranksavvy/v1', '/social/accounts/(?P<id>[\w-]+)', [
+        register_rest_route('ameverywhere/v1', '/social/accounts/(?P<id>[\w-]+)', [
             [
                 'methods'             => \WP_REST_Server::DELETABLE,
                 'callback'            => [$this, 'deleteAccount'],
@@ -70,20 +70,20 @@ class SocialModule
             ]
         ]);
 
-        register_rest_route('ranksavvy/v1', '/social/share', [
+        register_rest_route('ameverywhere/v1', '/social/share', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'manualShare'],
             'permission_callback' => [$this, 'checkPermission'],
         ]);
 
         // Mock OAuth callback endpoints for testing UI
-        register_rest_route('ranksavvy/v1', '/social/oauth-callback', [
+        register_rest_route('ameverywhere/v1', '/social/oauth-callback', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'oauthCallback'],
             'permission_callback' => '__return_true', // Public for redirect
         ]);
 
-        register_rest_route('ranksavvy/v1', '/social/settings', [
+        register_rest_route('ameverywhere/v1', '/social/settings', [
             [
                 'methods'             => \WP_REST_Server::READABLE,
                 'callback'            => [$this, 'getSocialSettings'],
@@ -122,7 +122,7 @@ class SocialModule
 
         return rest_ensure_response([
             'accounts' => $accounts,
-            'global_auto_share' => get_option('ranksavvy_global_auto_share', 'yes') === 'yes',
+            'global_auto_share' => get_option('ameverywhere_global_auto_share', 'yes') === 'yes',
             'categories' => $categories
         ]);
     }
@@ -132,7 +132,7 @@ class SocialModule
         $params = $request->get_json_params();
 
         if (isset($params['global_auto_share'])) {
-            update_option('ranksavvy_global_auto_share', $params['global_auto_share'] ? 'yes' : 'no');
+            update_option('ameverywhere_global_auto_share', $params['global_auto_share'] ? 'yes' : 'no');
             return rest_ensure_response(['success' => true]);
         }
 
@@ -203,14 +203,14 @@ class SocialModule
         $code = $request->get_param('code');
         $error = $request->get_param('error');
         
-        $redirectUrl = admin_url('admin.php?page=ranksavvy#/social');
+        $redirectUrl = admin_url('admin.php?page=ameverywhere#/social');
 
         if ($error || !$code) {
             wp_redirect($redirectUrl);
             exit;
         }
 
-        $apps = get_option('ranksavvy_social_apps', []);
+        $apps = get_option('ameverywhere_social_apps', []);
         if (empty($apps[$network]['app_id']) || empty($apps[$network]['app_secret'])) {
             wp_redirect($redirectUrl);
             exit;
@@ -218,7 +218,7 @@ class SocialModule
 
         $appId = $apps[$network]['app_id'];
         $appSecret = KeyVault::decrypt($apps[$network]['app_secret']);
-        $callbackUri = rest_url("ranksavvy/v1/social/oauth-callback?network={$network}");
+        $callbackUri = rest_url("ameverywhere/v1/social/oauth-callback?network={$network}");
         
         $accessToken = '';
         $profileName = ucfirst($network) . ' Profile';
@@ -289,7 +289,7 @@ class SocialModule
 
     public function getSocialSettings(\WP_REST_Request $request): \WP_REST_Response
     {
-        $apps = get_option('ranksavvy_social_apps', []);
+        $apps = get_option('ameverywhere_social_apps', []);
         
         // Mask secrets before sending to frontend
         foreach ($apps as $network => $creds) {
@@ -306,7 +306,7 @@ class SocialModule
     public function saveSocialSettings(\WP_REST_Request $request): \WP_REST_Response
     {
         $params = $request->get_json_params();
-        $apps = get_option('ranksavvy_social_apps', []);
+        $apps = get_option('ameverywhere_social_apps', []);
 
         $networks = ['facebook', 'twitter', 'linkedin', 'pinterest'];
 
@@ -330,7 +330,7 @@ class SocialModule
             }
         }
 
-        update_option('ranksavvy_social_apps', $apps);
+        update_option('ameverywhere_social_apps', $apps);
 
         // Mask before returning
         foreach ($apps as $network => $creds) {

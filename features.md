@@ -1,4 +1,4 @@
-# RankSavvy Features
+# AmEveryWhere Features
 
 ## Index Now
 Add IndexNow support to instantly notify search engines when content has changed.

@@ -1,6 +1,6 @@
 <?php
 
-namespace RankSavvy\Core\Container;
+namespace AmEveryWhere\Core\Container;
 
 class Container
 {
@@ -17,7 +17,7 @@ class Container
             $this->bindings[$abstract] = $concrete;
         } else {
             $this->bindings[$abstract] = function () use ($concrete) {
-                return new $concrete(); // Simplified instantiation
+                return new $concrete();
             };
         }
     }
@@ -33,6 +33,6 @@ class Container
             return $this->instances[$abstract];
         }
 
-        throw new \Exception("No binding found for {$abstract}");
+        throw new ContainerException("No binding found for {$abstract}");
     }
 }
