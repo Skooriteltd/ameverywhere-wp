@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Handles, matches, and performs 301/302/307 redirects.
  * Exposes a production-grade REST API for Redirect CRUD.
@@ -236,6 +240,12 @@ class RedirectManager
                 continue;
             }
 
+            if (!$this->isSafeTarget($target, $isRegex)) {
+                $errors[] = 'Row ' . ($i + 2) . ': target must be a site-relative path or an absolute URL on this site.';
+                $skipped++;
+                continue;
+            }
+
             if (!in_array($code, [301, 302, 307, 410, 451], true)) {
                 $errors[] = "Row " . ($i + 2) . ": invalid code '$code'. Use 301/302/307/410/451.";
                 $skipped++;
@@ -364,6 +374,14 @@ class RedirectManager
 
         if (empty($source) || empty($target)) {
             return new \WP_Error('invalid_fields', 'Source and Target URLs are required.', ['status' => 400]);
+        }
+
+        if (!$this->isSafeTarget($target, $isRegex)) {
+            return new \WP_Error(
+                'unsafe_target',
+                __('Redirect targets must be site-relative paths or absolute URLs on this site.', 'ameverywhere'),
+                ['status' => 400]
+            );
         }
 
         if (!in_array($code, [301, 302, 307, 410, 451], true)) {
@@ -532,7 +550,36 @@ class RedirectManager
             $target = home_url($target);
         }
 
-        wp_redirect($target, $code);
+        if (!$this->isSafeTarget($target, false)) {
+            return;
+        }
+
+        wp_safe_redirect($target, $code);
         exit;
+    }
+
+    /**
+     * This plugin ships local redirects only. Restricting targets to the site
+     * host prevents an administrator typo, imported CSV, or compromised admin
+     * account from turning the site into an open redirector.
+     */
+    private function isSafeTarget(string $target, bool $isRegex): bool
+    {
+        if ($isRegex && str_contains($target, '$')) {
+            // Substitution values are evaluated at request time. Keep the
+            // static prefix local; capture groups may only extend the path.
+            return str_starts_with($target, '/');
+        }
+
+        if (str_starts_with($target, '/') && !str_starts_with($target, '//')) {
+            return true;
+        }
+
+        $parts = wp_parse_url($target);
+        $siteHost = wp_parse_url(home_url(), PHP_URL_HOST);
+        return is_array($parts)
+            && in_array($parts['scheme'] ?? '', ['http', 'https'], true)
+            && !empty($parts['host'])
+            && strtolower($parts['host']) === strtolower((string) $siteHost);
     }
 }

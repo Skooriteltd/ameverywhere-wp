@@ -2,13 +2,17 @@
 
 namespace AmEveryWhere\Modules\Compliance;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
- * CookieBannerModule: Lightweight CCPA/GDPR cookie consent banner.
+ * CookieBannerModule: Lightweight cookie notice.
  *
  * Injects a consent bar into wp_footer with zero JS dependencies.
- * Supports two jurisdiction modes:
- *   - ccpa: opt-out model (consent assumed, decline available)
- *   - gdpr: opt-in model (no scripts until accepted)
+ * This module records a visitor's notice choice. It does not discover, block,
+ * categorize, or manage third-party scripts and is therefore not presented as
+ * a GDPR/CCPA consent-management solution.
  * Stores consent in a first-party cookie (ameverywhere_consent).
  */
 class CookieBannerModule
@@ -30,7 +34,7 @@ class CookieBannerModule
             return;
         }
 
-        $pluginUrl = plugin_dir_url(dirname(__DIR__, 2) . '/ameverywhere.php');
+        $pluginUrl = AMEVERYWHERE_PLUGIN_URL;
 
         wp_enqueue_style(
             'ameverywhere-cookie-banner',
@@ -48,7 +52,6 @@ class CookieBannerModule
         );
 
         wp_localize_script('ameverywhere-cookie-banner', 'amEveryWhereCookieConfig', [
-            'mode'       => $config['mode'],
             'cookieName' => self::CONSENT_COOKIE,
             'cookieDays' => 365,
         ]);
@@ -61,18 +64,16 @@ class CookieBannerModule
             return;
         }
         ?>
-        <div id="ameverywhere-cookie-banner" class="aew-cookie-banner rs-cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent" style="display:none;">
-            <div class="rs-cookie-banner__inner">
-                <p class="rs-cookie-banner__text"><?php echo wp_kses_post($config['message']); ?>
+        <div id="ameverywhere-cookie-banner" class="aew-cookie-banner" role="dialog" aria-live="polite" aria-label="Cookie consent" style="display:none;">
+            <div class="aew-cookie-banner__inner">
+                <p class="aew-cookie-banner__text"><?php echo wp_kses_post($config['message']); ?>
                     <?php if (!empty($config['policy_url'])): ?>
                         <a href="<?php echo esc_url($config['policy_url']); ?>" target="_blank" rel="noopener">Privacy Policy</a>.
                     <?php endif; ?>
                 </p>
-                <div class="rs-cookie-banner__actions">
-                    <button id="rs-cookie-accept" class="rs-cookie-btn rs-cookie-btn--accept"><?php echo esc_html($config['accept_label']); ?></button>
-                    <?php if ($config['mode'] === 'gdpr'): ?>
-                        <button id="rs-cookie-decline" class="rs-cookie-btn rs-cookie-btn--decline"><?php echo esc_html($config['decline_label']); ?></button>
-                    <?php endif; ?>
+                <div class="aew-cookie-banner__actions">
+                    <button id="aew-cookie-accept" class="aew-cookie-btn aew-cookie-btn--accept"><?php echo esc_html($config['accept_label']); ?></button>
+                    <button id="aew-cookie-decline" class="aew-cookie-btn aew-cookie-btn--decline"><?php echo esc_html($config['decline_label']); ?></button>
                 </div>
             </div>
         </div>
@@ -107,7 +108,6 @@ class CookieBannerModule
         $params = $request->get_json_params();
         $config = [
             'enabled'       => (bool)   ($params['enabled']       ?? false),
-            'mode'          => in_array($params['mode'] ?? '', ['ccpa', 'gdpr'], true) ? $params['mode'] : 'ccpa',
             'message'       => wp_kses_post($params['message']       ?? $this->defaultMessage()),
             'accept_label'  => sanitize_text_field($params['accept_label']  ?? 'Accept'),
             'decline_label' => sanitize_text_field($params['decline_label'] ?? 'Decline'),
@@ -123,7 +123,6 @@ class CookieBannerModule
     {
         $defaults = [
             'enabled'       => false,
-            'mode'          => 'ccpa',
             'message'       => $this->defaultMessage(),
             'accept_label'  => 'Accept',
             'decline_label' => 'Decline',
@@ -135,6 +134,6 @@ class CookieBannerModule
 
     private function defaultMessage(): string
     {
-        return 'We use cookies to improve your experience on our site. By continuing to use this site, you agree to our use of cookies.';
+        return 'This site uses cookies. Review the privacy policy for details.';
     }
 }

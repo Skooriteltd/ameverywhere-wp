@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Class HtmlSitemapShortcode
  *
- * Registers and renders the [ranksavvy_sitemap] shortcode.
+ * Registers and renders the [ameverywhere_sitemap] shortcode.
  * Configuration is read from WordPress options set via the admin UI.
  */
 class HtmlSitemapShortcode
@@ -43,7 +47,7 @@ class HtmlSitemapShortcode
         }
 
         ob_start(); ?>
-        <nav class="rks-sitemap" aria-label="Site Map">
+        <nav class="aew-sitemap" aria-label="Site Map">
         <?php foreach ($postTypes as $postType) :
             $ptObj = get_post_type_object($postType);
             if (!$ptObj || !$ptObj->public) continue;
@@ -59,14 +63,14 @@ class HtmlSitemapShortcode
             ]);
 
             if (empty($posts)) continue; ?>
-            <section class="rks-sitemap__section">
-                <h3 class="rks-sitemap__heading">
+            <section class="aew-sitemap__section">
+                <h3 class="aew-sitemap__heading">
                     <?php echo esc_html($ptObj->labels->name); ?>
-                    <?php if ($showCount) : ?><span class="rks-sitemap__count">(<?php echo count($posts); ?>)</span><?php endif; ?>
+                    <?php if ($showCount) : ?><span class="aew-sitemap__count">(<?php echo count($posts); ?>)</span><?php endif; ?>
                 </h3>
-                <ul class="rks-sitemap__list">
+                <ul class="aew-sitemap__list">
                     <?php foreach ($posts as $post) : ?>
-                    <li class="rks-sitemap__item">
+                    <li class="aew-sitemap__item">
                         <a href="<?php echo esc_url(get_permalink($post->ID)); ?>"><?php echo esc_html($post->post_title ?: '(no title)'); ?></a>
                     </li>
                     <?php endforeach; ?>
@@ -79,14 +83,14 @@ class HtmlSitemapShortcode
 
     public function enqueueStyles(): void
     {
-        echo '<style id="rks-sitemap-css">
-.rks-sitemap{font-family:inherit;margin:0;padding:0}
-.rks-sitemap__section{margin-bottom:2rem}
-.rks-sitemap__heading{font-size:1.1em;font-weight:600;margin:0 0 .5rem;border-bottom:2px solid currentColor;padding-bottom:.25rem}
-.rks-sitemap__count{font-weight:400;font-size:.85em;opacity:.65;margin-left:.4em}
-.rks-sitemap__list{list-style:none;margin:.5rem 0 0;padding:0;display:flex;flex-wrap:wrap;gap:.35rem .75rem}
-.rks-sitemap__item a{color:inherit;text-decoration:none;font-size:.95em}
-.rks-sitemap__item a:hover{text-decoration:underline}
+        echo '<style id="aew-sitemap-css">
+.aew-sitemap{font-family:inherit;margin:0;padding:0}
+.aew-sitemap__section{margin-bottom:2rem}
+.aew-sitemap__heading{font-size:1.1em;font-weight:600;margin:0 0 .5rem;border-bottom:2px solid currentColor;padding-bottom:.25rem}
+.aew-sitemap__count{font-weight:400;font-size:.85em;opacity:.65;margin-left:.4em}
+.aew-sitemap__list{list-style:none;margin:.5rem 0 0;padding:0;display:flex;flex-wrap:wrap;gap:.35rem .75rem}
+.aew-sitemap__item a{color:inherit;text-decoration:none;font-size:.95em}
+.aew-sitemap__item a:hover{text-decoration:underline}
 </style>' . "\n";
     }
 }

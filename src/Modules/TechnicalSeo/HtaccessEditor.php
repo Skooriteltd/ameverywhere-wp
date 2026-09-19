@@ -82,7 +82,7 @@ class HtaccessEditor
         ]);
     }
 
-    public function saveHtaccessEndpoint(\WP_REST_Request $request): \WP_REST_Response
+    public function saveHtaccessEndpoint(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params  = $request->get_json_params();
         $content = $params['content'] ?? '';
@@ -123,7 +123,7 @@ class HtaccessEditor
         ]);
     }
 
-    public function restoreEndpoint(\WP_REST_Request $request): \WP_REST_Response
+    public function restoreEndpoint(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params   = $request->get_json_params();
         $filename = sanitize_file_name($params['filename'] ?? '');

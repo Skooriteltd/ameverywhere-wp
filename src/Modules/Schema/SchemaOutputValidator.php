@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * SchemaOutputValidator
  *
@@ -50,7 +54,7 @@ class SchemaOutputValidator
         ]);
     }
 
-    public function validateSchema(\WP_REST_Request $request): \WP_REST_Response
+    public function validateSchema(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params = $request->get_json_params();
         $postId = absint($params['post_id'] ?? 0);
@@ -62,6 +66,10 @@ class SchemaOutputValidator
 
         if (empty($url)) {
             return new \WP_Error('missing_target', 'Provide post_id or url.', ['status' => 400]);
+        }
+
+        if (!$this->isLocalUrl($url)) {
+            return new \WP_Error('invalid_target', __('Schema validation accepts only URLs on this WordPress site.', 'ameverywhere'), ['status' => 400]);
         }
 
         $cacheKey = 'ameverywhere_schema_validation_' . md5($url);
@@ -81,8 +89,10 @@ class SchemaOutputValidator
     private function runValidation(string $url): array
     {
         // Fetch the rendered page
-        $response = wp_remote_get($url, [
+        $response = wp_safe_remote_get($url, [
             'timeout'    => 20,
+            'redirection' => 3,
+            'limit_response_size' => 2 * MB_IN_BYTES,
             'user-agent' => 'AmEveryWhere Schema Validator/1.0',
         ]);
 
@@ -196,5 +206,15 @@ class SchemaOutputValidator
     private function googleTestUrl(string $url): string
     {
         return 'https://search.google.com/test/rich-results?url=' . rawurlencode($url);
+    }
+
+    private function isLocalUrl(string $url): bool
+    {
+        if (!wp_http_validate_url($url)) {
+            return false;
+        }
+
+        return strtolower((string) wp_parse_url($url, PHP_URL_HOST))
+            === strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST));
     }
 }

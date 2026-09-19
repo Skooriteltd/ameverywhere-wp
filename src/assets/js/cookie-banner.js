@@ -2,12 +2,12 @@ import '../css/cookie-banner.css';
 
 /**
  * AmEveryWhere Cookie Consent Banner
- * Zero-dependency vanilla JS. Reads config from amEveryWhereCookieConfig / rankSavvyCookieConfig.
+ * Zero-dependency vanilla JS. Reads config from amEveryWhereCookieConfig.
  */
 (function () {
     'use strict';
 
-    var cfg = window.amEveryWhereCookieConfig || window.rankSavvyCookieConfig || { mode: 'ccpa', cookieName: 'ameverywhere_consent', cookieDays: 365 };
+    var cfg = window.amEveryWhereCookieConfig || { cookieName: 'ameverywhere_consent', cookieDays: 365 };
 
     function getCookie(name) {
         var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
@@ -23,7 +23,7 @@ import '../css/cookie-banner.css';
     }
 
     function getBanner() {
-        return document.getElementById('ameverywhere-cookie-banner') || document.getElementById('ranksavvy-cookie-banner');
+        return document.getElementById('ameverywhere-cookie-banner');
     }
 
     function hideBanner() {
@@ -47,33 +47,22 @@ import '../css/cookie-banner.css';
         hideBanner();
         if (accepted) {
             document.dispatchEvent(new CustomEvent('ameverywhere:consent:accepted'));
-            document.dispatchEvent(new CustomEvent('ranksavvy:consent:accepted'));
         } else {
             document.dispatchEvent(new CustomEvent('ameverywhere:consent:declined'));
-            document.dispatchEvent(new CustomEvent('ranksavvy:consent:declined'));
         }
     }
 
     function init() {
-        var existing = getCookie(cfg.cookieName) || getCookie('ranksavvy_consent');
+        var existing = getCookie(cfg.cookieName);
 
-        if (cfg.mode === 'ccpa') {
-            if (!existing || existing === 'accepted') {
-                if (!existing) {
-                    setCookie(cfg.cookieName, 'accepted', cfg.cookieDays);
-                }
-                return;
-            }
-        } else {
-            if (existing === 'accepted') {
-                return;
-            }
+        if (existing === 'accepted' || existing === 'declined') {
+            return;
         }
 
         showBanner();
 
-        var acceptBtn  = document.getElementById('aew-cookie-accept') || document.getElementById('rs-cookie-accept');
-        var declineBtn = document.getElementById('aew-cookie-decline') || document.getElementById('rs-cookie-decline');
+        var acceptBtn  = document.getElementById('aew-cookie-accept');
+        var declineBtn = document.getElementById('aew-cookie-decline');
 
         if (acceptBtn) {
             acceptBtn.addEventListener('click', function () { handleConsent(true); });
@@ -92,14 +81,13 @@ import '../css/cookie-banner.css';
     // Expose consent check
     var consentApi = {
         hasConsent: function () {
-            var val = getCookie(cfg.cookieName) || getCookie('ranksavvy_consent');
+            var val = getCookie(cfg.cookieName);
             return val === 'accepted';
         },
         getStatus: function () {
-            return getCookie(cfg.cookieName) || getCookie('ranksavvy_consent') || 'unknown';
+            return getCookie(cfg.cookieName) || 'unknown';
         },
     };
 
     window.amEveryWhereConsent = consentApi;
-    window.rankSavvyConsent = consentApi;
 })();

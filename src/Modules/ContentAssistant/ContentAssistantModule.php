@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 use AmEveryWhere\Core\Ai\AiGateway;
 
@@ -149,7 +153,6 @@ class ContentAssistantModule
         ];
 
         wp_localize_script('ameverywhere-editor-js', 'amEveryWhereEditorConfig', $editorConfig);
-        wp_localize_script('ameverywhere-editor-js', 'rankSavvyEditorConfig', $editorConfig);
     }
 
     public function registerRestRoutes(): void

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Core\Api;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Security\KeyVault;
 
 /**
@@ -32,10 +36,6 @@ class BackendApiClient
     public function getApiKey(): string
     {
         $encryptedKey = get_option('ameverywhere_api_key', '');
-        if (empty($encryptedKey)) {
-            // Check legacy option if present
-            $encryptedKey = get_option('ameverywhere_api_key', '');
-        }
 
         if (empty($encryptedKey)) {
             return '';

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Handles schema graph building, automated video markup inclusion,
  * and handles global conditional schema templates.

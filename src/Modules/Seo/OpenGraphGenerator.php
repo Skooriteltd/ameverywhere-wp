@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Seo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class OpenGraphGenerator
 {
     public function outputSocialMetaTags(): void

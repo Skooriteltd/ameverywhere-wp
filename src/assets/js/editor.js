@@ -1,12 +1,10 @@
-const amEveryWhereEditorConfig = (typeof window !== 'undefined' && (window.amEveryWhereEditorConfig || window.rankSavvyEditorConfig)) || {};
-const rankSavvyEditorConfig = amEveryWhereEditorConfig;
+const amEveryWhereEditorConfig = (typeof window !== 'undefined' && window.amEveryWhereEditorConfig) || {};
 import { registerPlugin } from '@wordpress/plugins';
 import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/edit-post';
 import { PanelBody, TextControl, TextareaControl, ToggleControl, SelectControl, Button, Notice, Spinner } from '@wordpress/components';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { useState, useMemo, useEffect, useCallback } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { analyzeReadability, stripHtml } from './lib/readability';
 import { calculateSeoScore } from './lib/seo-score';
 
@@ -1902,16 +1900,8 @@ const AmEveryWhereSidebar = () => {
     }, []);
 
     const { editPost } = useDispatch('core/editor');
-    const [indexStatus, setIndexStatus] = useState(null);
-    const [isChecking, setIsChecking] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState(null);
-
-    // Trends State
-    const [trendData, setTrendData] = useState(null);
-    const [trendGeo, setTrendGeo] = useState('');
-    const [isFetchingTrends, setIsFetchingTrends] = useState(false);
-    const [trendError, setTrendError] = useState(null);
 
     // Scraper State
     const [competitorUrl, setCompetitorUrl] = useState('');
@@ -1974,26 +1964,6 @@ const AmEveryWhereSidebar = () => {
     const totalKeywords = (focusKeyword ? 1 : 0) + additionalKeywordsCount;
 
     // ── Actions ──────────────────────────────────────────────
-    const checkIndexStatus = async () => {
-        setIsChecking(true);
-        try {
-            const encoded = encodeURIComponent(permalink || '');
-            const response = await fetch(`${amEveryWhereEditorConfig.apiUrl}/indexing/status?url=${encoded}`, {
-                headers: { 'X-WP-Nonce': amEveryWhereEditorConfig.nonce }
-            });
-            const data = await response.json();
-            if (response.ok && data.success) {
-                setIndexStatus(`Status: ${data.status} (Updated: ${data.latestUpdate?.notifyTime || 'N/A'})`);
-            } else {
-                setIndexStatus('Indexing status unknown.');
-            }
-        } catch (e) {
-            setIndexStatus('Failed to retrieve index status.');
-        } finally {
-            setIsChecking(false);
-        }
-    };
-
     const scrapeCompetitorSchema = async () => {
         if (!competitorUrl) return;
         setIsScraping(true);
@@ -2041,27 +2011,6 @@ const AmEveryWhereSidebar = () => {
             setSubmitStatus({ type: 'error', message: 'An error occurred during submission.' });
         } finally {
             setIsSubmitting(false);
-        }
-    };
-
-    const fetchTrends = async () => {
-        if (!focusKeyword) return;
-        setIsFetchingTrends(true);
-        setTrendError(null);
-        try {
-            const response = await fetch(`${amEveryWhereEditorConfig.apiUrl}/trends?keyword=${encodeURIComponent(focusKeyword)}&geo=${trendGeo}`, {
-                headers: { 'X-WP-Nonce': amEveryWhereEditorConfig.nonce }
-            });
-            const result = await response.json();
-            if (result.success && result.data) {
-                setTrendData(result.data);
-            } else {
-                setTrendError(result.message || 'Failed to fetch trends.');
-            }
-        } catch (error) {
-            setTrendError('Error communicating with server.');
-        } finally {
-            setIsFetchingTrends(false);
         }
     };
 
@@ -2675,56 +2624,6 @@ const AmEveryWhereSidebar = () => {
                         />
                     </PanelBody>
 
-                    {/* ── Google Trends ── */}
-                    <PanelBody title={__('Google Trends', 'ameverywhere')} initialOpen={false}>
-                        <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px' }}>
-                            Analyze search interest for your focus keyword over the last 12 months.
-                        </p>
-
-                        <SelectControl
-                            label="Location"
-                            value={trendGeo}
-                            options={[
-                                { label: 'Worldwide', value: '' },
-                                { label: 'United States', value: 'US' },
-                                { label: 'United Kingdom', value: 'GB' },
-                                { label: 'Canada', value: 'CA' },
-                                { label: 'Australia', value: 'AU' },
-                                { label: 'India', value: 'IN' },
-                                { label: 'Germany', value: 'DE' },
-                                { label: 'France', value: 'FR' },
-                                { label: 'Nigeria', value: 'NG' },
-                                { label: 'South Africa', value: 'ZA' },
-                                { label: 'Brazil', value: 'BR' },
-                                { label: 'Japan', value: 'JP' },
-                            ]}
-                            onChange={(val) => setTrendGeo(val)}
-                        />
-
-                        <Button isSecondary isBusy={isFetchingTrends} onClick={fetchTrends} className="w-full justify-center mb-3" disabled={!focusKeyword}>
-                            {isFetchingTrends ? 'Loading Trends...' : 'Load Trend Data'}
-                        </Button>
-
-                        {trendError && (
-                            <Notice status="error" isDismissible={false} className="mb-2">
-                                {trendError}
-                            </Notice>
-                        )}
-
-                        {trendData && !trendError && (
-                            <div style={{ height: '180px', marginTop: '8px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={trendData}>
-                                        <XAxis dataKey="time" hide={true} />
-                                        <YAxis hide={true} domain={[0, 100]} />
-                                        <Tooltip labelStyle={{ color: '#64748b', fontSize: '11px' }} itemStyle={{ color: '#0f172a', fontWeight: 'bold' }} />
-                                        <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={false} name="Interest" />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </div>
-                        )}
-                    </PanelBody>
-
                     {/* ── Indexing & Technical ── */}
                     <PanelBody title={__('Indexing & Technical', 'ameverywhere')} initialOpen={false}>
                         <TextControl
@@ -2752,7 +2651,7 @@ const AmEveryWhereSidebar = () => {
 
                         <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
                             <strong>Manual Indexing</strong>
-                            <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 8px' }}>Force a ping to Google and Bing for this specific post.</p>
+                            <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 8px' }}>Queue an IndexNow notification. Google Indexing API submission is only available for eligible JobPosting and livestream pages.</p>
 
                             {submitStatus && (
                                 <Notice status={submitStatus.type} isDismissible={true} onRemove={() => setSubmitStatus(null)} className="mb-2">
@@ -2764,18 +2663,6 @@ const AmEveryWhereSidebar = () => {
                                 {isSubmitting ? 'Submitting...' : 'Submit to Search Engines'}
                             </Button>
 
-                            <strong>Google Index Status</strong>
-                            <div style={{ marginTop: '8px' }}>
-                                <Button isSecondary isBusy={isChecking} onClick={checkIndexStatus} className="w-full justify-center">
-                                    Check Index Status
-                                </Button>
-                            </div>
-                            {indexStatus && (
-                                <div style={{ marginTop: '8px', fontSize: '13px', color: '#475569', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '10px', borderRadius: '6px' }}>
-                                    <div style={{ fontWeight: 'bold', color: '#166534', marginBottom: '4px' }}>GSC Indexing Diagnostics</div>
-                                    <div>{indexStatus}</div>
-                                </div>
-                            )}
                         </div>
                     </PanelBody>
 

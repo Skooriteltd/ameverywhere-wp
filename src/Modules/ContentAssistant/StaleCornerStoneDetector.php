@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * StaleCornerStoneDetector
  *
@@ -114,7 +118,7 @@ class StaleCornerStoneDetector
             el.addEventListener("click", function(e) {
                 if (e.target.classList.contains("notice-dismiss")) {
                     fetch(ajaxurl, { method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                        body: "action=ranksavvy_dismiss_cornerstone_notice&_ajax_nonce=" + el.dataset.nonce });
+                        body: "action=ameverywhere_dismiss_cornerstone_notice&_ajax_nonce=" + el.dataset.nonce });
                 }
             });
         });

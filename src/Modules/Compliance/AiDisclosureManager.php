@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Compliance;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * AiDisclosureManager
  *

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Generates a Sitemap Index and date-based sub-sitemaps.
  *

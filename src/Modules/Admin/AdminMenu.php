@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class AdminMenu
 {
     public function registerMenu(): void
@@ -19,8 +23,8 @@ class AdminMenu
 
     public function enqueueAssets(string $hook): void
     {
-        // Only load assets on our plugin page (support both new and legacy hooks)
-        if ($hook !== 'toplevel_page_ameverywhere' && $hook !== 'toplevel_page_ranksavvy') {
+        // Only load assets on our plugin page
+        if ($hook !== 'toplevel_page_ameverywhere') {
             return;
         }
 
@@ -43,9 +47,7 @@ class AdminMenu
                 'isMultisite'   => is_multisite() ? '1' : '0',
             ];
 
-            // Localize both new and legacy config variables for backward compatibility
             wp_localize_script('ameverywhere-admin-js', 'amEveryWhereAdminConfig', $adminConfig);
-            wp_localize_script('ameverywhere-admin-js', 'rankSavvyAdminConfig', $adminConfig);
         }
 
         wp_enqueue_style(

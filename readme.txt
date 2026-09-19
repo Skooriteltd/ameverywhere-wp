@@ -1,6 +1,6 @@
 === AmEveryWhere ===
 Contributors: ameverywhereteam
-Tags: seo, schema, sitemap, redirects, meta tags, rank tracker, content optimization, ai seo, technical seo, woocommerce seo
+Tags: seo, schema, sitemap, ai seo, technical seo
 Requires at least: 6.0
 Tested up to: 6.7
 Stable tag: 1.0.0
@@ -13,6 +13,8 @@ Next-generation WordPress SEO and AEO plugin engineered for the AI-first search 
 == Description ==
 
 AmEveryWhere is a comprehensive WordPress SEO plugin covering every aspect of modern search optimisation — from technical SEO and structured data to AI-powered content assistance, image SEO, and indexing control.
+
+Source code and frontend build instructions are available at https://github.com/ameverywhere/ameverywhere-wp.
 
 = Core Features =
 
@@ -59,13 +61,12 @@ AmEveryWhere is a comprehensive WordPress SEO plugin covering every aspect of mo
 * FTC-compliant AI disclosure labels on AI-generated content
 * AI training data opt-out (noai / noimageai, TDM-Reservation header)
 * Editable AI crawler bot list with runtime merge
-* CCPA privacy tools: data export, deletion, GPC honour, retention policy
+* Privacy tools: WordPress data export/deletion integration, GPC honour, retention policy
 * AI token usage metering with configurable limits per user
 
 **Enterprise & Platform**
 * Granular SEO user roles: `manage_seo`, `view_seo_reports`, `manage_redirects`, `edit_seo_meta`
 * WordPress Multisite support with network-level defaults and per-site overrides
-* Page builder integrations: Elementor, Divi, WPBakery
 * Headless WordPress REST SEO endpoints (`GET/PUT /ameverywhere/v1/seo/{id}`)
 * Competitor SEO importer: migrate from Yoast SEO and All in One SEO
 * System-wide audit history log with CSV export
@@ -79,8 +80,13 @@ AmEveryWhere connects to the following external services when features are confi
 * **OpenAI API** (api.openai.com) — used by the LLM Writing Assistant and Content Gap Analyser when an API key is provided. [Privacy Policy](https://openai.com/privacy)
 * **Google PageSpeed Insights API** (googleapis.com) — used by the PageSpeed Dashboard when an API key is provided. [Privacy Policy](https://policies.google.com/privacy)
 * **Google Search Console API** (googleapis.com) — used when OAuth2 is configured by the admin. [Privacy Policy](https://policies.google.com/privacy)
+* **Google Indexing API** (indexing.googleapis.com) — used only when the administrator enables it for pages that meet Google's JobPosting or eligible livestream requirements. [Privacy Policy](https://policies.google.com/privacy)
 * **SerpApi** (serpapi.com) — used by the Keyword Rank Tracker when an API key is provided. [Privacy Policy](https://serpapi.com/privacy)
 * **IndexNow API** (api.indexnow.org) — used to submit URLs to Bing and Yandex on publish. [Privacy Policy](https://www.indexnow.org/)
+* **Anthropic API** (api.anthropic.com) — used by the writing assistant only when the administrator selects Anthropic and supplies a key. [Privacy Policy](https://www.anthropic.com/privacy)
+* **Ollama-compatible host** — used only when the administrator selects a custom Ollama endpoint; the administrator is responsible for the selected host and its privacy terms.
+* **Meta, X, LinkedIn, and Pinterest APIs** — used only after an administrator connects the corresponding social account to publish selected content. Their privacy terms apply.
+* **AmEveryWhere API** (api.ameverywhere.com) — used only when the administrator configures the optional remote service. [Privacy Policy](https://ameverywhere.com/privacy)
 
 No data is sent to any external service without an API key being explicitly configured by the site administrator. No telemetry or usage data is collected by AmEveryWhere itself.
 
@@ -105,13 +111,9 @@ Yes. AmEveryWhere automatically generates Product structured data (including Agg
 
 Yes. Network administrators can set defaults from the Network Admin panel. Individual site admins can override them if permitted.
 
-= Is it compatible with page builders? =
-
-Yes. Elementor, Divi, and WPBakery are all supported via save-cycle hooks that keep AmEveryWhere meta in sync with builder saves.
-
 = What happens when I deactivate or delete the plugin? =
 
-Deactivating the plugin stops all hooks but preserves all data. Deleting the plugin via the WordPress dashboard triggers `uninstall.php`, which removes all plugin options and custom database tables after confirmation.
+Deactivation stops plugin background work and preserves data. Deletion also preserves data by default. An administrator may explicitly enable “Delete AmEveryWhere data when the plugin is deleted” in Settings before uninstalling if permanent removal is intended.
 
 = Can I import settings from Yoast SEO or All in One SEO? =
 
@@ -138,8 +140,8 @@ Yes. Go to **AmEveryWhere → Import** and choose your source plugin. A dry-run 
 * Content: LLM writing assistant, search intent classifier, content gap analysis, internal link suggestions, keyword density, morphological matching, inclusive language checker, word complexity scorer
 * Indexing: IndexNow, Google Search Console OAuth2, keyword rank tracker, PageSpeed / CWV dashboard, index status checker
 * Sitemap: XML with priority/changefreq per post-type, News, Video, HTML shortcode
-* Compliance: CCPA tools, AI disclosure labels, LLM training opt-out, AI bot blocking, llms.txt generator
-* Enterprise: Multisite, page builder wrappers, headless REST endpoints, Yoast/AIOSEO importer, custom roles, audit history log, keyword cannibalization detector
+* Compliance: privacy export/erasure tools, AI disclosure labels, LLM training opt-out, AI bot blocking, llms.txt generator
+* Enterprise: Multisite, headless REST endpoints, Yoast/AIOSEO importer, custom roles, audit history log, keyword cannibalization detector
 
 == Upgrade Notice ==
 

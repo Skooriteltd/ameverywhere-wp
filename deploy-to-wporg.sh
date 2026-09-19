@@ -26,27 +26,36 @@ echo "    SVN URL : ${SVN_URL}"
 echo "    WP User : ${WP_ORG_USER}"
 echo ""
 
-# ── 1. Install production Composer dependencies ───────────────────────────────
+# ── 1. Build frontend assets ──────────────────────────────────────────────────
+echo "==> Building frontend assets..."
+npm ci --silent
+npm run build
+
+# ── 2. Install production Composer dependencies ───────────────────────────────
 echo "==> Installing production composer dependencies..."
 composer install --no-dev --optimize-autoloader --quiet
 
-# ── 2. Checkout SVN trunk ─────────────────────────────────────────────────────
+# ── 3. Checkout SVN trunk & assets ────────────────────────────────────────────
 echo "==> Checking out SVN..."
 rm -rf "${BUILD_DIR}"
 svn checkout "${SVN_URL}" "${BUILD_DIR}" --depth immediates
 svn update "${BUILD_DIR}/trunk" --set-depth infinity
 svn update "${BUILD_DIR}/assets" --set-depth infinity
 
-# ── 3. Sync plugin files to trunk (exclude dev files) ─────────────────────────
+# ── 4. Sync plugin files to trunk (exclude dev files) ─────────────────────────
 echo "==> Syncing files to SVN trunk..."
 rsync -rc --delete \
     --exclude=".git" \
+    --exclude=".github" \
+    --exclude=".kilo" \
+    --exclude=".*" \
     --exclude=".svn" \
     --exclude=".svn-build" \
     --exclude=".svnignore" \
     --exclude=".gitignore" \
     --exclude=".phpcs.xml" \
     --exclude=".editorconfig" \
+    --exclude=".DS_Store" \
     --exclude="node_modules" \
     --exclude="tests" \
     --exclude="phpunit.xml" \
@@ -59,30 +68,51 @@ rsync -rc --delete \
     --exclude="postcss.config.js" \
     --exclude="backlog.md" \
     --exclude="deferred-backlog.md" \
+    --exclude="production-readiness-backlog.md" \
     --exclude="about.md" \
     --exclude="features.md" \
     --exclude="tasklist.md" \
     --exclude="specification.md" \
     --exclude="deploy-to-wporg.sh" \
+    --exclude="package-zip.sh" \
+    --exclude="dist" \
+    --exclude="assets/screenshots" \
+    --exclude="assets/wporg" \
     "${PLUGIN_DIR}/" "${BUILD_DIR}/trunk/"
 
-# ── 4. Copy assets (banner, icons, screenshots) ───────────────────────────────
+# ── 5. Copy assets (banner, icons, screenshots) ───────────────────────────────
 if [ -d "${PLUGIN_DIR}/assets/wporg" ]; then
-    echo "==> Syncing WP.org assets (banners, icons)..."
-    rsync -rc "${PLUGIN_DIR}/assets/wporg/" "${BUILD_DIR}/assets/"
+    echo "==> Syncing WP.org assets (banners, icons, screenshots)..."
+    rsync -rc \
+        --exclude="sources" \
+        --exclude="ASSETS-README.md" \
+        --exclude=".DS_Store" \
+        "${PLUGIN_DIR}/assets/wporg/" "${BUILD_DIR}/assets/"
 fi
 
-# ── 5. SVN add new files, remove deleted files ───────────────────────────────
+# ── 6. SVN add new files, remove deleted files across trunk and assets ────────
 echo "==> Updating SVN file statuses..."
 cd "${BUILD_DIR}"
-svn status trunk | grep "^?" | awk '{print $2}' | xargs -r svn add
-svn status trunk | grep "^!" | awk '{print $2}' | xargs -r svn delete
 
-# ── 6. Tag the release ────────────────────────────────────────────────────────
+# Add untracked files (macOS BSD and GNU compatible)
+svn status trunk assets | grep "^\?" | awk '{print $2}' | while read -r file; do
+    if [ -n "$file" ]; then
+        svn add "$file"
+    fi
+done
+
+# Remove deleted files (macOS BSD and GNU compatible)
+svn status trunk assets | grep "^\!" | awk '{print $2}' | while read -r file; do
+    if [ -n "$file" ]; then
+        svn delete "$file"
+    fi
+done
+
+# ── 7. Tag the release ────────────────────────────────────────────────────────
 echo "==> Tagging release v${VERSION}..."
 svn cp trunk "tags/${VERSION}"
 
-# ── 7. Commit ─────────────────────────────────────────────────────────────────
+# ── 8. Commit ─────────────────────────────────────────────────────────────────
 echo "==> Committing to WordPress.org SVN..."
 svn commit \
     --username "${WP_ORG_USER}" \

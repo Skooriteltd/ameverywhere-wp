@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Modules\Schema\VideoExtractor;
 
 /**

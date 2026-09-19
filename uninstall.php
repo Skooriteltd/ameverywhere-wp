@@ -1,138 +1,118 @@
 <?php
 /**
- * AmEveryWhere Uninstall
+ * AmEveryWhere uninstall routine.
  *
- * Runs when the plugin is deleted from the WordPress admin.
- * Removes all plugin options, custom database tables, and post meta.
+ * Plugin data is retained by default. An administrator must explicitly enable
+ * `ameverywhere_delete_data_on_uninstall` before deletion to be permitted.
  *
  * @package AmEveryWhere
  */
 
-// Exit if not called by WordPress uninstall process.
 if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
-global $wpdb;
+/**
+ * Clear runtime work for one site and, when explicitly requested, remove only
+ * data owned by this plugin. Table names are calculated after switch_to_blog().
+ */
+$ameverywhereUninstallSite = static function (bool $deleteData): void {
+    global $wpdb;
 
-// ── 1. Remove all plugin options (including legacy ranksavvy_ options) ────────
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ameverywhere_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ranksavvy_%'");
+    $cronHooks = [
+        'ameverywhere_process_job',
+        'ameverywhere_scan_orphaned',
+        'ameverywhere_stale_cornerstone_check',
+        'ameverywhere_weekly_audit',
+        'ameverywhere_monthly_audit',
+        'ameverywhere_scheduled_audit',
+        'ameverywhere_rank_check',
+        'ameverywhere_404_cleanup',
+        'ameverywhere_apply_retention',
+        'ameverywhere_run_technical_audit',
+        'ameverywhere_blc_scan_batch',
+        'ameverywhere_usage_metering_weekly',
+    ];
 
-// ── 2. Remove all plugin post meta (including legacy _ranksavvy_ meta) ────────
-$wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_ameverywhere_%'");
-$wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_ranksavvy_%'");
-
-// ── 3. Drop custom database tables ───────────────────────────────────────────
-$tables = [
-    // AmEveryWhere tables
-    $wpdb->prefix . 'ameverywhere_redirects',
-    $wpdb->prefix . 'ameverywhere_404_logs',
-    $wpdb->prefix . 'ameverywhere_sitemap_settings',
-    $wpdb->prefix . 'ameverywhere_links',
-    $wpdb->prefix . 'ameverywhere_ai_usage',
-    $wpdb->prefix . 'ameverywhere_usage_metering',
-    $wpdb->prefix . 'ameverywhere_audit_log',
-    $wpdb->prefix . 'ameverywhere_rank_history',
-    // Legacy RankSavvy tables
-    $wpdb->prefix . 'ranksavvy_redirects',
-    $wpdb->prefix . 'ranksavvy_404_logs',
-    $wpdb->prefix . 'ranksavvy_sitemap_settings',
-    $wpdb->prefix . 'ranksavvy_links',
-    $wpdb->prefix . 'ranksavvy_ai_usage',
-    $wpdb->prefix . 'ranksavvy_usage_metering',
-    $wpdb->prefix . 'ranksavvy_audit_log',
-    $wpdb->prefix . 'ranksavvy_rank_history',
-];
-
-foreach ($tables as $table) {
-    $wpdb->query("DROP TABLE IF EXISTS `{$table}`"); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-}
-
-// ── 4. Remove scheduled cron events ──────────────────────────────────────────
-$cronHooks = [
-    // AmEveryWhere cron hooks
-    'ameverywhere_scan_orphaned',
-    'ameverywhere_stale_cornerstone_check',
-    'ameverywhere_weekly_audit',
-    'ameverywhere_monthly_audit',
-    'ameverywhere_rank_check',
-    'ameverywhere_404_cleanup',
-    'ameverywhere_run_technical_audit',
-    // Legacy RankSavvy cron hooks
-    'ranksavvy_scan_orphaned',
-    'ranksavvy_stale_cornerstone_check',
-    'ranksavvy_weekly_audit',
-    'ranksavvy_monthly_audit',
-    'ranksavvy_rank_check',
-    'ranksavvy_404_cleanup',
-    'ranksavvy_run_technical_audit',
-];
-
-foreach ($cronHooks as $hook) {
-    $timestamp = wp_next_scheduled($hook);
-    if ($timestamp) {
-        wp_unschedule_event($timestamp, $hook);
+    foreach ($cronHooks as $hook) {
+        wp_clear_scheduled_hook($hook);
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions($hook);
+            as_unschedule_all_actions($hook, [], 'ameverywhere');
+        }
     }
-    wp_clear_scheduled_hook($hook);
-}
 
-// ── 5. Remove transients ─────────────────────────────────────────────────────
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_ameverywhere_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_ameverywhere_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_ranksavvy_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_ranksavvy_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_psi_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_psi_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_gsc_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_gsc_%'");
+    if (!$deleteData) {
+        return;
+    }
 
-// ── 6. Remove custom user capabilities ───────────────────────────────────────
-$seoCapabilities = [
-    'manage_seo',
-    'view_seo_reports',
-    'manage_redirects',
-    'edit_seo_meta',
-];
+    $uploads = wp_upload_dir();
+    $uploadsBase = trailingslashit((string) ($uploads['basedir'] ?? ''));
+    $backups = $wpdb->get_col(
+        $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s",
+            '_ameverywhere_compression_original'
+        )
+    );
+    foreach ($backups as $backup) {
+        $backup = (string) $backup;
+        if ($uploadsBase !== '' && str_starts_with($backup, $uploadsBase) && is_file($backup)) {
+            wp_delete_file($backup);
+        }
+    }
 
-$roles = ['administrator', 'editor', 'author', 'contributor'];
-foreach ($roles as $roleName) {
+    $likeOptions = $wpdb->esc_like('ameverywhere_') . '%';
+    $likeMeta = $wpdb->esc_like('_ameverywhere_') . '%';
+    $likeTransient = $wpdb->esc_like('_transient_ameverywhere_') . '%';
+    $likeTransientTimeout = $wpdb->esc_like('_transient_timeout_ameverywhere_') . '%';
+
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $likeOptions)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $likeTransient)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $likeTransientTimeout)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE %s", $likeMeta)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+    $tables = [
+        $wpdb->prefix . 'ameverywhere_redirects',
+        $wpdb->prefix . 'ameverywhere_404_logs',
+        $wpdb->prefix . 'ameverywhere_sitemap_settings',
+        $wpdb->prefix . 'ameverywhere_links',
+        $wpdb->prefix . 'ameverywhere_ai_usage',
+        $wpdb->prefix . 'ameverywhere_usage_metering',
+        $wpdb->prefix . 'ameverywhere_audit_log',
+        $wpdb->prefix . 'ameverywhere_rank_history',
+        $wpdb->prefix . 'ameverywhere_broken_links',
+    ];
+    foreach ($tables as $table) {
+        $wpdb->query("DROP TABLE IF EXISTS `{$table}`"); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    }
+};
+
+$deleteData = get_option('ameverywhere_delete_data_on_uninstall', 'no') === 'yes';
+$ameverywhereUninstallSite($deleteData);
+
+foreach (['administrator', 'editor', 'author', 'contributor'] as $roleName) {
     $role = get_role($roleName);
     if ($role) {
-        foreach ($seoCapabilities as $cap) {
-            $role->remove_cap($cap);
+        foreach (['manage_seo', 'view_seo_reports', 'manage_redirects', 'edit_seo_meta'] as $capability) {
+            $role->remove_cap($capability);
         }
     }
 }
 
-// ── 7. Multisite: run on every blog in batches ──────────────────────────────
 if (is_multisite()) {
-    $batchSize = 100;
-    $offset    = 0;
-
-    do {
-        $sites = get_sites(['number' => $batchSize, 'offset' => $offset, 'fields' => 'ids']);
-        if (empty($sites)) {
-            break;
+    $siteIds = get_sites(['fields' => 'ids', 'number' => 0]);
+    $currentBlogId = get_current_blog_id();
+    foreach ($siteIds as $siteId) {
+        if ((int) $siteId === $currentBlogId) {
+            continue;
         }
+        switch_to_blog((int) $siteId);
+        $ameverywhereUninstallSite($deleteData);
+        restore_current_blog();
+    }
 
-        foreach ($sites as $blogId) {
-            switch_to_blog($blogId);
-            $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ameverywhere_%'");
-            $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'ranksavvy_%'");
-            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_ameverywhere_%'");
-            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_ranksavvy_%'");
-
-            foreach ($tables as $subTable) {
-                $wpdb->query("DROP TABLE IF EXISTS `{$subTable}`");
-            }
-            restore_current_blog();
-        }
-
-        $offset += $batchSize;
-    } while (count($sites) === $batchSize);
-
-    // Remove network options
-    $wpdb->query("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE 'ameverywhere_%'");
-    $wpdb->query("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE 'ranksavvy_%'");
+    if ($deleteData) {
+        $likeNetworkOptions = $wpdb->esc_like('ameverywhere_') . '%';
+        $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE %s", $likeNetworkOptions)); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    }
 }

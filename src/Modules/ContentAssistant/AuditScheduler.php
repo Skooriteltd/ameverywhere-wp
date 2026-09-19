@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * AuditScheduler
  *
@@ -22,6 +26,21 @@ class AuditScheduler
     {
         add_action('rest_api_init', [$this, 'registerRoutes']);
         add_action(self::CRON_HOOK, [$this, 'runScheduledAudit']);
+        add_filter('cron_schedules', [$this, 'registerSchedules']);
+
+        if (!wp_next_scheduled(self::CRON_HOOK)) {
+            $config = $this->getConfig();
+            $this->setupSchedule($config['frequency']);
+        }
+    }
+
+    public function registerSchedules(array $schedules): array
+    {
+        $schedules['ameverywhere_monthly'] = [
+            'interval' => 30 * DAY_IN_SECONDS,
+            'display'  => __('Once Monthly', 'ameverywhere'),
+        ];
+        return $schedules;
     }
 
     // ── REST routes ───────────────────────────────────────────────────────────
@@ -137,7 +156,7 @@ class AuditScheduler
         // 3. 404 count
         global $wpdb;
         $logTable = $wpdb->prefix . 'ameverywhere_404_logs';
-        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$logTable'");
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($logTable)));
         $count404 = $tableExists ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $logTable") : 0;
         if ($count404 > 20) { $issues++; $details['404_count'] = $count404; }
         elseif ($count404 > 5) { $warnings++; $details['404_count'] = $count404; }
@@ -188,7 +207,7 @@ class AuditScheduler
             wp_unschedule_event($ts, self::CRON_HOOK);
         }
 
-        $recurrence = ($frequency === 'monthly') ? 'monthly' : 'weekly';
+        $recurrence = ($frequency === 'monthly') ? 'ameverywhere_monthly' : 'weekly';
         wp_schedule_event(time() + 60, $recurrence, self::CRON_HOOK);
     }
 

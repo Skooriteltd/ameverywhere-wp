@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Security\KeyVault;
 
 class GoogleIndexingApi
@@ -12,8 +16,18 @@ class GoogleIndexingApi
         return KeyVault::decrypt($raw);
     }
 
-    public function ping(string $url, string $action): bool
+    /**
+     * Submit only a Google Indexing API eligible URL. The API is not a generic
+     * crawl/index request mechanism, so eligibility is enforced again in the
+     * client rather than trusting a queued job payload.
+     */
+    public function ping(string $url, string $action, int $postId): bool
     {
+        $post = get_post($postId);
+        if (!$post || !self::isEligiblePost($post) || get_permalink($postId) !== $url) {
+            return false;
+        }
+
         $apiKeyJsonStr = $this->getStoredCredentials();
         if (empty($apiKeyJsonStr)) {
             return false;
@@ -49,6 +63,100 @@ class GoogleIndexingApi
 
         $code = wp_remote_retrieve_response_code($response);
         return $code === 200 || $code === 202;
+    }
+
+    /**
+     * Google limits the Indexing API to JobPosting pages and livestream pages
+     * with a BroadcastEvent embedded in a VideoObject. This verifier is kept
+     * deliberately conservative: ambiguous or malformed markup is rejected.
+     */
+    public static function isEligiblePost(\WP_Post $post): bool
+    {
+        if ($post->post_status !== 'publish') {
+            return false;
+        }
+
+        $schemas = [];
+        $generated = (new \AmEveryWhere\Modules\Schema\SchemaGenerator())->getSchemaForPost($post->ID);
+        if (!empty($generated['@graph']) && is_array($generated['@graph'])) {
+            $schemas = $generated['@graph'];
+        }
+
+        if (preg_match_all('/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/si', $post->post_content, $matches)) {
+            foreach ($matches[1] as $json) {
+                $decoded = json_decode(trim($json), true);
+                if (is_array($decoded)) {
+                    $schemas[] = $decoded;
+                }
+            }
+        }
+
+        foreach ($schemas as $schema) {
+            if (self::containsJobPosting($schema) || self::containsVideoBroadcastEvent($schema)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function containsJobPosting(array $schema): bool
+    {
+        $type = $schema['@type'] ?? [];
+        $types = is_array($type) ? $type : [$type];
+        if (in_array('JobPosting', $types, true)) {
+            return true;
+        }
+
+        foreach ($schema as $value) {
+            if (is_array($value)) {
+                if (array_is_list($value)) {
+                    foreach ($value as $item) {
+                        if (is_array($item) && self::containsJobPosting($item)) {
+                            return true;
+                        }
+                    }
+                } elseif (self::containsJobPosting($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static function containsVideoBroadcastEvent(array $schema): bool
+    {
+        $type = $schema['@type'] ?? [];
+        $types = is_array($type) ? $type : [$type];
+        if (in_array('VideoObject', $types, true)) {
+            foreach (['publication', 'broadcastOfEvent'] as $key) {
+                $event = $schema[$key] ?? null;
+                if (is_array($event)) {
+                    $eventType = $event['@type'] ?? [];
+                    $eventTypes = is_array($eventType) ? $eventType : [$eventType];
+                    if (in_array('BroadcastEvent', $eventTypes, true)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        foreach ($schema as $value) {
+            if (is_array($value)) {
+                if (array_is_list($value)) {
+                    foreach ($value as $item) {
+                        if (is_array($item) && self::containsVideoBroadcastEvent($item)) {
+                            return true;
+                        }
+                    }
+                } elseif (self::containsVideoBroadcastEvent($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -122,54 +230,4 @@ class GoogleIndexingApi
         return null;
     }
 
-    public function checkStatus(string $url): array
-    {
-        $apiKeyJsonStr = $this->getStoredCredentials();
-        if (empty($apiKeyJsonStr)) {
-            return ['error' => 'API Key is missing or empty. Please set it in options.'];
-        }
-
-        $jsonKey = json_decode($apiKeyJsonStr, true);
-        if (!$jsonKey || !isset($jsonKey['private_key']) || !isset($jsonKey['client_email'])) {
-            return ['error' => 'Invalid API key format.'];
-        }
-
-        $transientKey = 'ameverywhere_gsc_meta_' . md5($url);
-        $cached = get_transient($transientKey);
-        if ($cached !== false) {
-            return $cached;
-        }
-
-        $accessToken = $this->getAccessToken($jsonKey);
-        if (!$accessToken) {
-            return ['error' => 'Failed to obtain access token.'];
-        }
-
-        $endpoint = 'https://indexing.googleapis.com/v3/urlNotifications/metadata?url=' . urlencode($url);
-
-        $response = wp_remote_get($endpoint, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $accessToken,
-            ],
-            'timeout' => 15,
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => $response->get_error_message()];
-        }
-
-        $code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-
-        if ($code !== 200) {
-            $errorMsg = isset($data['error']['message']) ? $data['error']['message'] : 'HTTP Code ' . $code;
-            return ['error' => $errorMsg];
-        }
-
-        set_transient($transientKey, $data, 300); // 5 minutes cache
-
-        return $data;
-    }
 }
-

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Onboarding;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Minimal setup wizard with zero-configuration philosophy.
  * 
@@ -37,7 +41,7 @@ class SetupWizard
         $screen = get_current_screen();
         
         // Don't show on the AmEveryWhere page itself
-        if ($screen && ($screen->id === 'toplevel_page_ameverywhere' || $screen->id === 'toplevel_page_ranksavvy')) {
+        if ($screen && $screen->id === 'toplevel_page_ameverywhere') {
             return;
         }
 

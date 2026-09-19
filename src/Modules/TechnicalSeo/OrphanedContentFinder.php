@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * OrphanedContentFinder
  *

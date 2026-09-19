@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class IndexingJob
 {
     private array $data;
@@ -15,6 +19,7 @@ class IndexingJob
     {
         $url = $this->data['url'] ?? '';
         $action = $this->data['action'] ?? 'URL_UPDATED';
+        $postId = (int) ($this->data['post_id'] ?? 0);
 
         if (empty($url)) {
             return;
@@ -22,9 +27,13 @@ class IndexingJob
 
         $quotaManager = new QuotaManager();
         
-        if ($quotaManager->canPingGoogle()) {
+        if (
+            !empty($this->data['submit_google']) &&
+            get_option('ameverywhere_enable_google_indexing_api', 'no') === 'yes' &&
+            $quotaManager->canPingGoogle()
+        ) {
             $googleApi = new GoogleIndexingApi();
-            $googleSuccess = $googleApi->ping($url, $action);
+            $googleSuccess = $googleApi->ping($url, $action, $postId);
             if ($googleSuccess) {
                 $quotaManager->incrementGoogle();
             }

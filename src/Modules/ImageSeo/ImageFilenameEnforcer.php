@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ImageSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * ImageFilenameEnforcer
  *
@@ -61,7 +65,9 @@ class ImageFilenameEnforcer
     public function cleanFilename(string $name): string
     {
         // Transliterate accented characters to ASCII
-        if (function_exists('iconv')) {
+        if (function_exists('remove_accents')) {
+            $name = remove_accents($name);
+        } elseif (function_exists('iconv')) {
             $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
             if ($converted !== false) {
                 $name = $converted;

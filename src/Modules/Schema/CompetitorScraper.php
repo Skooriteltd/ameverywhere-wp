@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Handles secure server-side fetching and parsing of competitor JSON-LD schemas.
  */
@@ -13,7 +17,7 @@ class CompetitorScraper
     public static function scrapeUrl(string $url): array
     {
         $url = esc_url_raw($url);
-        if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+        if (empty($url) || !wp_http_validate_url($url)) {
             return [
                 'success' => false,
                 'message' => __('Invalid competitor URL supplied.', 'ameverywhere'),
@@ -23,6 +27,8 @@ class CompetitorScraper
         // Fetch the remote HTML page securely
         $response = wp_safe_remote_get($url, [
             'timeout'    => 10,
+            'redirection' => 3,
+            'limit_response_size' => 2 * MB_IN_BYTES,
             'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36 AmEveryWhereProxy/1.0',
             'headers'    => [
                 'Accept' => 'text/html',

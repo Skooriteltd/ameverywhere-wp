@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Handles database operations for AmEveryWhere sitemap settings using the custom table.
  * Fallbacks to options and handles transparent on-demand migrations.
@@ -19,7 +23,7 @@ class SitemapSettings
         $tableName = $wpdb->prefix . self::$table;
 
         // Check if custom table exists; if not, fallback to options
-        if ($wpdb->get_var("SHOW TABLES LIKE '$tableName'") !== $tableName) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($tableName))) !== $tableName) {
             return get_option('ameverywhere_' . $key, $default);
         }
 
@@ -48,7 +52,7 @@ class SitemapSettings
         global $wpdb;
         $tableName = $wpdb->prefix . self::$table;
 
-        if ($wpdb->get_var("SHOW TABLES LIKE '$tableName'") !== $tableName) {
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($tableName))) !== $tableName) {
             update_option('ameverywhere_' . $key, $value);
             return;
         }

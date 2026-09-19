@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema\Types;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class ArticleSchema
 {
     public function isApplicable(?int $postId = null): bool

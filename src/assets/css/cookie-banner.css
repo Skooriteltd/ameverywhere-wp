@@ -1,6 +1,5 @@
 /* AmEveryWhere Cookie Consent Banner */
-.aew-cookie-banner,
-.rs-cookie-banner {
+.aew-cookie-banner {
     position: fixed;
     bottom: 0;
     left: 0;
@@ -14,8 +13,7 @@
     line-height: 1.5;
 }
 
-.aew-cookie-banner__inner,
-.rs-cookie-banner__inner {
+.aew-cookie-banner__inner {
     max-width: 1200px;
     margin: 0 auto;
     padding: 14px 20px;
@@ -25,28 +23,24 @@
     flex-wrap: wrap;
 }
 
-.aew-cookie-banner__text,
-.rs-cookie-banner__text {
+.aew-cookie-banner__text {
     margin: 0;
     flex: 1 1 300px;
     color: #cbd5e1;
 }
 
-.aew-cookie-banner__text a,
-.rs-cookie-banner__text a {
+.aew-cookie-banner__text a {
     color: #93c5fd;
     text-decoration: underline;
 }
 
-.aew-cookie-banner__actions,
-.rs-cookie-banner__actions {
+.aew-cookie-banner__actions {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
 }
 
-.aew-cookie-btn,
-.rs-cookie-btn {
+.aew-cookie-btn {
     padding: 8px 18px;
     border: none;
     border-radius: 6px;
@@ -56,36 +50,30 @@
     transition: opacity .15s;
 }
 
-.aew-cookie-btn:hover,
-.rs-cookie-btn:hover {
+.aew-cookie-btn:hover {
     opacity: .85;
 }
 
-.aew-cookie-btn--accept,
-.rs-cookie-btn--accept {
+.aew-cookie-btn--accept {
     background: #3b82f6;
     color: #fff;
 }
 
-.aew-cookie-btn--decline,
-.rs-cookie-btn--decline {
+.aew-cookie-btn--decline {
     background: transparent;
     color: #94a3b8;
     border: 1px solid #475569;
 }
 
 @media (max-width: 600px) {
-    .aew-cookie-banner__inner,
-    .rs-cookie-banner__inner {
+    .aew-cookie-banner__inner {
         flex-direction: column;
         align-items: flex-start;
     }
-    .aew-cookie-banner__actions,
-    .rs-cookie-banner__actions {
+    .aew-cookie-banner__actions {
         width: 100%;
     }
-    .aew-cookie-btn,
-    .rs-cookie-btn {
+    .aew-cookie-btn {
         flex: 1;
     }
 }

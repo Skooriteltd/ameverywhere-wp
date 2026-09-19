@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Scans post content to detect YouTube, Vimeo, and HTML5 video embeds
  * and auto-generates structured VideoObject schemas.

@@ -2,10 +2,13 @@
 
 namespace AmEveryWhere\Modules\ImageSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
- * ImageCompressor: Auto-compresses uploaded images and generates WebP variants.
+ * ImageCompressor: Reversibly compresses administrator-selected media.
  *
- * Hooks into wp_handle_upload to process new uploads immediately.
  * Provides a REST endpoint for bulk-processing the existing library.
  * Uses Imagick when available, falls back to GD.
  */
@@ -13,44 +16,23 @@ class ImageCompressor
 {
     private const OPTION_KEY         = 'ameverywhere_image_compression';
     private const PROCESSED_META_KEY = '_ameverywhere_compressed';
+    private const ORIGINAL_META_KEY  = '_ameverywhere_compression_original';
 
     public function boot(): void
     {
         $config = $this->getConfig();
+        add_action('rest_api_init', [$this, 'registerRoutes']);
+
+        // Upload-time mutation is intentionally unsupported. Media can be
+        // optimized only through the explicit, reversible bulk workflow after
+        // WordPress has created an attachment record and backup metadata.
         if (!$config['enabled']) {
             return;
         }
-
-        // Hook into the upload pipeline after WordPress has moved and validated the file
-        add_filter('wp_handle_upload', [$this, 'compressOnUpload'], 10, 2);
-        add_action('rest_api_init',    [$this, 'registerRoutes']);
     }
 
     /**
-     * Called after a file is uploaded. Compress in-place and optionally create WebP.
-     *
-     * @param array{file:string,url:string,type:string} $upload
-     * @return array{file:string,url:string,type:string}
-     */
-    public function compressOnUpload(array $upload, string $context): array
-    {
-        if ($context !== 'upload') {
-            return $upload;
-        }
-
-        $mime = $upload['type'] ?? '';
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
-            return $upload;
-        }
-
-        $config = $this->getConfig();
-        $this->processFile($upload['file'], $mime, $config);
-
-        return $upload;
-    }
-
-    /**
-     * Compress and optionally convert a single file to WebP.
+     * Compress a single backed-up file.
      * Returns true on success, false on failure.
      */
     public function processFile(string $filePath, string $mime, array $config): bool
@@ -60,15 +42,13 @@ class ImageCompressor
         }
 
         $quality = (int) ($config['quality'] ?? 82);
-        $webp    = (bool) ($config['webp'] ?? true);
-
         // Prefer Imagick for better compression quality
         if (extension_loaded('imagick')) {
-            return $this->processWithImagick($filePath, $mime, $quality, $webp);
+            return $this->processWithImagick($filePath, $mime, $quality);
         }
 
         if (extension_loaded('gd')) {
-            return $this->processWithGd($filePath, $mime, $quality, $webp);
+            return $this->processWithGd($filePath, $mime, $quality);
         }
 
         return false;
@@ -76,14 +56,12 @@ class ImageCompressor
 
     // ── Imagick implementation ────────────────────────────────────────────────
 
-    private function processWithImagick(string $path, string $mime, int $quality, bool $webp): bool
+    private function processWithImagick(string $path, string $mime, int $quality): bool
     {
         try {
             $imagick = new \Imagick($path);
-            $imagick->stripImage(); // Remove EXIF/metadata
-
-            // Auto-orient based on EXIF data
-            $imagick->autoOrient();
+            // Preserve metadata and orientation. The unmodified source is also
+            // backed up before every bulk operation.
 
             if ($mime === 'image/jpeg') {
                 $imagick->setImageCompression(\Imagick::COMPRESSION_JPEG);
@@ -97,16 +75,6 @@ class ImageCompressor
 
             $imagick->writeImage($path);
 
-            // Generate WebP variant alongside the original
-            if ($webp && in_array($mime, ['image/jpeg', 'image/png'], true)) {
-                $webpPath = preg_replace('/\.[a-z]+$/i', '.webp', $path);
-                $clone    = clone $imagick;
-                $clone->setImageFormat('webp');
-                $clone->setImageCompressionQuality($quality);
-                $clone->writeImage((string) $webpPath);
-                $clone->destroy();
-            }
-
             $imagick->destroy();
             return true;
 
@@ -117,12 +85,11 @@ class ImageCompressor
 
     // ── GD fallback ───────────────────────────────────────────────────────────
 
-    private function processWithGd(string $path, string $mime, int $quality, bool $webp): bool
+    private function processWithGd(string $path, string $mime, int $quality): bool
     {
         $image = match ($mime) {
             'image/jpeg' => @imagecreatefromjpeg($path),
             'image/png'  => @imagecreatefrompng($path),
-            'image/gif'  => @imagecreatefromgif($path),
             default      => false,
         };
 
@@ -133,15 +100,8 @@ class ImageCompressor
         $result = match ($mime) {
             'image/jpeg' => imagejpeg($image, $path, $quality),
             'image/png'  => imagepng($image, $path, min(9, (int) floor((100 - $quality) / 11))),
-            'image/gif'  => imagegif($image, $path),
             default      => false,
         };
-
-        // WebP conversion via GD (PHP 7.0+)
-        if ($webp && $result && function_exists('imagewebp') && in_array($mime, ['image/jpeg', 'image/png'], true)) {
-            $webpPath = preg_replace('/\.[a-z]+$/i', '.webp', $path);
-            imagewebp($image, (string) $webpPath, $quality);
-        }
 
         imagedestroy($image);
         return (bool) $result;
@@ -172,6 +132,25 @@ class ImageCompressor
             'permission_callback' => fn() => current_user_can('manage_options'),
         ]);
 
+        register_rest_route('ameverywhere/v1', '/images/(?P<attachment_id>\d+)/restore', [
+            'methods'             => \WP_REST_Server::CREATABLE,
+            'callback'            => [$this, 'restoreAttachment'],
+            'permission_callback' => fn(\WP_REST_Request $request) => current_user_can('manage_options') && current_user_can('edit_post', (int) $request->get_param('attachment_id')),
+            'args'                => [
+                'attachment_id' => ['sanitize_callback' => 'absint', 'validate_callback' => fn($value) => (int) $value > 0],
+            ],
+        ]);
+
+        register_rest_route('ameverywhere/v1', '/images/compression-backups', [
+            'methods'             => \WP_REST_Server::READABLE,
+            'callback'            => [$this, 'getBackups'],
+            'permission_callback' => fn() => current_user_can('manage_options'),
+            'args'                => [
+                'page'     => ['default' => 1, 'sanitize_callback' => 'absint'],
+                'per_page' => ['default' => 20, 'sanitize_callback' => 'absint'],
+            ],
+        ]);
+
         // Stats endpoint — total images, compressed count, saved bytes estimate
         register_rest_route('ameverywhere/v1', '/images/compression-stats', [
             'methods'             => \WP_REST_Server::READABLE,
@@ -185,14 +164,27 @@ class ImageCompressor
         return rest_ensure_response($this->getConfig());
     }
 
-    public function saveSettings(\WP_REST_Request $request): \WP_REST_Response
+    public function saveSettings(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params = $request->get_json_params();
+        $enabled = !empty($params['enabled']);
+
+        if ($enabled && empty($params['acknowledge_reversible_processing'])) {
+            return new \WP_Error(
+                'compression_confirmation_required',
+                __('Confirm that originals will be retained before enabling image compression.', 'ameverywhere'),
+                ['status' => 400]
+            );
+        }
+
         $config = [
-            'enabled'  => (bool) ($params['enabled']  ?? true),
+            'enabled'  => $enabled,
             'quality'  => min(100, max(40, (int) ($params['quality']  ?? 82))),
-            'webp'     => (bool) ($params['webp']     ?? true),
-            'preserve' => (bool) ($params['preserve'] ?? true), // Keep originals
+            // WebP delivery needs server/content-negotiation support and is not
+            // shipped until that path has end-to-end coverage.
+            'webp'     => false,
+            // This invariant makes every shipped compression reversible.
+            'preserve' => true,
         ];
         update_option(self::OPTION_KEY, $config);
         return rest_ensure_response(['success' => true, 'config' => $config]);
@@ -202,16 +194,20 @@ class ImageCompressor
      * Bulk compress unprocessed images. Processes up to $batchSize per request
      * so the admin UI can call this repeatedly (with progress tracking).
      */
-    public function bulkCompress(\WP_REST_Request $request): \WP_REST_Response
+    public function bulkCompress(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params    = $request->get_json_params();
         $batchSize = min(50, max(1, (int) ($params['batch_size'] ?? 20)));
         $config    = $this->getConfig();
 
+        if (!$config['enabled']) {
+            return new \WP_Error('compression_disabled', __('Enable and confirm reversible image compression before starting a bulk run.', 'ameverywhere'), ['status' => 400]);
+        }
+
         $query = new \WP_Query([
             'post_type'      => 'attachment',
             'post_status'    => 'inherit',
-            'post_mime_type' => ['image/jpeg', 'image/png', 'image/gif'],
+            'post_mime_type' => ['image/jpeg', 'image/png'],
             'posts_per_page' => $batchSize,
             'meta_query'     => [
                 ['key' => self::PROCESSED_META_KEY, 'compare' => 'NOT EXISTS'],
@@ -232,18 +228,11 @@ class ImageCompressor
                 continue;
             }
 
-            // Optionally back up original before compression
-            if ($config['preserve'] && !file_exists($file . '.original')) {
-                @copy($file, $file . '.original');
-            }
-
-            $ok = $this->processFile($file, $mime, $config);
+            $ok = $this->processAttachment($post->ID, $file, $mime, $config);
             update_post_meta($post->ID, self::PROCESSED_META_KEY, $ok ? 'yes' : 'failed');
 
             if ($ok) {
                 $processed++;
-                // Regenerate thumbnail sizes using the newly compressed file
-                wp_update_attachment_metadata($post->ID, wp_generate_attachment_metadata($post->ID, $file));
             } else {
                 $failed++;
             }
@@ -253,7 +242,7 @@ class ImageCompressor
         $remaining = (new \WP_Query([
             'post_type'      => 'attachment',
             'post_status'    => 'inherit',
-            'post_mime_type' => ['image/jpeg', 'image/png', 'image/gif'],
+            'post_mime_type' => ['image/jpeg', 'image/png'],
             'posts_per_page' => 1,
             'meta_query'     => [['key' => self::PROCESSED_META_KEY, 'compare' => 'NOT EXISTS']],
         ]))->found_posts;
@@ -272,14 +261,14 @@ class ImageCompressor
         $total = (new \WP_Query([
             'post_type'      => 'attachment',
             'post_status'    => 'inherit',
-            'post_mime_type' => ['image/jpeg', 'image/png', 'image/gif'],
+            'post_mime_type' => ['image/jpeg', 'image/png'],
             'posts_per_page' => 1,
         ]))->found_posts;
 
         $compressed = (new \WP_Query([
             'post_type'      => 'attachment',
             'post_status'    => 'inherit',
-            'post_mime_type' => ['image/jpeg', 'image/png', 'image/gif'],
+            'post_mime_type' => ['image/jpeg', 'image/png'],
             'posts_per_page' => 1,
             'meta_query'     => [['key' => self::PROCESSED_META_KEY, 'value' => 'yes']],
         ]))->found_posts;
@@ -297,8 +286,82 @@ class ImageCompressor
 
     private function getConfig(): array
     {
-        $defaults = ['enabled' => true, 'quality' => 82, 'webp' => true, 'preserve' => true];
+        $defaults = ['enabled' => false, 'quality' => 82, 'webp' => false, 'preserve' => true];
         $saved    = get_option(self::OPTION_KEY, []);
-        return array_merge($defaults, is_array($saved) ? $saved : []);
+        $config   = array_merge($defaults, is_array($saved) ? $saved : []);
+        $config['enabled'] = !empty($config['enabled']);
+        $config['webp'] = false;
+        $config['preserve'] = true;
+        return $config;
+    }
+
+    private function processAttachment(int $attachmentId, string $file, string $mime, array $config): bool
+    {
+        if (!current_user_can('edit_post', $attachmentId)) {
+            return false;
+        }
+
+        $backup = $file . '.ameverywhere-original';
+        if (!file_exists($backup) && !copy($file, $backup)) {
+            return false;
+        }
+
+        update_post_meta($attachmentId, self::ORIGINAL_META_KEY, $backup);
+        if ($this->processFile($file, $mime, $config)) {
+            return true;
+        }
+
+        // Keep the attachment usable when the selected image engine fails.
+        copy($backup, $file);
+        return false;
+    }
+
+    public function restoreAttachment(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
+    {
+        $attachmentId = (int) $request->get_param('attachment_id');
+        $file = get_attached_file($attachmentId);
+        $backup = (string) get_post_meta($attachmentId, self::ORIGINAL_META_KEY, true);
+
+        if (!$file || !$backup || !is_readable($backup) || !copy($backup, $file)) {
+            return new \WP_Error('restore_failed', __('No restorable image backup is available for this attachment.', 'ameverywhere'), ['status' => 404]);
+        }
+
+        if (unlink($backup)) {
+            delete_post_meta($attachmentId, self::ORIGINAL_META_KEY);
+        }
+        delete_post_meta($attachmentId, self::PROCESSED_META_KEY);
+
+        return rest_ensure_response([
+            'success'          => true,
+            'attachment_id'    => $attachmentId,
+            'backup_remaining' => file_exists($backup),
+        ]);
+    }
+
+    public function getBackups(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $page = max(1, (int) $request->get_param('page'));
+        $perPage = min(100, max(1, (int) $request->get_param('per_page')));
+        $query = new \WP_Query([
+            'post_type'      => 'attachment',
+            'post_status'    => 'inherit',
+            'posts_per_page' => $perPage,
+            'paged'          => $page,
+            'meta_query'     => [['key' => self::ORIGINAL_META_KEY, 'compare' => 'EXISTS']],
+        ]);
+
+        $items = array_map(static function (\WP_Post $attachment): array {
+            return [
+                'attachment_id' => $attachment->ID,
+                'title'         => get_the_title($attachment),
+                'url'           => wp_get_attachment_url($attachment->ID),
+            ];
+        }, $query->posts);
+
+        return rest_ensure_response([
+            'items'       => $items,
+            'total'       => (int) $query->found_posts,
+            'total_pages' => (int) $query->max_num_pages,
+        ]);
     }
 }

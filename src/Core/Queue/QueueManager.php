@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Core\Queue;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Production-grade background job queue.
  *
@@ -10,14 +14,11 @@ namespace AmEveryWhere\Core\Queue;
  */
 class QueueManager
 {
-    private const ACTION_HOOK        = 'ameverywhere_process_job';
-    private const LEGACY_ACTION_HOOK = 'ameverywhere_process_job';
+    private const ACTION_HOOK = 'ameverywhere_process_job';
 
     public function boot(): void
     {
         add_action(self::ACTION_HOOK, [$this, 'process'], 10, 2);
-        // Listen to legacy action hook during transition
-        add_action(self::LEGACY_ACTION_HOOK, [$this, 'process'], 10, 2);
     }
 
     /**
@@ -112,13 +113,9 @@ class QueueManager
      */
     public static function deactivate(): void
     {
-        $timestamp = wp_next_scheduled(self::ACTION_HOOK);
-        if ($timestamp) {
-            wp_unschedule_event($timestamp, self::ACTION_HOOK);
-        }
-        $legacyTimestamp = wp_next_scheduled(self::LEGACY_ACTION_HOOK);
-        if ($legacyTimestamp) {
-            wp_unschedule_event($legacyTimestamp, self::LEGACY_ACTION_HOOK);
+        wp_clear_scheduled_hook(self::ACTION_HOOK);
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions(self::ACTION_HOOK);
         }
     }
 }

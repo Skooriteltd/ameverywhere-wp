@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ImageSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * ImageObjectSchema
  *

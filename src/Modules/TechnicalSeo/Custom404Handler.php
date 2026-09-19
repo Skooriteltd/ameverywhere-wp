@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Custom404Handler: Lets admins select a WordPress page to serve as the 404 template.
  *

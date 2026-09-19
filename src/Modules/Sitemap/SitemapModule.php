@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 
 /**
@@ -21,8 +25,10 @@ class SitemapModule
 
     public function boot(): void
     {
-        // Disable WordPress Core Sitemaps
-        $this->eventManager->addFilter('wp_sitemaps_enabled', '__return_false');
+        // Core sitemaps remain enabled unless an administrator explicitly
+        // enables this plugin's sitemap provider. This avoids silently
+        // disrupting established SEO tooling on activation.
+        $this->eventManager->addFilter('wp_sitemaps_enabled', [$this, 'coreSitemapsEnabled']);
 
         // Add custom rewrite rules
         $this->eventManager->addAction('init', [$this->routeManager, 'addRewriteRules']);
@@ -45,53 +51,8 @@ class SitemapModule
         $this->eventManager->addAction('deleted_post', [VideoSitemapGenerator::class, 'clearCache']);
         $this->eventManager->addAction('transition_post_status', [VideoSitemapGenerator::class, 'clearCache']);
 
-        // ── Phase 1 Backlog #10: Automatically notify search engines when sitemap changes ──
-        // Fires on every publish/update — pings Google and Bing with the sitemap index URL
-        // using a debounced transient (max one ping per site per 60 minutes) to avoid abuse.
-        $this->eventManager->addAction('transition_post_status', [$this, 'maybePingSearchEngines'], 20, 3);
-
         // Register configuration routes
         $this->eventManager->addAction('rest_api_init', [$this, 'registerRoutes']);
-    }
-
-    /**
-     * Ping Google and Bing with the sitemap index URL when a post transitions
-     * to/from "publish". Debounced to at most once per 60 minutes site-wide.
-     */
-    public function maybePingSearchEngines(string $newStatus, string $oldStatus, \WP_Post $post): void
-    {
-        // Only fire when content becomes or updates to published status
-        if ($newStatus !== 'publish') {
-            return;
-        }
-
-        // Skip auto-drafts, revisions, and non-public post types
-        if (wp_is_post_revision($post->ID) || wp_is_post_autosave($post->ID)) {
-            return;
-        }
-
-        // Debounce: only ping once per 60 minutes to avoid hammering the APIs
-        $throttleKey = 'ameverywhere_sitemap_ping_throttle';
-        if (get_transient($throttleKey)) {
-            return;
-        }
-        set_transient($throttleKey, true, HOUR_IN_SECONDS);
-
-        $sitemapUrl = home_url('/sitemap.xml');
-
-        // Ping Google (public URL — no auth required)
-        wp_remote_get(
-            'https://www.google.com/ping?sitemap=' . urlencode($sitemapUrl),
-            ['timeout' => 5, 'blocking' => false]
-        );
-
-        // Ping Bing via IndexNow if a key is configured
-        $indexNowKey = get_option('ameverywhere_indexnow_key', '');
-        if (!empty($indexNowKey)) {
-            $bingApi = new \AmEveryWhere\Modules\Indexing\BingIndexNowApi();
-            $bingApi->ping(get_permalink($post->ID), $indexNowKey);
-        }
-
     }
 
     /**
@@ -118,6 +79,16 @@ class SitemapModule
         return current_user_can('manage_options');
     }
 
+    private function isPluginSitemapEnabled(): bool
+    {
+        return SitemapSettings::get('enable_index_sitemap', 'no') === 'yes';
+    }
+
+    public function coreSitemapsEnabled(bool $enabled): bool
+    {
+        return $this->isPluginSitemapEnabled() ? false : $enabled;
+    }
+
     /**
      * Get sitemap configuration.
      */
@@ -134,7 +105,7 @@ class SitemapModule
         }
 
         return rest_ensure_response([
-            'enable_index_sitemap' => SitemapSettings::get('enable_index_sitemap', 'yes') === 'yes',
+            'enable_index_sitemap' => $this->isPluginSitemapEnabled(),
             'enable_news_sitemap'  => SitemapSettings::get('enable_news_sitemap', 'no') === 'yes',
             'enable_video_sitemap' => SitemapSettings::get('enable_video_sitemap', 'no') === 'yes',
             'exclude_types'        => SitemapSettings::get('sitemap_exclude_types', []),
@@ -194,6 +165,10 @@ class SitemapModule
         // Clear transient cache so new rules apply immediately
         SitemapGenerator::clearCache();
         VideoSitemapGenerator::clearCache();
+        $this->routeManager->removeRulesAndFlush();
+        if ($this->isPluginSitemapEnabled()) {
+            $this->routeManager->flushRules();
+        }
 
         return rest_ensure_response(['success' => true]);
     }

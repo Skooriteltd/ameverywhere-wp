@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Adds an SEO Score column to the WordPress Posts and Pages list tables.
  * Displays a color-coded indicator based on the completeness of SEO meta fields.
@@ -163,6 +167,6 @@ class SeoScoreColumn
             return;
         }
 
-        echo '<style>.column-ameverywhere_seo, .column-ranksavvy_seo { width: 60px; text-align: center; }</style>';
+        echo '<style>.column-ameverywhere_seo { width: 60px; text-align: center; }</style>';
     }
 }

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Core\Ai;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Security\KeyVault;
 use AmEveryWhere\Core\Api\BackendApiClient;
 use AmEveryWhere\Modules\Ai\UsageMeteringManager;

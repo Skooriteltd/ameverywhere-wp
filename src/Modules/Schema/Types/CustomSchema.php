@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema\Types;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Generates custom point-and-click schemas (Product, FAQ, HowTo, LocalBusiness, Recipe, Event)
  * based on post-level metadata.

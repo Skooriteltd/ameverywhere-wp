@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * BulkMetaEditor: Provides a REST endpoint for reading and batch-saving
  * SEO meta (title, description, noindex) across all posts/pages.

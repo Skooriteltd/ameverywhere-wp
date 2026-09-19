@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class QuotaManager
 {
     private const GOOGLE_LIMIT = 200;

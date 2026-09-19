@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Provides a virtual robots.txt editor with optional automatic AI crawler blocking.
  * Stores custom rules in wp_options and intercepts WordPress's default robots.txt output.

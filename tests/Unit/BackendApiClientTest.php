@@ -23,7 +23,6 @@ class BackendApiClientTest extends TestCase
     public function testIsConfiguredReturnsFalseWhenNoKey(): void
     {
         delete_option('ameverywhere_api_key');
-        delete_option('ranksavvy_api_key');
 
         $this->assertFalse($this->client->isConfigured());
     }
@@ -31,7 +30,6 @@ class BackendApiClientTest extends TestCase
     public function testTestConnectionReturnsFallbackWhenNotConfigured(): void
     {
         delete_option('ameverywhere_api_key');
-        delete_option('ranksavvy_api_key');
 
         $result = $this->client->testConnection();
         $this->assertFalse($result['success']);
@@ -41,10 +39,22 @@ class BackendApiClientTest extends TestCase
     public function testGenerateAiFallsBackWhenNotConfigured(): void
     {
         delete_option('ameverywhere_api_key');
-        delete_option('ranksavvy_api_key');
 
         $result = $this->client->generateAi(['prompt' => 'test']);
         $this->assertFalse($result['success']);
         $this->assertTrue($result['fallback']);
+    }
+
+    public function testApiKeyConfiguration(): void
+    {
+        delete_option('ameverywhere_api_key');
+        $rawKey = 'sk-ameverywhere-valid-api-key';
+        $encryptedKey = \AmEveryWhere\Core\Security\KeyVault::encrypt($rawKey);
+        update_option('ameverywhere_api_key', $encryptedKey);
+
+        $this->assertTrue($this->client->isConfigured());
+        $this->assertSame($rawKey, $this->client->getApiKey());
+
+        delete_option('ameverywhere_api_key');
     }
 }

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * SeoAuditHistoryLog
  *
@@ -52,7 +56,7 @@ class SeoAuditHistoryLog
         add_action('added_post_meta', [$this, 'onMetaAdded'], 10, 4);
         add_action('deleted_post_meta', [$this, 'onMetaDeleted'], 10, 4);
 
-        // Track changes to ranksavvy_ options
+        // Track changes to ameverywhere_ options
         add_action('updated_option', [$this, 'onOptionUpdated'], 10, 3);
     }
 
@@ -133,13 +137,30 @@ class SeoAuditHistoryLog
         $perPage = min(200, max(1, (int) $request->get_param('per_page')));
         $offset  = ($page - 1) * $perPage;
 
-        $where = $postId > 0 ? $wpdb->prepare('WHERE post_id = %d', $postId) : '';
-
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} {$where}");
-        $rows  = $wpdb->get_results(
-            $wpdb->prepare("SELECT * FROM {$table} {$where} ORDER BY created_at DESC LIMIT %d OFFSET %d", $perPage, $offset),
-            ARRAY_A
-        );
+        if ($postId > 0) {
+            $total = (int) $wpdb->get_var(
+                $wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE post_id = %d", $postId)
+            );
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$table} WHERE post_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                    $postId,
+                    $perPage,
+                    $offset
+                ),
+                ARRAY_A
+            );
+        } else {
+            $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                    $perPage,
+                    $offset
+                ),
+                ARRAY_A
+            );
+        }
 
         // Enrich with user display name
         foreach ($rows as &$row) {
@@ -167,7 +188,7 @@ class SeoAuditHistoryLog
 
         $response = rest_ensure_response(implode("\n", $lines));
         $response->header('Content-Type', 'text/csv; charset=utf-8');
-        $response->header('Content-Disposition', 'attachment; filename=ranksavvy-audit-log.csv');
+        $response->header('Content-Disposition', 'attachment; filename=ameverywhere-audit-log.csv');
         return $response;
     }
 
@@ -192,7 +213,10 @@ class SeoAuditHistoryLog
         // Prune oldest rows if table grows too large
         $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
         if ($count > self::LOG_MAX_ROWS) {
-            $wpdb->query("DELETE FROM {$table} ORDER BY id ASC LIMIT " . (int) ($count - self::LOG_MAX_ROWS + 1));
+            $deleteLimit = (int) ($count - self::LOG_MAX_ROWS + 1);
+            $wpdb->query(
+                $wpdb->prepare("DELETE FROM {$table} ORDER BY id ASC LIMIT %d", $deleteLimit)
+            );
         }
     }
 }

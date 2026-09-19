@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * FrontendSeoInspector
  *
@@ -129,11 +133,11 @@ class FrontendSeoInspector
         $apiBase = esc_url(rest_url('ameverywhere/v1'));
         $nonce   = wp_create_nonce('wp_rest');
         ?>
-        <div id="ranksavvy-inspector-host" style="position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:sans-serif"></div>
+        <div id="ameverywhere-inspector-host" style="position:fixed;bottom:20px;right:20px;z-index:2147483647;font-family:sans-serif"></div>
         <script>
         (function(){
           'use strict';
-          const host = document.getElementById('ranksavvy-inspector-host');
+          const host = document.getElementById('ameverywhere-inspector-host');
           if (!host || !host.attachShadow) return;
           const shadow = host.attachShadow({mode:'open'});
 

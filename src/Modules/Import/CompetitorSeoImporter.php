@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Import;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * CompetitorSeoImporter
  *

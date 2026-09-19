@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Monitors and logs front-end 404 errors safely and efficiently.
  *
@@ -145,14 +149,17 @@ class ErrorMonitor
         }
 
         // Trim oldest logs if total exceeds MAX_LOGS
-        $totalLogs = (int) $wpdb->get_var("SELECT COUNT(*) FROM $table");
+        $totalLogs = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
         if ($totalLogs > self::MAX_LOGS) {
             $wpdb->query(
-                "DELETE FROM $table WHERE id NOT IN (
-                    SELECT id FROM (
-                        SELECT id FROM $table ORDER BY last_hit DESC LIMIT " . self::MAX_LOGS . "
-                    ) as temp
-                )"
+                $wpdb->prepare(
+                    "DELETE FROM {$table} WHERE id NOT IN (
+                        SELECT id FROM (
+                            SELECT id FROM {$table} ORDER BY last_hit DESC LIMIT %d
+                        ) as temp
+                    )",
+                    self::MAX_LOGS
+                )
             );
         }
 
@@ -321,7 +328,7 @@ class ErrorMonitor
 
         if (empty($id)) {
             // Clear all logs
-            $wpdb->query("DELETE FROM $table");
+            $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE 1 = %d", 1));
             return rest_ensure_response(['success' => true, 'logs' => []]);
         }
 

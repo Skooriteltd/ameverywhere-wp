@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * TechnicalSeoAuditEngine
  *
@@ -157,7 +161,7 @@ class TechnicalSeoAuditEngine
     {
         global $wpdb;
         $table  = $wpdb->prefix . 'ameverywhere_404_logs';
-        $exists = $wpdb->get_var("SHOW TABLES LIKE '$table'");
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
         if (!$exists) {
             return [];
         }
@@ -169,7 +173,7 @@ class TechnicalSeoAuditEngine
     {
         global $wpdb;
         $table  = $wpdb->prefix . 'ameverywhere_redirects';
-        $exists = $wpdb->get_var("SHOW TABLES LIKE '$table'");
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
         if (!$exists) {
             return [];
         }

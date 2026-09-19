@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * IndexStatusChecker
  *
@@ -45,24 +49,25 @@ class IndexStatusChecker
 
     // ── REST callbacks ────────────────────────────────────────────────────────
 
-    public function checkStatus(\WP_REST_Request $request): \WP_REST_Response
+    public function checkStatus(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params = $request->get_json_params();
         $postId = absint($params['post_id'] ?? 0);
-        $url    = sanitize_url($params['url'] ?? '');
 
-        if ($postId > 0) {
-            $url = get_permalink($postId);
+        if ($postId < 1) {
+            return new \WP_Error('missing_post_id', 'A post ID is required.', ['status' => 400]);
         }
 
-        if (empty($url)) {
-            return new \WP_Error('missing_url', 'Provide either post_id or url.', ['status' => 400]);
+        if (!current_user_can('edit_post', $postId)) {
+            return new \WP_Error('forbidden_post', 'You cannot inspect this post.', ['status' => 403]);
         }
+
+        $url = get_permalink($postId);
 
         return rest_ensure_response($this->inspect($url));
     }
 
-    public function checkStatusBulk(\WP_REST_Request $request): \WP_REST_Response
+    public function checkStatusBulk(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params   = $request->get_json_params();
         $postIds  = array_slice(array_map('absint', $params['post_ids'] ?? []), 0, self::MAX_BULK);
@@ -73,6 +78,11 @@ class IndexStatusChecker
 
         $results = [];
         foreach ($postIds as $id) {
+            if (!current_user_can('edit_post', $id)) {
+                $results[$id] = ['status' => 'forbidden', 'message' => 'You cannot inspect this post.'];
+                continue;
+            }
+
             $url = get_permalink($id);
             if ($url) {
                 $results[$id] = $this->inspect($url);

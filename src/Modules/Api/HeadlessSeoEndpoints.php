@@ -2,13 +2,17 @@
 
 namespace AmEveryWhere\Modules\Api;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * HeadlessSeoEndpoints
  *
  * Provides clean REST endpoints for headless WordPress deployments:
- *   GET  /ranksavvy/v1/seo/{post_id}  — all SEO meta for a post
- *   PUT  /ranksavvy/v1/seo/{post_id}  — update SEO meta
- *   GET  /ranksavvy/v1/seo/global     — site-wide SEO defaults
+ *   GET  /ameverywhere/v1/seo/{post_id}  — all SEO meta for a post
+ *   PUT  /ameverywhere/v1/seo/{post_id}  — update SEO meta
+ *   GET  /ameverywhere/v1/seo/global     — site-wide SEO defaults
  *
  * BL-027
  */
@@ -32,8 +36,13 @@ class HeadlessSeoEndpoints
             [
                 'methods'             => 'PUT',
                 'callback'            => [$this, 'updatePostSeo'],
-                'permission_callback' => fn() => current_user_can('edit_posts'),
-                'args'                => ['post_id' => ['sanitize_callback' => 'absint']],
+                'permission_callback' => fn(\WP_REST_Request $request) => current_user_can('edit_post', (int) $request->get_param('post_id')),
+                'args'                => [
+                    'post_id' => [
+                        'sanitize_callback' => 'absint',
+                        'validate_callback' => fn($value) => (int) $value > 0,
+                    ],
+                ],
             ],
         ]);
 
@@ -47,7 +56,7 @@ class HeadlessSeoEndpoints
 
     // ── GET /seo/{post_id} ────────────────────────────────────────────────────
 
-    public function getPostSeo(\WP_REST_Request $request): \WP_REST_Response
+    public function getPostSeo(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $postId = (int) $request->get_param('post_id');
         $post   = get_post($postId);
@@ -62,21 +71,7 @@ class HeadlessSeoEndpoints
     private function buildPostSeoPayload(int $postId): array
     {
         $post   = get_post($postId);
-        $schema = [];
-
-        // Collect schema from wp_footer output (crude but reliable)
-        ob_start();
-        do_action('wp_head');
-        $headHtml = ob_get_clean();
-
-        // Extract JSON-LD blocks
-        preg_match_all('/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/si', $headHtml, $m);
-        foreach ($m[1] as $json) {
-            $decoded = json_decode(trim($json), true);
-            if ($decoded) {
-                $schema[] = $decoded;
-            }
-        }
+        $schema = (new \AmEveryWhere\Modules\Schema\SchemaGenerator())->getSchemaForPost($postId);
 
         return [
             'post_id'           => $postId,
@@ -104,14 +99,14 @@ class HeadlessSeoEndpoints
             'is_cornerstone'    => get_post_meta($postId, '_ameverywhere_is_cornerstone', true) === 'yes',
             'ai_generated'      => get_post_meta($postId, '_ameverywhere_ai_generated', true) === 'yes',
             'search_intent'     => (string) get_post_meta($postId, '_ameverywhere_search_intent', true),
-            'structured_data'   => $schema,
+            'structured_data'   => $schema ?: null,
             'modified'          => $post->post_modified,
         ];
     }
 
     // ── PUT /seo/{post_id} ────────────────────────────────────────────────────
 
-    public function updatePostSeo(\WP_REST_Request $request): \WP_REST_Response
+    public function updatePostSeo(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $postId = (int) $request->get_param('post_id');
         $post   = get_post($postId);
@@ -163,15 +158,11 @@ class HeadlessSeoEndpoints
             'site_description'   => get_bloginfo('description'),
             'site_url'           => site_url(),
             'home_url'           => home_url(),
-            'admin_email'        => get_option('admin_email'),
             'language'           => get_bloginfo('language'),
             'charset'            => get_bloginfo('charset'),
             'sitemap_url'        => home_url('/sitemap.xml'),
             'robots_txt_url'     => home_url('/robots.txt'),
             'llms_txt_url'       => home_url('/llms.txt'),
-            'block_ai_bots'      => get_option('ameverywhere_block_ai_bots', 'no') === 'yes',
-            'ai_training_optout' => get_option('ameverywhere_ai_training_optout', 'no') === 'yes',
-            'indexnow_key'       => get_option('ameverywhere_indexnow_key', ''),
             'schema_defaults'    => [
                 'author'       => get_bloginfo('name'),
                 'publisher'    => get_bloginfo('name'),

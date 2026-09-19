@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Compliance;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * CcpaPrivacyTools
  *
@@ -157,7 +161,7 @@ class CcpaPrivacyTools
         ]);
     }
 
-    public function exportUserData(\WP_REST_Request $request): \WP_REST_Response
+    public function exportUserData(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params = $request->get_json_params();
         $email  = sanitize_email($params['email'] ?? '');
@@ -166,32 +170,10 @@ class CcpaPrivacyTools
             return new \WP_Error('invalid_email', 'A valid email address is required.', ['status' => 400]);
         }
 
-        $user = get_user_by('email', $email);
-        $data = ['email' => $email, 'user_id' => $user ? $user->ID : null, 'records' => []];
-
-        if ($user) {
-            global $wpdb;
-            $usageTable = $wpdb->prefix . 'ameverywhere_ai_usage';
-
-            // AI usage records
-            $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$usageTable'");
-            if ($tableExists) {
-                $usageLogs = $wpdb->get_results(
-                    $wpdb->prepare("SELECT * FROM $usageTable WHERE user_id = %d ORDER BY created_at DESC LIMIT 500", $user->ID)
-                );
-                $data['records']['ai_usage'] = $usageLogs;
-            }
-
-            // User meta set by AmEveryWhere
-            $userMeta = get_user_meta($user->ID);
-            $rsMeta   = array_filter($userMeta, fn($k) => strpos($k, 'ameverywhere') === 0, ARRAY_FILTER_USE_KEY);
-            $data['records']['user_meta'] = $rsMeta;
-        }
-
-        return rest_ensure_response(['success' => true, 'data' => $data]);
+        return rest_ensure_response(['success' => true, 'data' => $this->getUserData($email)]);
     }
 
-    public function deleteUserData(\WP_REST_Request $request): \WP_REST_Response
+    public function deleteUserData(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $params = $request->get_json_params();
         $email  = sanitize_email($params['email'] ?? '');
@@ -200,27 +182,7 @@ class CcpaPrivacyTools
             return new \WP_Error('invalid_email', 'A valid email address is required.', ['status' => 400]);
         }
 
-        $user    = get_user_by('email', $email);
-        $deleted = 0;
-
-        if ($user) {
-            global $wpdb;
-            $usageTable = $wpdb->prefix . 'ameverywhere_ai_usage';
-
-            $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$usageTable'");
-            if ($tableExists) {
-                $deleted += (int) $wpdb->delete($usageTable, ['user_id' => $user->ID], ['%d']);
-            }
-
-            // Delete AmEveryWhere-specific user meta
-            $allMeta = get_user_meta($user->ID);
-            foreach (array_keys($allMeta) as $key) {
-                if (strpos($key, 'ameverywhere') === 0) {
-                    delete_user_meta($user->ID, $key);
-                    $deleted++;
-                }
-            }
-        }
+        $deleted = $this->eraseUserData($email);
 
         return rest_ensure_response(['success' => true, 'records_deleted' => $deleted]);
     }
@@ -261,11 +223,11 @@ class CcpaPrivacyTools
 
         // Purge old 404 logs
         $logsTable = $wpdb->prefix . 'ameverywhere_404_logs';
-        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$logsTable'");
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($logsTable)));
         if ($tableExists) {
             $wpdb->query(
                 $wpdb->prepare(
-                    "DELETE FROM $logsTable WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
+                    "DELETE FROM $logsTable WHERE last_hit < DATE_SUB(NOW(), INTERVAL %d DAY)",
                     $config['keep_404_logs_days']
                 )
             );
@@ -273,7 +235,7 @@ class CcpaPrivacyTools
 
         // Purge old AI usage logs
         $usageTable = $wpdb->prefix . 'ameverywhere_ai_usage';
-        $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$usageTable'");
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($usageTable)));
         if ($tableExists) {
             $wpdb->query(
                 $wpdb->prepare(
@@ -306,41 +268,121 @@ class CcpaPrivacyTools
 
     public function wpPrivacyExporter(string $email, int $page = 1): array
     {
-        $user  = get_user_by('email', $email);
         $items = [];
+        $data  = $this->getUserData($email, $page);
 
-        if ($user) {
-            global $wpdb;
-            $usageTable  = $wpdb->prefix . 'ameverywhere_ai_usage';
-            $tableExists = $wpdb->get_var("SHOW TABLES LIKE '$usageTable'");
+        foreach ($data['records']['ai_usage'] as $row) {
+            $items[] = [
+                'group_id'    => 'ameverywhere_ai_usage',
+                'group_label' => 'AmEveryWhere AI Usage',
+                'item_id'     => 'ai-usage-' . $row->id,
+                'data'        => [
+                    ['name' => 'Provider', 'value' => $row->provider],
+                    ['name' => 'Feature',  'value' => $row->feature],
+                    ['name' => 'Tokens',   'value' => $row->tokens_used],
+                    ['name' => 'Date',     'value' => $row->created_at],
+                ],
+            ];
+        }
 
-            if ($tableExists) {
-                $rows = $wpdb->get_results(
-                    $wpdb->prepare("SELECT * FROM $usageTable WHERE user_id = %d LIMIT 100 OFFSET %d", $user->ID, ($page - 1) * 100)
-                );
-
-                foreach ($rows as $row) {
-                    $items[] = [
-                        'group_id'    => 'ameverywhere_ai_usage',
-                        'group_label' => 'AmEveryWhere AI Usage',
-                        'item_id'     => 'ai-usage-' . $row->id,
-                        'data'        => [
-                            ['name' => 'Provider', 'value' => $row->provider],
-                            ['name' => 'Feature',  'value' => $row->feature],
-                            ['name' => 'Tokens',   'value' => $row->tokens_used],
-                            ['name' => 'Date',     'value' => $row->created_at],
-                        ],
-                    ];
-                }
+        if ($page === 1) {
+            foreach ($data['records']['user_meta'] as $key => $values) {
+                $items[] = [
+                    'group_id'    => 'ameverywhere_user_meta',
+                    'group_label' => 'AmEveryWhere User Metadata',
+                    'item_id'     => 'user-meta-' . $key,
+                    'data'        => [['name' => $key, 'value' => implode(', ', array_map('strval', (array) $values))]],
+                ];
             }
         }
 
-        return ['data' => $items, 'done' => true];
+        return ['data' => $items, 'done' => !$data['has_more']];
     }
 
     public function wpPrivacyEraser(string $email, int $page = 1): array
     {
-        $result = $this->deleteUserData(new \WP_REST_Request());
-        return ['items_removed' => true, 'items_retained' => false, 'messages' => [], 'done' => true];
+        $deleted = $this->eraseUserData($email);
+        return [
+            'items_removed'  => $deleted > 0,
+            'items_retained' => false,
+            'messages'       => [],
+            'done'           => true,
+        ];
+    }
+
+    /**
+     * Read the plugin data tied to one email address. This private operation is
+     * shared by REST and WordPress privacy callbacks so their behaviour cannot
+     * diverge.
+     *
+     * @return array{email:string,user_id:int|null,records:array{ai_usage:array,user_meta:array},has_more:bool}
+     */
+    private function getUserData(string $email, int $page = 1): array
+    {
+        $user = get_user_by('email', $email);
+        $data = [
+            'email'    => $email,
+            'user_id'  => $user ? (int) $user->ID : null,
+            'records'  => ['ai_usage' => [], 'user_meta' => []],
+            'has_more' => false,
+        ];
+
+        if (!$user) {
+            return $data;
+        }
+
+        global $wpdb;
+        $usageTable = $wpdb->prefix . 'ameverywhere_ai_usage';
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($usageTable)));
+        $limit = 100;
+        $offset = max(0, $page - 1) * $limit;
+
+        if ($tableExists) {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare("SELECT * FROM $usageTable WHERE user_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d", $user->ID, $limit + 1, $offset)
+            );
+            $data['has_more'] = count($rows) > $limit;
+            $data['records']['ai_usage'] = array_slice($rows, 0, $limit);
+        }
+
+        if ($page === 1) {
+            $allMeta = get_user_meta($user->ID);
+            $data['records']['user_meta'] = array_filter(
+                $allMeta,
+                static fn($key) => str_starts_with((string) $key, 'ameverywhere'),
+                ARRAY_FILTER_USE_KEY
+            );
+        }
+
+        return $data;
+    }
+
+    /**
+     * Erase data for one verified WordPress user and return the exact number of
+     * records removed. It deliberately does not report success for an empty or
+     * unmatched address.
+     */
+    private function eraseUserData(string $email): int
+    {
+        $user = get_user_by('email', $email);
+        if (!$user) {
+            return 0;
+        }
+
+        global $wpdb;
+        $deleted = 0;
+        $usageTable = $wpdb->prefix . 'ameverywhere_ai_usage';
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($usageTable)));
+        if ($tableExists) {
+            $deleted += (int) $wpdb->delete($usageTable, ['user_id' => $user->ID], ['%d']);
+        }
+
+        foreach (array_keys(get_user_meta($user->ID)) as $key) {
+            if (str_starts_with((string) $key, 'ameverywhere') && delete_user_meta($user->ID, $key)) {
+                $deleted++;
+            }
+        }
+
+        return $deleted;
     }
 }

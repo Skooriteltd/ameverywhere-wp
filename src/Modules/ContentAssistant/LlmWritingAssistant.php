@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * LlmWritingAssistant
  *

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Seo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Optimizes RSS feeds by prepending/appending custom HTML/text,
  * adding attribution, branding, and anti-scraping elements.

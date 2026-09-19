@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Ai;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * LlmsTxtGenerator: Serves a machine-readable /llms.txt file for LLM ingestion.
  *

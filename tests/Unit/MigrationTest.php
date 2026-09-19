@@ -3,24 +3,24 @@
 namespace AmEveryWhere\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
-use AmEveryWhere\Core\Database\Installer;
+use AmEveryWhere\Modules\Migration\MigrationManager;
 
 class MigrationTest extends TestCase
 {
-    public function testLegacyOptionsMigration(): void
+    public function testCompetitorPluginDetection(): void
     {
-        global $mock_wp_options;
-        $mock_wp_options = [];
+        $manager = new MigrationManager();
+        $detected = $manager->detectPlugins();
 
-        // Set legacy options
-        update_option('ranksavvy_ai_provider', 'anthropic');
-        update_option('ranksavvy_setup_complete', '1');
+        $this->assertIsArray($detected);
+    }
 
-        $installer = new Installer();
-        $installer->migrateLegacyDataAndTables();
+    public function testUnknownPluginMigrationReturnsError(): void
+    {
+        $manager = new MigrationManager();
+        $result = $manager->migrate('nonexistent_plugin');
 
-        // Verify options were migrated to ameverywhere_
-        $this->assertSame('anthropic', get_option('ameverywhere_ai_provider'));
-        $this->assertSame('1', get_option('ameverywhere_setup_complete'));
+        $this->assertFalse($result['success']);
+        $this->assertSame('Unknown plugin.', $result['message']);
     }
 }

@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 use AmEveryWhere\Core\Security\KeyVault;
 
@@ -51,12 +55,6 @@ class AdminModule
         register_rest_route('ameverywhere/v1', '/index-url', [
             'methods'             => \WP_REST_Server::CREATABLE,
             'callback'            => [$this, 'manualIndexUrl'],
-            'permission_callback' => [$this, 'checkPermission'],
-        ]);
-
-        register_rest_route('ameverywhere/v1', '/indexing/status', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'getGoogleIndexingStatus'],
             'permission_callback' => [$this, 'checkPermission'],
         ]);
 
@@ -186,12 +184,13 @@ class AdminModule
         $anthropicKeyStored = get_option('ameverywhere_anthropic_key', '');
         $anthropicKey = !empty($anthropicKeyStored) ? '••••••••••••' : '';
         $rawGoogleKey = (string) get_option('ameverywhere_google_indexing_key', '');
-        $googleKey = KeyVault::decrypt($rawGoogleKey);
 
         return rest_ensure_response([
-            'google_indexing_key' => $googleKey,
-            'indexnow_key'        => get_option('ameverywhere_indexnow_key', ''),
-            'auto_index'          => get_option('ameverywhere_auto_index', 'yes') === 'yes',
+            'google_indexing_configured' => $rawGoogleKey !== '',
+            'indexnow_configured'        => (string) get_option('ameverywhere_indexnow_key', '') !== '',
+            'auto_index'                 => get_option('ameverywhere_auto_index', 'no') === 'yes',
+            'enable_google_indexing_api' => get_option('ameverywhere_enable_google_indexing_api', 'no') === 'yes',
+            'delete_data_on_uninstall'   => get_option('ameverywhere_delete_data_on_uninstall', 'no') === 'yes',
             'google_verify'       => get_option('ameverywhere_google_verify', ''),
             'bing_verify'         => get_option('ameverywhere_bing_verify', ''),
             'yandex_verify'       => get_option('ameverywhere_yandex_verify', ''),
@@ -218,19 +217,27 @@ class AdminModule
         $params = $request->get_json_params();
         $aiGateway = new \AmEveryWhere\Core\Ai\AiGateway();
 
-        if (isset($params['google_indexing_key'])) {
+        if (!empty($params['google_indexing_key'])) {
             $jsonValue = wp_unslash($params['google_indexing_key']);
-            if (empty($jsonValue) || json_decode($jsonValue) !== null) {
-                update_option('ameverywhere_google_indexing_key', empty($jsonValue) ? '' : KeyVault::encrypt($jsonValue));
+            if (json_decode($jsonValue) !== null) {
+                update_option('ameverywhere_google_indexing_key', KeyVault::encrypt($jsonValue));
             }
         }
 
-        if (isset($params['indexnow_key'])) {
+        if (!empty($params['indexnow_key'])) {
             update_option('ameverywhere_indexnow_key', sanitize_text_field($params['indexnow_key']));
         }
 
         if (isset($params['auto_index'])) {
             update_option('ameverywhere_auto_index', $params['auto_index'] ? 'yes' : 'no');
+        }
+
+        if (isset($params['enable_google_indexing_api'])) {
+            update_option('ameverywhere_enable_google_indexing_api', $params['enable_google_indexing_api'] ? 'yes' : 'no');
+        }
+
+        if (isset($params['delete_data_on_uninstall'])) {
+            update_option('ameverywhere_delete_data_on_uninstall', $params['delete_data_on_uninstall'] ? 'yes' : 'no');
         }
 
         if (isset($params['google_verify'])) {
@@ -343,11 +350,15 @@ class AdminModule
         return new \WP_Error('ai_conn_fail', $msg, ['status' => 400]);
     }
 
-    public function manualIndexUrl(\WP_REST_Request $request): \WP_REST_Response
+    public function manualIndexUrl(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         $postId = $request->get_param('post_id');
         if (!$postId) {
             return new \WP_Error('missing_param', __('Post ID is required.', 'ameverywhere'), ['status' => 400]);
+        }
+
+        if (!current_user_can('edit_post', $postId)) {
+            return new \WP_Error('forbidden_post', __('You cannot submit this post for indexing.', 'ameverywhere'), ['status' => 403]);
         }
         
         $url = get_permalink($postId);
@@ -363,28 +374,18 @@ class AdminModule
             'action'  => 'URL_UPDATED'
         ]);
 
-        return rest_ensure_response(['success' => true, 'message' => __('Submitted to search engines successfully.', 'ameverywhere')]);
-    }
-
-    public function getGoogleIndexingStatus(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $url = $request->get_param('url');
-        if (empty($url)) {
-            return new \WP_Error('missing_url', __('URL is required.', 'ameverywhere'), ['status' => 400]);
-        }
-
-        $api = new \AmEveryWhere\Modules\Indexing\GoogleIndexingApi();
-        $result = $api->checkStatus($url);
-
-        return rest_ensure_response($result);
+        return rest_ensure_response([
+            'success' => true,
+            'message' => __('IndexNow notification queued. Google Indexing API submission is limited to eligible JobPosting and livestream pages.', 'ameverywhere'),
+        ]);
     }
 
     /**
      * GET /ameverywhere/v1/pagespeed?post_id=N
      *
      * Fetches mobile and desktop PageSpeed Insights scores for the post URL.
-     * Results are cached in post-meta (_ranksavvy_pagespeed_cache) for 7 days.
-     * Requires RANKSAVVY_PSI_KEY constant or ranksavvy_psi_key option to be set
+     * Results are cached in post-meta (_ameverywhere_pagespeed_cache) for 7 days.
+     * Requires AMEVERYWHERE_PSI_KEY constant or ameverywhere_psi_key option to be set
      * (PageSpeed Insights API key). Without a key the public API rate-limit applies.
      */
     public function getPageSpeed(\WP_REST_Request $request): \WP_REST_Response
@@ -405,8 +406,8 @@ class AdminModule
             }
         }
 
-        $apiKey  = defined('RANKSAVVY_PSI_KEY')
-            ? RANKSAVVY_PSI_KEY
+        $apiKey  = defined('AMEVERYWHERE_PSI_KEY')
+            ? AMEVERYWHERE_PSI_KEY
             : get_option('ameverywhere_psi_key', '');
         $keyParam = $apiKey ? '&key=' . urlencode($apiKey) : '';
 
@@ -454,10 +455,10 @@ class AdminModule
      *
      * Returns the top 25 Google Search Console queries driving traffic to this
      * specific post URL, ordered by clicks desc. Results are cached in post-meta
-     * (_ranksavvy_ranking_keywords) for 24 hours.
+     * (_ameverywhere_ranking_keywords) for 24 hours.
      *
      * Requires the Google Search Console OAuth token to be present
-     * (same credential used by the Indexing API — ranksavvy_google_indexing_key).
+     * (same credential used by the Indexing API — ameverywhere_google_indexing_key).
      */
     public function getGscKeywords(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -788,7 +789,7 @@ class AdminModule
      * GET /ameverywhere/v1/links/orphans
      *
      * Returns all published posts/pages that have zero incoming internal links
-     * according to the wp_ranksavvy_links index table. Results cached 1 hour.
+     * according to the wp_ameverywhere_links index table. Results cached 1 hour.
      */
     public function getOrphanPages(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -992,7 +993,7 @@ class AdminModule
      *   - Top 10 pages by sessions
      *   - Traffic channels breakdown
      *
-     * Requires: ranksavvy_ga4_property_id and ranksavvy_ga4_credentials options.
+     * Requires: ameverywhere_ga4_property_id and ameverywhere_ga4_credentials options.
      * Cached for 4 hours.
      */
     public function getGa4Report(\WP_REST_Request $request): \WP_REST_Response
@@ -1206,6 +1207,7 @@ class AdminModule
             'ameverywhere_google_indexing_key',
             'ameverywhere_indexnow_key',
             'ameverywhere_auto_index',
+            'ameverywhere_enable_google_indexing_api',
             'ameverywhere_google_verify',
             'ameverywhere_bing_verify',
             'ameverywhere_yandex_verify',
@@ -1224,7 +1226,7 @@ class AdminModule
             'ameverywhere_default_share_image',
             'ameverywhere_ga4_measurement_id',
             'ameverywhere_ga4_property_id',
-            // Intentionally exclude ranksavvy_ga4_credentials & google_indexing_key JSON
+            // Intentionally exclude ameverywhere_ga4_credentials & google_indexing_key JSON
             // for security — they contain private keys.
             'ameverywhere_html_sitemap_post_types',
             'ameverywhere_html_sitemap_exclude_ids',
@@ -1236,7 +1238,7 @@ class AdminModule
 
         $data = [
             '_version'    => '1.0',
-            '_plugin'     => 'ranksavvy',
+            '_plugin'     => 'ameverywhere',
             '_exported'   => date('c'),
             '_site_url'   => get_option('siteurl'),
             'settings'    => [],
@@ -1271,6 +1273,7 @@ class AdminModule
         // Whitelist — only import known, safe options
         $allowed = [
             'ameverywhere_auto_index',
+            'ameverywhere_enable_google_indexing_api',
             'ameverywhere_google_verify',
             'ameverywhere_bing_verify',
             'ameverywhere_yandex_verify',
@@ -1413,4 +1416,3 @@ class AdminModule
         ]);
     }
 }
-

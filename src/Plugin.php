@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Container\Container;
 use AmEveryWhere\Core\Api\BackendApiClient;
 use AmEveryWhere\Modules\Seo\SeoModule;
@@ -21,7 +25,6 @@ use AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor;
 use AmEveryWhere\Modules\Schema\SchemaModule;
 use AmEveryWhere\Modules\Schema\SchemaGenerator;
 use AmEveryWhere\Modules\ContentAssistant\ContentAssistantModule;
-use AmEveryWhere\Modules\Trends\TrendsModule;
 use AmEveryWhere\Modules\Breadcrumbs\BreadcrumbRenderer;
 use AmEveryWhere\Modules\ImageSeo\ImageSeoModule;
 use AmEveryWhere\Modules\TechnicalSeo\RobotsTxtEditor;
@@ -52,6 +55,15 @@ class Plugin
 
     public function boot(): void
     {
+        // Load translation textdomain
+        add_action('init', function () {
+            load_plugin_textdomain(
+                'ameverywhere',
+                false,
+                dirname(plugin_basename(AMEVERYWHERE_PLUGIN_FILE)) . '/languages'
+            );
+        });
+
         $this->registerServices();
         
         /** @var \AmEveryWhere\Core\Queue\QueueManager $queueManager */
@@ -145,13 +157,6 @@ class Plugin
             );
         });
 
-        // Register Trends Module
-        $this->container->singleton('trends_module', function() {
-            return new TrendsModule(
-                $this->container->get('event_manager')
-            );
-        });
-
         // Register Breadcrumb Renderer
         $this->container->singleton('breadcrumb_renderer', function() {
             return new BreadcrumbRenderer();
@@ -237,7 +242,6 @@ class Plugin
         $this->container->singleton('multisite_network_seo', \AmEveryWhere\Modules\Analytics\MultisiteNetworkSeo::class);
         $this->container->singleton('google_search_console', \AmEveryWhere\Modules\Analytics\GoogleSearchConsoleIntegration::class);
         $this->container->singleton('keyword_rank_tracker', \AmEveryWhere\Modules\Analytics\KeywordRankTracker::class);
-        $this->container->singleton('page_builder_seo_wrappers', \AmEveryWhere\Modules\Admin\PageBuilderSeoWrappers::class);
     }
 
     private function bootModules(): void
@@ -269,10 +273,6 @@ class Plugin
         /** @var ContentAssistantModule $contentAssistantModule */
         $contentAssistantModule = $this->container->get('content_assistant_module');
         $contentAssistantModule->boot();
-
-        /** @var TrendsModule $trendsModule */
-        $trendsModule = $this->container->get('trends_module');
-        $trendsModule->boot();
 
         /** @var BreadcrumbRenderer $breadcrumbRenderer */
         $breadcrumbRenderer = $this->container->get('breadcrumb_renderer');
@@ -314,7 +314,7 @@ class Plugin
         $cookieBannerModule = $this->container->get('cookie_banner_module');
         $cookieBannerModule->boot();
 
-        // HTML Sitemap shortcodes: [ameverywhere_sitemap] and [ranksavvy_sitemap]
+        // HTML Sitemap shortcode: [ameverywhere_sitemap]
         $htmlSitemapShortcode = new \AmEveryWhere\Modules\Sitemap\HtmlSitemapShortcode();
         $htmlSitemapShortcode->register();
 
@@ -451,10 +451,6 @@ class Plugin
         $rankTracker = $this->container->get('keyword_rank_tracker');
         $rankTracker->register();
 
-        /** @var \AmEveryWhere\Modules\Admin\PageBuilderSeoWrappers $pageBuilderWrappers */
-        $pageBuilderWrappers = $this->container->get('page_builder_seo_wrappers');
-        $pageBuilderWrappers->register();
-
         // Broken Link Checker (BL-018)
         $brokenLinkChecker = new \AmEveryWhere\Modules\TechnicalSeo\BrokenLinkChecker();
         $brokenLinkChecker->register();
@@ -465,9 +461,24 @@ class Plugin
         return $this->container;
     }
 
-    public static function activate(): void
+    public static function activate(bool $networkWide = false): void
     {
-        // 1. Run schema installation and legacy data migration
+        if ($networkWide && is_multisite()) {
+            $siteIds = get_sites(['fields' => 'ids', 'number' => 0]);
+            foreach ($siteIds as $siteId) {
+                switch_to_blog((int) $siteId);
+                self::activateSite();
+                restore_current_blog();
+            }
+            return;
+        }
+
+        self::activateSite();
+    }
+
+    private static function activateSite(): void
+    {
+        // 1. Run schema installation
         $installer = new \AmEveryWhere\Core\Database\Installer();
         $installer->install();
 
@@ -480,31 +491,84 @@ class Plugin
         // 4. Create AI usage metering table
         \AmEveryWhere\Modules\Ai\UsageMeteringManager::createTable();
 
-        // 6. Create SEO audit history log table
+        // 5. Create SEO Audit History log table
         \AmEveryWhere\Modules\Admin\SeoAuditHistoryLog::createTable();
 
-        // 7. Create keyword rank history table
+        // 6. Create keyword rank tracker table
         \AmEveryWhere\Modules\Analytics\KeywordRankTracker::createTable();
 
-        // 8. Create broken link checker results table
+        // 7. Create broken link checker results table
         \AmEveryWhere\Modules\TechnicalSeo\BrokenLinkChecker::createTable();
 
-        // 9. Register custom SEO capabilities
+        // 8. Register custom SEO capabilities
         \AmEveryWhere\Modules\Admin\CustomSeoUserRoles::addCapabilities();
 
-        // 10. Trigger dynamic activation actions (new + backward compatible)
-        do_action('ameverywhere_activation');
-        do_action('ameverywhere_activation');
+        // 9. Register and persist sitemap routes during activation. The normal
+        // boot listeners are not registered while an activation hook runs.
+        self::sitemapRoutes()->flushRules();
     }
 
-    public static function deactivate(): void
+    public static function deactivate(bool $networkWide = false): void
     {
-        // Clean up scheduled cron events
+        if ($networkWide && is_multisite()) {
+            $siteIds = get_sites(['fields' => 'ids', 'number' => 0]);
+            foreach ($siteIds as $siteId) {
+                switch_to_blog((int) $siteId);
+                self::deactivateSite();
+                restore_current_blog();
+            }
+            return;
+        }
+
+        self::deactivateSite();
+    }
+
+    private static function deactivateSite(): void
+    {
+        // Stop all background work before the plugin is disabled.
         \AmEveryWhere\Modules\TechnicalSeo\ErrorMonitor::deactivate();
         \AmEveryWhere\Core\Queue\QueueManager::deactivate();
+        self::clearScheduledWork();
 
-        // Trigger dynamic deactivation actions (new + backward compatible)
-        do_action('ameverywhere_deactivation');
-        do_action('ameverywhere_deactivation');
+        // Remove plugin-owned rewrite rules before flushing so disabled plugins
+        // do not leave virtual endpoints active in the persisted ruleset.
+        self::sitemapRoutes()->removeRulesAndFlush();
+    }
+
+    private static function sitemapRoutes(): SitemapRouteManager
+    {
+        return new SitemapRouteManager(
+            new SitemapGenerator(),
+            new NewsSitemapGenerator(),
+            new VideoSitemapGenerator()
+        );
+    }
+
+    private static function clearScheduledWork(): void
+    {
+        $hooks = [
+            'ameverywhere_process_job',
+            'ameverywhere_flush_404_buffer',
+            'ameverywhere_scan_orphaned',
+            'ameverywhere_stale_cornerstone_check',
+            'ameverywhere_cornerstone_staleness_check',
+            'ameverywhere_weekly_audit',
+            'ameverywhere_monthly_audit',
+            'ameverywhere_scheduled_audit',
+            'ameverywhere_rank_check',
+            'ameverywhere_404_cleanup',
+            'ameverywhere_apply_retention',
+            'ameverywhere_run_technical_audit',
+            'ameverywhere_blc_scan_batch',
+            'ameverywhere_weekly_usage_email',
+        ];
+
+        foreach ($hooks as $hook) {
+            wp_clear_scheduled_hook($hook);
+            if (function_exists('as_unschedule_all_actions')) {
+                as_unschedule_all_actions($hook);
+                as_unschedule_all_actions($hook, [], 'ameverywhere');
+            }
+        }
     }
 }

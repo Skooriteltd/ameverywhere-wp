@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Seo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class MetaTagsGenerator
 {
     public function outputStandardMetaTags(): void

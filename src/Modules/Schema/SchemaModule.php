@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 
 /**

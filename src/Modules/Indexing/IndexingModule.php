@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 use AmEveryWhere\Core\Queue\QueueManager;
 
@@ -28,7 +32,9 @@ class IndexingModule
             return;
         }
 
-        $autoIndex = get_option('ameverywhere_auto_index', 'yes');
+        // IndexNow is off until an administrator explicitly enables it. It is
+        // the only generic publication notification supported by this module.
+        $autoIndex = get_option('ameverywhere_auto_index', 'no');
         if ($autoIndex !== 'yes') {
             return; // Skip automatic indexing if disabled in settings
         }
@@ -44,14 +50,14 @@ class IndexingModule
             return;
         }
 
-        // Determine action based on status transition
-        $action = ($oldStatus === 'publish') ? 'URL_UPDATED' : 'URL_UPDATED'; // Google API uses URL_UPDATED for both
-
-        // Dispatch background job to ping APIs without blocking the save request
+        // Dispatch a bounded background notification without blocking the save
+        // request. Google is considered only for content that meets the API's
+        // narrow JobPosting/BroadcastEvent eligibility rules.
         $this->queueManager->push(IndexingJob::class, [
-            'post_id' => $post->ID,
-            'url'     => $url,
-            'action'  => $action
+            'post_id'       => $post->ID,
+            'url'           => $url,
+            'action'        => 'URL_UPDATED',
+            'submit_google' => GoogleIndexingApi::isEligiblePost($post),
         ]);
     }
 }

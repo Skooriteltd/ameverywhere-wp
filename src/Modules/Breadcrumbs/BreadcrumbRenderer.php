@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Breadcrumbs;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Renders front-end breadcrumb navigation and registers:
  * - Shortcode: [ameverywhere_breadcrumbs]
@@ -225,22 +229,5 @@ class BreadcrumbRenderer
         ];
 
         echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
-    }
-}
-
-/**
- * Global helper function for themes to call directly.
- * Usage: <?php ameverywhere_breadcrumbs(); ?>
- */
-function ameverywhere_breadcrumbs(): void
-{
-    $renderer = new BreadcrumbRenderer();
-    echo $renderer->render();
-}
-
-
-if (!function_exists('ameverywhere_breadcrumbs')) {
-    function ameverywhere_breadcrumbs(): void {
-        ameverywhere_breadcrumbs();
     }
 }

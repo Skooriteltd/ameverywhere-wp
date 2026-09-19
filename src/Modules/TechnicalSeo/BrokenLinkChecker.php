@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * BrokenLinkChecker
  *
@@ -16,11 +20,13 @@ class BrokenLinkChecker
     private const RESULTS_TABLE   = 'ameverywhere_broken_links';
     private const PROGRESS_OPTION = 'ameverywhere_blc_progress';
     private const SCAN_HOOK       = 'ameverywhere_blc_scan_batch';
+    private const LOCK_OPTION     = 'ameverywhere_blc_scan_lock';
+    private const BATCH_SIZE      = 10;
 
     public function register(): void
     {
         add_action('rest_api_init', [$this, 'registerRoutes']);
-        add_action(self::SCAN_HOOK, [$this, 'processBatch'], 10, 1);
+        add_action(self::SCAN_HOOK, [$this, 'processBatch']);
     }
 
     public static function createTable(): void
@@ -87,53 +93,76 @@ class BrokenLinkChecker
         ]);
     }
 
-    public function startScan(\WP_REST_Request $request): \WP_REST_Response
+    public function startScan(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         global $wpdb;
         $table = $wpdb->prefix . self::RESULTS_TABLE;
 
-        if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table) {
+        if (!add_option(self::LOCK_OPTION, (string) time(), '', 'no')) {
+            return new \WP_Error('scan_in_progress', __('A broken-link scan is already running.', 'ameverywhere'), ['status' => 409]);
+        }
+
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) === $table) {
             $wpdb->query("DELETE FROM {$table} WHERE resolved = 0");
         }
 
-        $postIds = get_posts([
-            'post_type'      => ['post', 'page'],
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'no_found_rows'  => true,
-            'fields'         => 'ids',
-        ]);
-
-        $total  = count($postIds);
-        $chunks = array_chunk($postIds, 10);
+        $total = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ('post', 'page') AND post_status = 'publish'"
+        ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         update_option(self::PROGRESS_OPTION, [
             'status'  => 'running',
             'scanned' => 0,
             'total'   => $total,
             'found'   => 0,
+            'cursor'  => 0,
             'started' => current_time('mysql'),
         ]);
 
-        $delay = 0;
-        foreach ($chunks as $chunk) {
-            wp_schedule_single_event(time() + $delay, self::SCAN_HOOK, [$chunk]);
-            $delay += 15;
+        if ($total === 0) {
+            delete_option(self::LOCK_OPTION);
+            update_option(self::PROGRESS_OPTION, [
+                'status' => 'done', 'scanned' => 0, 'total' => 0, 'found' => 0, 'done_at' => current_time('mysql'),
+            ]);
+            return rest_ensure_response(['success' => true, 'total_posts' => 0, 'batches' => 0, 'message' => __('No published posts or pages to scan.', 'ameverywhere')]);
         }
+
+        wp_clear_scheduled_hook(self::SCAN_HOOK);
+        wp_schedule_single_event(time() + 2, self::SCAN_HOOK);
 
         return rest_ensure_response([
             'success'     => true,
             'total_posts' => $total,
-            'batches'     => count($chunks),
-            'message'     => "Scan started — {$total} posts queued across " . count($chunks) . " batches.",
+            'batches'     => (int) ceil($total / self::BATCH_SIZE),
+            'message'     => sprintf(__('Scan started — %d posts will be processed in bounded batches.', 'ameverywhere'), $total),
         ]);
     }
 
-    public function processBatch(array $postIds): void
+    public function processBatch(): void
     {
         global $wpdb;
         $table    = $wpdb->prefix . self::RESULTS_TABLE;
         $progress = get_option(self::PROGRESS_OPTION, []);
+        if (($progress['status'] ?? '') !== 'running' || !get_option(self::LOCK_OPTION)) {
+            return;
+        }
+
+        $cursor = max(0, (int) ($progress['cursor'] ?? 0));
+        $postIds = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT ID FROM {$wpdb->posts}
+                 WHERE ID > %d AND post_type IN ('post', 'page') AND post_status = 'publish'
+                 ORDER BY ID ASC LIMIT %d",
+                $cursor,
+                self::BATCH_SIZE
+            )
+        ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        if (empty($postIds)) {
+            $this->finishScan($progress);
+            return;
+        }
+
         $found    = (int) ($progress['found'] ?? 0);
 
         foreach ($postIds as $postId) {
@@ -167,15 +196,17 @@ class BrokenLinkChecker
 
         $scanned = (int) ($progress['scanned'] ?? 0) + count($postIds);
         $total   = (int) ($progress['total'] ?? 0);
-        $isDone  = ($scanned >= $total);
+        $nextCursor = (int) end($postIds);
 
         update_option(self::PROGRESS_OPTION, [
-            'status'  => $isDone ? 'done' : 'running',
+            'status'  => 'running',
             'scanned' => $scanned,
             'total'   => $total,
             'found'   => $found,
-            'done_at' => $isDone ? current_time('mysql') : null,
+            'cursor'  => $nextCursor,
         ]);
+
+        wp_schedule_single_event(time() + 15, self::SCAN_HOOK);
     }
 
     public function getResults(\WP_REST_Request $request): \WP_REST_Response
@@ -222,7 +253,7 @@ class BrokenLinkChecker
         return rest_ensure_response(['success' => true]);
     }
 
-    public function recheckLink(\WP_REST_Request $request): \WP_REST_Response
+    public function recheckLink(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
     {
         global $wpdb;
         $params = $request->get_json_params();
@@ -274,15 +305,20 @@ class BrokenLinkChecker
             return $cache[$url];
         }
 
+        if (!$this->isSafeExternalUrl($url)) {
+            return null;
+        }
+
         $args = [
             'timeout'     => 10,
-            'redirection' => 5,
+            'redirection' => 3,
             'user-agent'  => 'Mozilla/5.0 (compatible; AmEveryWhere-BLC/1.0)',
+            'limit_response_size' => 1024,
         ];
 
-        $response = wp_remote_head($url, $args);
+        $response = wp_safe_remote_head($url, $args);
         if (is_wp_error($response)) {
-            $response = wp_remote_get($url, $args);
+            $response = wp_safe_remote_get($url, $args);
         }
 
         if (is_wp_error($response)) {
@@ -293,5 +329,38 @@ class BrokenLinkChecker
         $code = (int) wp_remote_retrieve_response_code($response);
         $cache[$url] = $code;
         return $code;
+    }
+
+    private function finishScan(array $progress): void
+    {
+        delete_option(self::LOCK_OPTION);
+        update_option(self::PROGRESS_OPTION, [
+            'status'  => 'done',
+            'scanned' => (int) ($progress['scanned'] ?? 0),
+            'total'   => (int) ($progress['total'] ?? 0),
+            'found'   => (int) ($progress['found'] ?? 0),
+            'done_at' => current_time('mysql'),
+        ]);
+    }
+
+    private function isSafeExternalUrl(string $url): bool
+    {
+        if (!wp_http_validate_url($url)) {
+            return false;
+        }
+
+        $host = wp_parse_url($url, PHP_URL_HOST);
+        if (!$host || strtolower($host) === 'localhost') {
+            return false;
+        }
+
+        $ipAddresses = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+        foreach ($ipAddresses as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return false;
+            }
+        }
+
+        return !empty($ipAddresses);
     }
 }

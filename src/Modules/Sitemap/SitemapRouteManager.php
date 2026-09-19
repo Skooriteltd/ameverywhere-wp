@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Manages rewrite rules and virtual endpoint interception for XML sitemaps and IndexNow keys.
  *
@@ -31,7 +35,7 @@ class SitemapRouteManager
 
     public function addRewriteRules(): void
     {
-        if (SitemapSettings::get('enable_index_sitemap', 'yes') === 'yes') {
+        if (SitemapSettings::get('enable_index_sitemap', 'no') === 'yes') {
             // Main sitemap index
             add_rewrite_rule('^sitemap\.xml$', 'index.php?ameverywhere_sitemap=index', 'top');
 
@@ -103,7 +107,7 @@ class SitemapRouteManager
 
         // ── Date-based sub-sitemap chunk (sitemap-posts-2024-05.xml) ──
         if (preg_match('#/sitemap-posts-(\d{4}-\d{2})\.xml$#', $path, $matches)) {
-            if (SitemapSettings::get('enable_index_sitemap', 'yes') === 'yes') {
+            if (SitemapSettings::get('enable_index_sitemap', 'no') === 'yes') {
                 $this->sitemapGenerator->serveSitemap($matches[1]);
                 exit;
             } else {
@@ -113,7 +117,7 @@ class SitemapRouteManager
 
         // ── Main Sitemap Index ──
         if (preg_match('#/sitemap\.xml$#', $path)) {
-            if (SitemapSettings::get('enable_index_sitemap', 'yes') === 'yes') {
+            if (SitemapSettings::get('enable_index_sitemap', 'no') === 'yes') {
                 $this->sitemapGenerator->serveSitemap(null);
                 exit;
             } else {
@@ -142,6 +146,33 @@ class SitemapRouteManager
     public function flushRules(): void
     {
         $this->addRewriteRules();
+        flush_rewrite_rules();
+    }
+
+    /**
+     * Remove persisted plugin routes during deactivation, then rebuild the
+     * ruleset without them. This is intentionally separate from flushRules(),
+     * which adds the current plugin routes before persisting them.
+     */
+    public function removeRulesAndFlush(): void
+    {
+        global $wp_rewrite;
+
+        if (isset($wp_rewrite->extra_rules_top) && is_array($wp_rewrite->extra_rules_top)) {
+            foreach (array_keys($wp_rewrite->extra_rules_top) as $pattern) {
+                if (
+                    str_starts_with($pattern, '^sitemap\\.xml$') ||
+                    str_starts_with($pattern, '^sitemap-posts-') ||
+                    str_starts_with($pattern, '^sitemap-news\\.xml$') ||
+                    str_starts_with($pattern, '^news-sitemap\\.xml$') ||
+                    str_starts_with($pattern, '^video-sitemap\\.xml$') ||
+                    str_contains((string) $wp_rewrite->extra_rules_top[$pattern], 'ameverywhere_')
+                ) {
+                    unset($wp_rewrite->extra_rules_top[$pattern]);
+                }
+            }
+        }
+
         flush_rewrite_rules();
     }
 }

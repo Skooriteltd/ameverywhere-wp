@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Ai;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Ai\AiGateway;
 
 /**

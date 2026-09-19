@@ -1,0 +1,40 @@
+name: Release package
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Build reproducible plugin archive
+        run: ./package-zip.sh
+
+      - name: Upload package and manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: ameverywhere-${{ github.ref_name }}
+          path: |
+            dist/*.zip
+            dist/*.manifest.sha256
+          if-no-files-found: error

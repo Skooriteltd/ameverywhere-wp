@@ -4,8 +4,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContai
 import SetupWizard from './components/SetupWizard';
 
 const App = () => {
-    const amEveryWhereAdminConfig = window.amEveryWhereAdminConfig || window.rankSavvyAdminConfig || {};
-    const rankSavvyAdminConfig = amEveryWhereAdminConfig;
+    const amEveryWhereAdminConfig = window.amEveryWhereAdminConfig || {};
     const shouldShowSetup = window.location.hash === '#setup' || (typeof amEveryWhereAdminConfig !== 'undefined' && amEveryWhereAdminConfig.setupComplete === '0');
     const [showSetup, setShowSetup] = useState(shouldShowSetup);
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -38,7 +37,11 @@ const App = () => {
     const [settings, setSettings] = useState({
         google_indexing_key: '',
         indexnow_key: '',
-        auto_index: true,
+        auto_index: false,
+        enable_google_indexing_api: false,
+        google_indexing_configured: false,
+        indexnow_configured: false,
+        delete_data_on_uninstall: false,
         google_verify: '',
         bing_verify: '',
         yandex_verify: '',
@@ -289,9 +292,13 @@ const App = () => {
             if (response.ok) {
                 const data = await response.json();
                 setSettings({
-                    google_indexing_key: data.google_indexing_key || '',
-                    indexnow_key: data.indexnow_key || '',
-                    auto_index: data.auto_index !== undefined ? data.auto_index : true,
+                    google_indexing_key: '',
+                    indexnow_key: '',
+                    google_indexing_configured: Boolean(data.google_indexing_configured),
+                    indexnow_configured: Boolean(data.indexnow_configured),
+                    auto_index: data.auto_index !== undefined ? data.auto_index : false,
+                    enable_google_indexing_api: Boolean(data.enable_google_indexing_api),
+                    delete_data_on_uninstall: Boolean(data.delete_data_on_uninstall),
                     google_verify: data.google_verify || '',
                     bing_verify: data.bing_verify || '',
                     yandex_verify: data.yandex_verify || '',
@@ -414,7 +421,7 @@ const App = () => {
 
     // Sitemaps State
     const [sitemapsData, setSitemapsData] = useState({
-        enable_index_sitemap: true,
+        enable_index_sitemap: false,
         enable_news_sitemap: false,
         enable_video_sitemap: false,
         exclude_types: [],
@@ -558,28 +565,30 @@ const App = () => {
         } catch (e) {}
     };
 
-    const handleOAuthConnect = (network) => {
+    const handleOAuthConnect = async (network) => {
         if (!socialApps[network] || !socialApps[network].app_id) {
             alert(`Please configure your ${network} App ID and Secret in the Platform API Settings first.`);
             return;
         }
 
-        const clientId = socialApps[network].app_id;
-        const redirectUri = encodeURIComponent(`${amEveryWhereAdminConfig.apiUrl}/social/oauth-callback?network=${network}`);
-
-        let authUrl = '';
-        if (network === 'facebook') {
-            authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${redirectUri}&scope=pages_manage_posts,pages_read_engagement`;
-        } else if (network === 'twitter') {
-            // Simplistic OAuth2 URL for X
-            authUrl = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=tweet.read%20tweet.write%20users.read%20offline.access&state=state&code_challenge=challenge&code_challenge_method=plain`;
-        } else if (network === 'linkedin') {
-            authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=state&scope=w_member_social`;
-        } else if (network === 'pinterest') {
-            authUrl = `https://www.pinterest.com/oauth/?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=boards:read,pins:read,pins:write`;
+        try {
+            const res = await fetch(`${amEveryWhereAdminConfig.apiUrl}/social/oauth-init`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': amEveryWhereAdminConfig.nonce,
+                },
+                body: JSON.stringify({ network })
+            });
+            const data = await res.json();
+            if (data.success && data.auth_url) {
+                window.location.href = data.auth_url;
+            } else {
+                alert(data.message || 'Failed to initiate secure OAuth authorization.');
+            }
+        } catch (err) {
+            alert('An error occurred while connecting to the authorization server.');
         }
-
-        window.location.href = authUrl;
     };
 
     const saveSocialSettings = async () => {
@@ -616,14 +625,16 @@ const App = () => {
     const [custom404Msg, setCustom404Msg] = useState(null);
 
     // Cookie banner settings state
-    const [cookieBanner, setCookieBanner] = useState({ enabled: false, mode: 'ccpa', message: '', accept_label: 'Accept', decline_label: 'Decline', policy_url: '' });
+    const [cookieBanner, setCookieBanner] = useState({ enabled: false, message: '', accept_label: 'Accept', decline_label: 'Decline', policy_url: '' });
     const [isLoadingCookieBanner, setIsLoadingCookieBanner] = useState(false);
     const [isSavingCookieBanner, setIsSavingCookieBanner] = useState(false);
     const [cookieBannerMsg, setCookieBannerMsg] = useState(null);
 
     // Image compression state
     const [compressionStats, setCompressionStats] = useState(null);
-    const [compressionConfig, setCompressionConfig] = useState({ enabled: true, quality: 82, webp: true, preserve: true });
+    const [compressionConfig, setCompressionConfig] = useState({ enabled: false, quality: 82, webp: false, preserve: true });
+    const [compressionAcknowledged, setCompressionAcknowledged] = useState(false);
+    const [compressionBackups, setCompressionBackups] = useState([]);
     const [isLoadingCompression, setIsLoadingCompression] = useState(false);
     const [isSavingCompression, setIsSavingCompression] = useState(false);
     const [isBulkCompressing, setIsBulkCompressing] = useState(false);
@@ -730,12 +741,13 @@ const App = () => {
     const loadCompressionData = async () => {
         setIsLoadingCompression(true);
         try {
-            const [statsRes, cfgRes] = await Promise.all([
+            const [statsRes, cfgRes, backupsRes] = await Promise.all([
                 fetch(`${amEveryWhereAdminConfig.apiUrl}/images/compression-stats`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
                 fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/image-compression`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
+                fetch(`${amEveryWhereAdminConfig.apiUrl}/images/compression-backups`, { headers: { 'X-WP-Nonce': amEveryWhereAdminConfig.nonce } }),
             ]);
-            const [stats, cfg] = await Promise.all([statsRes.json(), cfgRes.json()]);
-            setCompressionStats(stats); setCompressionConfig(cfg);
+            const [stats, cfg, backups] = await Promise.all([statsRes.json(), cfgRes.json(), backupsRes.json()]);
+            setCompressionStats(stats); setCompressionConfig(cfg); setCompressionAcknowledged(Boolean(cfg.enabled)); setCompressionBackups(backups.items || []);
         } catch(e) {}
         setIsLoadingCompression(false);
     };
@@ -745,10 +757,10 @@ const App = () => {
         try {
             const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/settings/image-compression`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
-                body: JSON.stringify(compressionConfig),
+                body: JSON.stringify({ ...compressionConfig, acknowledge_reversible_processing: compressionAcknowledged }),
             });
             const d = await r.json();
-            setCompressionMsg(d.success ? { type: 'success', text: 'Settings saved.' } : { type: 'error', text: 'Failed to save.' });
+            setCompressionMsg(d.success ? { type: 'success', text: 'Settings saved. Originals will always be retained for restoration.' } : { type: 'error', text: d.message || 'Confirm the reversible-processing acknowledgement before enabling compression.' });
         } catch(e) { setCompressionMsg({ type: 'error', text: 'Network error.' }); }
         setIsSavingCompression(false);
     };
@@ -768,6 +780,23 @@ const App = () => {
             } catch(e) { setIsBulkCompressing(false); }
         };
         processNext();
+    };
+
+    const restoreCompressedImage = async (attachmentId) => {
+        setCompressionMsg(null);
+        try {
+            const r = await fetch(`${amEveryWhereAdminConfig.apiUrl}/images/${attachmentId}/restore`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': amEveryWhereAdminConfig.nonce },
+                body: JSON.stringify({}),
+            });
+            const d = await r.json();
+            if (!d.success) {
+                setCompressionMsg({ type: 'error', text: d.message || 'Could not restore the original image.' });
+                return;
+            }
+            setCompressionMsg({ type: 'success', text: 'Original image restored.' });
+            loadCompressionData();
+        } catch(e) { setCompressionMsg({ type: 'error', text: 'Network error while restoring the original image.' }); }
     };
 
     // Load alt audit items
@@ -1732,19 +1761,22 @@ const App = () => {
 
                                     {/* ── SECTION 1: Search Engine APIs ── */}
                                     <div>
-                                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Search Engine Instant Indexing</h3>
-                                        <p className="text-sm text-slate-500 mb-4">Pings search engines instantly upon post creation or update.</p>
+                                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Search Engine Notifications</h3>
+                                        <p className="text-sm text-slate-500 mb-4">IndexNow can notify participating search engines of published URLs. Google Indexing API access is restricted to eligible JobPosting and livestream pages and never guarantees indexing.</p>
                                         
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Google Indexing Service Account JSON</label>
                                                 <TextareaControl value={settings.google_indexing_key} onChange={(val) => setSettings({ ...settings, google_indexing_key: val })} rows={6} placeholder='{"type": "service_account", ...}' />
+                                                {settings.google_indexing_configured && <p className="text-xs text-emerald-700 mt-1 mb-0">A Google credential is saved. Leave this field empty to retain it.</p>}
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-semibold text-slate-700 mb-1">Bing IndexNow API Key</label>
                                                 <TextControl value={settings.indexnow_key} onChange={(val) => setSettings({ ...settings, indexnow_key: val })} placeholder="e.g. 1a2b3c4d5e6f7g8h9i0j" />
+                                                {settings.indexnow_configured && <p className="text-xs text-emerald-700 mt-1 mb-0">An IndexNow key is saved. Leave this field empty to retain it.</p>}
                                             </div>
-                                            <ToggleControl label="Enable Automatic Indexing" help="Automatically submits URLs on post updates/publishing." checked={settings.auto_index} onChange={(val) => setSettings({ ...settings, auto_index: val })} />
+                                            <ToggleControl label="Enable automatic IndexNow notifications" help="Send published URLs to IndexNow-participating search engines. This does not guarantee indexing." checked={settings.auto_index} onChange={(val) => setSettings({ ...settings, auto_index: val })} />
+                                            <ToggleControl label="Enable Google Indexing API for eligible content" help="Only JobPosting and livestream pages are eligible. A service-account credential is required; this does not guarantee indexing." checked={settings.enable_google_indexing_api} onChange={(val) => setSettings({ ...settings, enable_google_indexing_api: val })} />
                                         </div>
                                     </div>
 
@@ -1847,7 +1879,7 @@ const App = () => {
                                                     type="password"
                                                     onChange={(val) => { setSettings({ ...settings, openai_key: val }); setFormErrors(e => ({ ...e, openai_key: '' })); }}
                                                     placeholder="sk-..."
-                                                    className={formErrors.openai_key ? 'rs-field-error' : ''}
+                                                    className={formErrors.openai_key ? 'aew-field-error' : ''}
                                                 />
                                                 {formErrors.openai_key && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.openai_key}</p>}
                                             </div>
@@ -1861,7 +1893,7 @@ const App = () => {
                                                     type="password"
                                                     onChange={(val) => { setSettings({ ...settings, anthropic_key: val }); setFormErrors(e => ({ ...e, anthropic_key: '' })); }}
                                                     placeholder="sk-ant-..."
-                                                    className={formErrors.anthropic_key ? 'rs-field-error' : ''}
+                                                    className={formErrors.anthropic_key ? 'aew-field-error' : ''}
                                                 />
                                                 {formErrors.anthropic_key && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.anthropic_key}</p>}
                                             </div>
@@ -1874,7 +1906,7 @@ const App = () => {
                                                     value={settings.ollama_url}
                                                     onChange={(val) => { setSettings({ ...settings, ollama_url: val }); setFormErrors(e => ({ ...e, ollama_url: '' })); }}
                                                     placeholder="http://localhost:11434"
-                                                    className={formErrors.ollama_url ? 'rs-field-error' : ''}
+                                                    className={formErrors.ollama_url ? 'aew-field-error' : ''}
                                                 />
                                                 {formErrors.ollama_url && <p style={{ color: '#dc2626', fontSize: '12px', margin: '-8px 0 8px' }}>{formErrors.ollama_url}</p>}
                                             </div>
@@ -1912,6 +1944,11 @@ const App = () => {
                                                 <img src={settings.default_share_image} alt="Fallback Share Preview" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }} />
                                             </div>
                                         )}
+                                    </div>
+
+                                    <div className="pt-4 border-t border-slate-200">
+                                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Uninstall data</h3>
+                                        <ToggleControl label="Delete AmEveryWhere data when the plugin is deleted" help="Disabled by default. Enable only if you want plugin settings, SEO metadata, logs, and plugin tables permanently removed on uninstall." checked={settings.delete_data_on_uninstall} onChange={(val) => setSettings({ ...settings, delete_data_on_uninstall: val })} />
                                     </div>
 
                                     <div className="pt-4 border-t border-slate-200">
@@ -2355,8 +2392,8 @@ const App = () => {
 
                     {activeTab === 'sitemaps' && (
                         <div className="space-y-6 max-w-3xl">
-                            <h2 className="text-xl font-semibold m-0 text-slate-800">XML Sitemaps</h2>
-                            <p className="text-slate-600">Dynamic sitemaps optimized for speed. Transients-cached for ultra-fast performance on high-traffic websites.</p>
+                                    <h2 className="text-xl font-semibold m-0 text-slate-800">XML Sitemaps</h2>
+                            <p className="text-slate-600">Use this only when you intend AmEveryWhere to provide your sitemap. It is disabled by default so WordPress Core and existing SEO plugins keep control.</p>
 
                             {isLoadingSitemaps ? (
                                 <div className="p-8 text-center"><Spinner /></div>
@@ -2370,8 +2407,8 @@ const App = () => {
 
                                     <div className="space-y-4">
                                         <ToggleControl
-                                            label="Enable Main XML Sitemap"
-                                            help="Generates an index sitemap containing posts, pages, and images automatically."
+                                            label="Use AmEveryWhere as the sitemap provider"
+                                            help="Disables WordPress Core sitemaps while active. Do not enable when another SEO plugin owns your sitemap."
                                             checked={sitemapsData.enable_index_sitemap}
                                             onChange={(val) => setSitemapsData({ ...sitemapsData, enable_index_sitemap: val })}
                                         />
@@ -2998,12 +3035,12 @@ const App = () => {
                         <div className="space-y-8 max-w-4xl">
                             <div>
                                 <h2 className="text-xl font-semibold m-0 text-slate-800">Image SEO</h2>
-                                <p className="text-slate-500 text-sm mt-1">Compress images, generate WebP variants, and audit missing alt text across your media library.</p>
+                                <p className="text-slate-500 text-sm mt-1">Create reversible JPEG and PNG optimizations, then audit missing alt text across your media library.</p>
                             </div>
 
                             {/* Compression Settings */}
                             <div className="bg-white border rounded-lg p-6 space-y-4">
-                                <h3 className="text-base font-semibold text-slate-800 m-0">Image Compression & WebP</h3>
+                                <h3 className="text-base font-semibold text-slate-800 m-0">Reversible Image Compression</h3>
                                 {isLoadingCompression && <div className="flex items-center gap-3"><Spinner /><span className="text-slate-500">Loading…</span></div>}
                                 {compressionStats && (
                                     <div className="grid grid-cols-3 gap-4 mb-4">
@@ -3024,34 +3061,47 @@ const App = () => {
                                 <div className="flex items-center gap-6 flex-wrap">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={compressionConfig.enabled} onChange={e => setCompressionConfig({...compressionConfig, enabled: e.target.checked})} />
-                                        <span className="text-sm font-medium">Auto-compress new uploads</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={compressionConfig.webp} onChange={e => setCompressionConfig({...compressionConfig, webp: e.target.checked})} />
-                                        <span className="text-sm font-medium">Generate WebP variants</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={compressionConfig.preserve} onChange={e => setCompressionConfig({...compressionConfig, preserve: e.target.checked})} />
-                                        <span className="text-sm font-medium">Keep originals (.original backup)</span>
+                                        <span className="text-sm font-medium">Enable reversible bulk compression</span>
                                     </label>
                                 </div>
+                                <p className="text-xs text-slate-500">New uploads are never changed automatically. Each processed image retains its original file until you restore or delete it.</p>
+                                {compressionConfig.enabled && (
+                                    <label className="flex items-start gap-2 text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded p-3">
+                                        <input type="checkbox" checked={compressionAcknowledged} onChange={e => setCompressionAcknowledged(e.target.checked)} className="mt-1" />
+                                        <span>I understand that compression changes the displayed media file, and that AmEveryWhere will retain an original backup so I can restore it.</span>
+                                    </label>
+                                )}
                                 <div className="flex items-center gap-4">
                                     <label className="text-sm font-medium text-slate-700">Quality: <strong>{compressionConfig.quality}</strong></label>
                                     <input type="range" min="40" max="95" value={compressionConfig.quality} onChange={e => setCompressionConfig({...compressionConfig, quality: Number(e.target.value)})} className="flex-1 max-w-xs" />
                                     <span className="text-xs text-slate-400">40 = smaller · 95 = higher quality</span>
                                 </div>
-                                {compressionStats && <p className="text-xs text-slate-400">Engine: <strong>{compressionStats.engine}</strong> · WebP: <strong>{compressionStats.webp_supported ? 'supported' : 'not available'}</strong></p>}
+                                {compressionStats && <p className="text-xs text-slate-400">Engine: <strong>{compressionStats.engine}</strong> · WebP generation is unavailable until safe delivery support ships.</p>}
                                 {compressionMsg && <p className={`text-sm ${compressionMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{compressionMsg.text}</p>}
                                 <div className="flex gap-3 pt-2">
                                     <button onClick={saveCompressionConfig} disabled={isSavingCompression} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                         {isSavingCompression ? 'Saving…' : 'Save Settings'}
                                     </button>
                                     {compressionStats && compressionStats.uncompressed > 0 && (
-                                        <button onClick={runBulkCompress} disabled={isBulkCompressing} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
+                                        <button onClick={runBulkCompress} disabled={isBulkCompressing || !compressionConfig.enabled} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
                                             {isBulkCompressing ? `Compressing… (${compressionProgress ? compressionProgress.processed : 0} done, ${compressionProgress ? compressionProgress.remaining : '?'} remaining)` : `Compress ${compressionStats.uncompressed} Pending Images`}
                                         </button>
                                     )}
                                 </div>
+                                {compressionBackups.length > 0 && (
+                                    <div className="border-t pt-4 space-y-2">
+                                        <h4 className="text-sm font-semibold text-slate-800 m-0">Restorable originals</h4>
+                                        <p className="text-xs text-slate-500 m-0">Restore returns the attachment to its exact pre-compression file.</p>
+                                        <ul className="m-0 p-0 list-none space-y-2">
+                                            {compressionBackups.map((item) => (
+                                                <li key={item.attachment_id} className="flex items-center justify-between gap-3 text-sm border rounded p-2">
+                                                    <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-indigo-700">{item.title || `Attachment #${item.attachment_id}`}</a>
+                                                    <button onClick={() => restoreCompressedImage(item.attachment_id)} className="shrink-0 px-3 py-1 border border-slate-300 rounded text-slate-700 hover:bg-slate-50">Restore original</button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Alt Text Audit */}
@@ -3118,7 +3168,7 @@ const App = () => {
                         <div className="space-y-6 max-w-3xl">
                             <div>
                                 <h2 className="text-xl font-semibold m-0 text-slate-800">Cookie & Compliance</h2>
-                                <p className="text-slate-500 text-sm mt-1">Configure your cookie consent banner for CCPA and GDPR compliance.</p>
+                                <p className="text-slate-500 text-sm mt-1">Configure a lightweight cookie notice. It records a visitor’s choice but does not block or manage third-party scripts.</p>
                             </div>
                             {isLoadingCookieBanner ? (
                                 <div className="flex items-center gap-3 p-6"><Spinner /><span className="text-slate-500">Loading settings…</span></div>
@@ -3132,13 +3182,6 @@ const App = () => {
                                         <input type="checkbox" checked={cookieBanner.enabled} onChange={e => setCookieBanner({...cookieBanner, enabled: e.target.checked})} className="w-5 h-5 cursor-pointer" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">Jurisdiction Mode</label>
-                                        <select value={cookieBanner.mode} onChange={e => setCookieBanner({...cookieBanner, mode: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm bg-white">
-                                            <option value="ccpa">CCPA — Opt-out (consent assumed, decline available)</option>
-                                            <option value="gdpr">GDPR — Opt-in (must accept before scripts run)</option>
-                                        </select>
-                                    </div>
-                                    <div>
                                         <label className="block text-xs font-semibold text-slate-700 mb-1">Banner Message</label>
                                         <textarea value={cookieBanner.message} onChange={e => setCookieBanner({...cookieBanner, message: e.target.value})} rows={3} className="w-full p-2 border border-slate-300 rounded text-sm" />
                                     </div>
@@ -3148,7 +3191,7 @@ const App = () => {
                                             <input type="text" value={cookieBanner.accept_label} onChange={e => setCookieBanner({...cookieBanner, accept_label: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm" />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Decline Button Label <span className="text-slate-400 font-normal">(GDPR only)</span></label>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">Decline Button Label</label>
                                             <input type="text" value={cookieBanner.decline_label} onChange={e => setCookieBanner({...cookieBanner, decline_label: e.target.value})} className="w-full p-2 border border-slate-300 rounded text-sm" />
                                         </div>
                                     </div>

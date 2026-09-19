@@ -9,7 +9,7 @@ const SITE_TYPES = [
 ];
 
 const SetupWizard = ({ onComplete }) => {
-    const config = window.amEveryWhereAdminConfig || window.rankSavvyAdminConfig || {};
+    const config = window.amEveryWhereAdminConfig || {};
     const [step, setStep] = useState(0); // 0 = loading, 1 = configure, 2 = done
     const [autoData, setAutoData] = useState(null);
     const [siteType, setSiteType] = useState('blog');

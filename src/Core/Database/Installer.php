@@ -2,22 +2,22 @@
 
 namespace AmEveryWhere\Core\Database;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
- * Handles database table installation and schema migration for AmEveryWhere.
- * Leverages dbDelta for non-destructive updates and automatically migrates
- * legacy AmEveryWhere tables, options, and post metadata.
+ * Handles database table installation for AmEveryWhere.
+ * Leverages dbDelta for non-destructive schema updates.
  */
 class Installer
 {
     /**
-     * Run the schema installation and legacy data migration.
+     * Run the schema installation.
      */
     public function install(): void
     {
         global $wpdb;
-
-        // 1. Migrate legacy AmEveryWhere database tables, options, and postmeta if present
-        $this->migrateLegacyDataAndTables();
 
         $charsetCollate = $wpdb->get_charset_collate();
 
@@ -75,57 +75,5 @@ class Installer
         dbDelta($sql404Logs);
         dbDelta($sqlSitemapSettings);
         dbDelta($sqlLinks);
-    }
-
-    /**
-     * Non-destructive migration of legacy AmEveryWhere tables, options, and postmeta to AmEveryWhere.
-     */
-    public function migrateLegacyDataAndTables(): void
-    {
-        global $wpdb;
-
-        // 1. Rename existing legacy tables if new table does not exist
-        $tableMappings = [
-            $wpdb->prefix . 'ranksavvy_redirects'        => $wpdb->prefix . 'ameverywhere_redirects',
-            $wpdb->prefix . 'ranksavvy_404_logs'         => $wpdb->prefix . 'ameverywhere_404_logs',
-            $wpdb->prefix . 'ranksavvy_sitemap_settings' => $wpdb->prefix . 'ameverywhere_sitemap_settings',
-            $wpdb->prefix . 'ranksavvy_links'            => $wpdb->prefix . 'ameverywhere_links',
-            $wpdb->prefix . 'ranksavvy_ai_usage'         => $wpdb->prefix . 'ameverywhere_ai_usage',
-            $wpdb->prefix . 'ranksavvy_usage_metering'   => $wpdb->prefix . 'ameverywhere_usage_metering',
-            $wpdb->prefix . 'ranksavvy_audit_log'        => $wpdb->prefix . 'ameverywhere_audit_log',
-            $wpdb->prefix . 'ranksavvy_rank_history'     => $wpdb->prefix . 'ameverywhere_rank_history',
-        ];
-
-        foreach ($tableMappings as $oldTable => $newTable) {
-            $oldExists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $oldTable));
-            $newExists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $newTable));
-
-            if ($oldExists === $oldTable && $newExists !== $newTable) {
-                // Rename legacy table to new table name
-                $wpdb->query("ALTER TABLE `{$oldTable}` RENAME TO `{$newTable}`"); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            }
-        }
-
-        // 2. Migrate legacy options
-        $legacyOptions = $wpdb->get_results(
-            "SELECT option_name, option_value, autoload FROM {$wpdb->options} WHERE option_name LIKE 'ranksavvy_%'"
-        );
-
-        if (!empty($legacyOptions)) {
-            foreach ($legacyOptions as $opt) {
-                $newOptionName = 'ameverywhere_' . substr($opt->option_name, strlen('ranksavvy_'));
-                // Only migrate if new option is not already set
-                if (get_option($newOptionName) === false) {
-                    add_option($newOptionName, maybe_unserialize($opt->option_value), '', $opt->autoload);
-                }
-            }
-        }
-
-        // 3. Migrate legacy postmeta
-        $wpdb->query(
-            "UPDATE {$wpdb->postmeta} 
-             SET meta_key = CONCAT('_ameverywhere_', SUBSTRING(meta_key, 12)) 
-             WHERE meta_key LIKE '_ranksavvy_%'"
-        );
     }
 }

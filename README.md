@@ -7,7 +7,6 @@
 The platform follows a decoupled two-phase architecture:
 
 - **Phase 1 (Current)**:
-  - Complete rebrand from legacy RankSavvy to **AmEveryWhere**.
   - Serves as the high-performance **Distribution and Data-Collection Layer** (the clientApp) inside the WordPress ecosystem.
   - Offloads heavy computational workloads (AI content generation, deep site audit algorithms, keyword cannibalization matrix calculations, and SERP rank tracking) to the **AmEveryWhere Backend API** client via `AmEveryWhere\Core\Api\BackendApiClient`.
   - Supports hybrid fallback to direct user API keys (BYOK) for uninterrupted operation.
@@ -23,7 +22,7 @@ The platform follows a decoupled two-phase architecture:
 - **Meta Tag & Social Graph Engine** (`AmEveryWhere\Modules\Seo`): Injects SEO meta tags (`title`, `description`, `canonical`, `robots`), OpenGraph, and Twitter cards.
 - **Structured Data Engine** (`AmEveryWhere\Modules\Schema`): Automated JSON-LD markup (`Article`, `NewsArticle`, `Product`, `FAQ`, `HowTo`, `LocalBusiness`, `Recipe`, `Event`).
 - **XML & HTML Sitemaps** (`AmEveryWhere\Modules\Sitemap`): Generates dynamic standard XML sitemaps, Google News compliant sitemaps, video sitemaps, and shortcode `[ameverywhere_sitemap]`.
-- **Server Directives & Compliance** (`AmEveryWhere\Modules\TechnicalSeo` & `Compliance`): Dynamic `robots.txt` generator, `llms.txt`, high-speed regex 301/302 redirects, and CCPA/GDPR cookie banner.
+- **Server Directives & Privacy** (`AmEveryWhere\Modules\TechnicalSeo` & `Compliance`): Dynamic `robots.txt` generator, `llms.txt`, local redirects, WordPress privacy export/erasure hooks, and a lightweight cookie notice.
 
 ### 2. Data-Collection & Editorial Layer (WordPress Admin)
 - **Gutenberg Editor Sidebar** (`AmEveryWhere\Modules\ContentAssistant`): Live on-page SEO score, focus keywords, readability metrics, and instant AI title/meta suggestions.
@@ -36,13 +35,12 @@ The platform follows a decoupled two-phase architecture:
 
 ---
 
-## Backward Compatibility & Migrations
+## Competitor SEO Migration
 
-The plugin includes an automated, non-destructive migration engine in `AmEveryWhere\Core\Database\Installer`:
-- Renames legacy `wp_ranksavvy_*` database tables to `wp_ameverywhere_*`.
-- Migrates `ranksavvy_*` option records to `ameverywhere_*`.
-- Migrates `_ranksavvy_*` post meta records to `_ameverywhere_*`.
-- Provides backward-compatible wrappers for shortcodes (`[ranksavvy_sitemap]`, `[ranksavvy_breadcrumbs]`) and action hooks (`ranksavvy_activation`, `ranksavvy_deactivation`).
+The plugin includes an automated migration engine (`AmEveryWhere\Modules\Migration\MigrationManager`) that allows one-click import from existing SEO plugins:
+- **Yoast SEO**: titles, descriptions, focus keywords, Open Graph metadata, and robots directives.
+- **Rank Math**: titles, descriptions, focus keywords, social sharing data, and robots settings.
+- **All in One SEO (AIOSEO)**: titles, descriptions, keywords, and Open Graph tags.
 
 ---
 

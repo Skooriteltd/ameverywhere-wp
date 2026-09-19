@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Social;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Event\EventManager;
 use AmEveryWhere\Core\Queue\QueueManager;
 use AmEveryWhere\Core\Security\KeyVault;
@@ -77,6 +81,12 @@ class SocialModule
         ]);
 
         // Mock OAuth callback endpoints for testing UI
+        register_rest_route('ameverywhere/v1', '/social/oauth-init', [
+            'methods'             => \WP_REST_Server::CREATABLE,
+            'callback'            => [$this, 'initOAuth'],
+            'permission_callback' => [$this, 'checkPermission'],
+        ]);
+
         register_rest_route('ameverywhere/v1', '/social/oauth-callback', [
             'methods'             => \WP_REST_Server::READABLE,
             'callback'            => [$this, 'oauthCallback'],
@@ -197,22 +207,98 @@ class SocialModule
         return rest_ensure_response(['success' => true, 'message' => 'Share dispatched successfully.']);
     }
 
+    public function initOAuth(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $params  = $request->get_json_params();
+        $network = sanitize_text_field($params['network'] ?? '');
+
+        if (empty($network)) {
+            return new \WP_Error('missing_network', 'Network parameter is required.', ['status' => 400]);
+        }
+
+        $apps = get_option('ameverywhere_social_apps', []);
+        if (empty($apps[$network]['app_id']) || empty($apps[$network]['app_secret'])) {
+            return new \WP_Error(
+                'not_configured',
+                sprintf('Please configure your %s App ID and Secret in the Platform API Settings first.', ucfirst($network)),
+                ['status' => 400]
+            );
+        }
+
+        $clientId = $apps[$network]['app_id'];
+        $state    = function_exists('wp_generate_password') ? wp_generate_password(32, false) : bin2hex(random_bytes(16));
+
+        // Store transient for 10 minutes tied to admin session
+        set_transient('ameverywhere_oauth_state_' . $state, [
+            'user_id' => get_current_user_id(),
+            'network' => $network,
+        ], 10 * MINUTE_IN_SECONDS);
+
+        $callbackUri     = rest_url("ameverywhere/v1/social/oauth-callback?network={$network}");
+        $encodedCallback = urlencode($callbackUri);
+
+        $authUrl = '';
+        if ($network === 'facebook') {
+            $authUrl = "https://www.facebook.com/v19.0/dialog/oauth?client_id={$clientId}&redirect_uri={$encodedCallback}&state={$state}&scope=pages_manage_posts,pages_read_engagement";
+        } elseif ($network === 'twitter') {
+            $authUrl = "https://twitter.com/i/oauth2/authorize?response_type=code&client_id={$clientId}&redirect_uri={$encodedCallback}&state={$state}&scope=tweet.read%20tweet.write%20users.read%20offline.access&code_challenge=challenge&code_challenge_method=plain";
+        } elseif ($network === 'linkedin') {
+            $authUrl = "https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id={$clientId}&redirect_uri={$encodedCallback}&state={$state}&scope=w_member_social";
+        } elseif ($network === 'pinterest') {
+            $authUrl = "https://www.pinterest.com/oauth/?client_id={$clientId}&redirect_uri={$encodedCallback}&response_type=code&state={$state}&scope=boards:read,pins:read,pins:write";
+        }
+
+        return rest_ensure_response([
+            'success'  => true,
+            'auth_url' => $authUrl,
+            'state'    => $state,
+        ]);
+    }
+
     public function oauthCallback(\WP_REST_Request $request): \WP_REST_Response
     {
-        $network = $request->get_param('network');
-        $code = $request->get_param('code');
-        $error = $request->get_param('error');
+        $network = sanitize_text_field($request->get_param('network') ?? '');
+        $code    = $request->get_param('code');
+        $error   = $request->get_param('error');
+        $state   = sanitize_text_field($request->get_param('state') ?? '');
         
         $redirectUrl = admin_url('admin.php?page=ameverywhere#/social');
 
-        if ($error || !$code) {
-            wp_redirect($redirectUrl);
+        if ($error || !$code || empty($state)) {
+            $errParam = $error ? urlencode($error) : 'missing_code_or_state';
+            wp_redirect(add_query_arg('oauth_error', $errParam, $redirectUrl));
+            exit;
+        }
+
+        // Verify state against transient
+        $transientKey = 'ameverywhere_oauth_state_' . $state;
+        $stateData    = get_transient($transientKey);
+
+        if (empty($stateData) || !is_array($stateData)) {
+            wp_redirect(add_query_arg('oauth_error', 'invalid_or_expired_state', $redirectUrl));
+            exit;
+        }
+
+        // Delete transient immediately to prevent replay
+        delete_transient($transientKey);
+
+        // Verify network matches initiation
+        if (($stateData['network'] ?? '') !== $network) {
+            wp_redirect(add_query_arg('oauth_error', 'network_mismatch', $redirectUrl));
+            exit;
+        }
+
+        // Verify initiating user has manage_options capability
+        $userId = (int) ($stateData['user_id'] ?? 0);
+        $user   = $userId > 0 ? get_userdata($userId) : false;
+        if (!$user || !user_can($user, 'manage_options')) {
+            wp_redirect(add_query_arg('oauth_error', 'unauthorized', $redirectUrl));
             exit;
         }
 
         $apps = get_option('ameverywhere_social_apps', []);
         if (empty($apps[$network]['app_id']) || empty($apps[$network]['app_secret'])) {
-            wp_redirect($redirectUrl);
+            wp_redirect(add_query_arg('oauth_error', 'not_configured', $redirectUrl));
             exit;
         }
 

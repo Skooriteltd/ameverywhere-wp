@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Migration;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Auto-detects installed SEO plugins and migrates their data to AmEveryWhere.
  * Supports: Yoast SEO, RankMath, All in One SEO (AIOSEO).

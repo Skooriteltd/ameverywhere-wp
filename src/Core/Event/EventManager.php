@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Core\Event;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class EventManager
 {
     public function addAction(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): void

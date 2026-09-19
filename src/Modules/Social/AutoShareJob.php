@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Social;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 use AmEveryWhere\Core\Queue\QueueManager;
 
 class AutoShareJob

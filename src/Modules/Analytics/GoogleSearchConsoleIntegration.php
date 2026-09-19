@@ -2,6 +2,10 @@
 
 namespace AmEveryWhere\Modules\Analytics;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * GoogleSearchConsoleIntegration
  *

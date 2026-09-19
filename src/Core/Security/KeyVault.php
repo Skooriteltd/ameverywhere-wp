@@ -2,22 +2,22 @@
 
 namespace AmEveryWhere\Core\Security;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * KeyVault: Encrypts and decrypts sensitive API keys using AES-256-CBC.
  *
  * Encryption key is derived from a persistent, site-specific salt stored in
  * wp_options upon activation. This ensures the master key is STABLE across
  * URL migrations (staging → production).
- *
- * Supports both new 'aew_enc::' and legacy 'rs_enc::' cipher prefixes.
  */
 class KeyVault
 {
-    private const CIPHER             = 'aes-256-cbc';
-    private const PREFIX             = 'aew_enc::';
-    private const LEGACY_PREFIX      = 'rs_enc::';
-    private const SALT_OPTION        = 'ameverywhere_encryption_salt';
-    private const LEGACY_SALT_OPTION = 'ameverywhere_encryption_salt';
+    private const CIPHER      = 'aes-256-cbc';
+    private const PREFIX      = 'aew_enc::';
+    private const SALT_OPTION = 'ameverywhere_encryption_salt';
 
     /**
      * Generate and persist a unique encryption salt on plugin activation.
@@ -28,13 +28,6 @@ class KeyVault
     {
         if (get_option(self::SALT_OPTION)) {
             return; // Already generated — do not overwrite
-        }
-
-        // Migrate legacy salt if present
-        $legacySalt = get_option(self::LEGACY_SALT_OPTION);
-        if (!empty($legacySalt)) {
-            add_option(self::SALT_OPTION, $legacySalt, '', false);
-            return;
         }
 
         // Generate 64 cryptographically random hex characters (256 bits of entropy)
@@ -50,11 +43,6 @@ class KeyVault
     {
         // 1. Dedicated persistent salt (stable across URL changes)
         $salt = get_option(self::SALT_OPTION, '');
-
-        // Fallback to legacy salt if new option not yet migrated
-        if (empty($salt)) {
-            $salt = get_option(self::LEGACY_SALT_OPTION, '');
-        }
 
         // 2. Fall back to AUTH_KEY if option is missing (e.g. before first activation)
         if (empty($salt)) {
@@ -74,7 +62,7 @@ class KeyVault
         }
 
         // Avoid double-encrypting already-encrypted values
-        if (str_starts_with($plaintext, self::PREFIX) || str_starts_with($plaintext, self::LEGACY_PREFIX)) {
+        if (str_starts_with($plaintext, self::PREFIX)) {
             return $plaintext;
         }
 
@@ -104,18 +92,13 @@ class KeyVault
             return '';
         }
 
-        $activePrefix = '';
-        if (str_starts_with($encrypted, self::PREFIX)) {
-            $activePrefix = self::PREFIX;
-        } elseif (str_starts_with($encrypted, self::LEGACY_PREFIX)) {
-            $activePrefix = self::LEGACY_PREFIX;
-        } else {
-            // Not encrypted by us — return as-is (handles legacy plain-text keys)
+        if (!str_starts_with($encrypted, self::PREFIX)) {
+            // Not encrypted by us — return as-is
             return $encrypted;
         }
 
         $key     = self::deriveMasterKey();
-        $decoded = base64_decode(substr($encrypted, strlen($activePrefix)));
+        $decoded = base64_decode(substr($encrypted, strlen(self::PREFIX)));
 
         $ivLen   = openssl_cipher_iv_length(self::CIPHER);
         $hmacLen = 32;

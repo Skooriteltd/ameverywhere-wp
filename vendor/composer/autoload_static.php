@@ -12,45 +12,37 @@ class ComposerStaticInit049b1e5a9d003021bcc6cac5aaa93292
     );
 
     public static $prefixLengthsPsr4 = array (
-        'A' =>
-        array (
-            'AmEveryWhere\\' => 13,
-        ),
-        'R' =>
-        array (
-            'RankSavvy\\' => 10,
-        ),
-        'P' =>
+        'P' => 
         array (
             'PhpParser\\' => 10,
             'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' => 57,
         ),
-        'D' =>
+        'D' => 
         array (
             'DeepCopy\\' => 9,
+        ),
+        'A' => 
+        array (
+            'AmEveryWhere\\' => 13,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'AmEveryWhere\\' =>
-        array (
-            0 => __DIR__ . '/../..' . '/src',
-        ),
-        'RankSavvy\\' =>
-        array (
-            0 => __DIR__ . '/../..' . '/src',
-        ),
-        'PhpParser\\' =>
+        'PhpParser\\' => 
         array (
             0 => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser',
         ),
-        'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' =>
+        'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' => 
         array (
             0 => __DIR__ . '/..' . '/dealerdirect/phpcodesniffer-composer-installer/src',
         ),
-        'DeepCopy\\' =>
+        'DeepCopy\\' => 
         array (
             0 => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy',
+        ),
+        'AmEveryWhere\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/src',
         ),
     );
 
