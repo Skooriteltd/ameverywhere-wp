@@ -34,8 +34,24 @@ Traditional SEO plugins were built a decade ago for simple blogs. Today’s web 
 * Page load speed check via Google PageSpeed Insights API.
 * Editable robots.txt and .htaccess.
 
+**Editor & On-Page Tools (Gutenberg)**
+* Real-time SEO Checklist: evaluates keyword usage, title/meta length, headings, and alt text.
+* Live SERP Previews: view exactly how your post will look on Google (desktop/mobile).
+* Social Media Previews: view Facebook Open Graph and Twitter Card renders before publishing.
+* Readability Checker: scores your content using the Flesch-Kincaid scale.
+* FAQ Schema Builder: create rich-snippet accordions directly from the post sidebar.
+
+**Compliance & Auditing**
+* System-wide Audit History Log: tracks every SEO change (who changed it and when).
+* FTC-compliant AI disclosure labels on AI-generated content.
+* Cookie Notice: built-in lightweight notice banner.
+
+**Migration & Setup**
+* 1-Minute Setup Wizard.
+* One-Click SEO Migration: seamlessly import titles, descriptions, and settings from Yoast SEO, Rank Math, and All in One SEO (AIOSEO).
+
 **Schema & Entities**
-* Comprehensive structured data: Article, BreadcrumbList, LocalBusiness, FAQPage, HowTo.
+* Comprehensive structured data: Article, BreadcrumbList, LocalBusiness, FAQPage, HowTo, Recipe, and Event.
 * Dynamic WooCommerce Product schema with AggregateRating support.
 * Automatic ImageObject schema injection for featured and embedded images.
 * Advanced schema/entity recommendations via the Content Assistant.
@@ -49,6 +65,7 @@ Traditional SEO plugins were built a decade ago for simple blogs. Today’s web 
 
 **Visibility & Indexing Controls**
 * Google Search Console integration for impressions, clicks, and dying page detection.
+* Google Analytics 4 (GA4) Dashboard for session trends and top traffic channels.
 * Bing Webmaster Tools API integration to track traffic decay on Bing.
 * Social preview images (Open Graph and Twitter Cards) managed easily.
 * Favicon / Site Icon auditing.
