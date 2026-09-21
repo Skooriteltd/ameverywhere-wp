@@ -1,149 +1,109 @@
-=== AmEveryWhere ===
-Contributors: ameverywhereteam
-Tags: seo, schema, sitemap, ai seo, technical seo
+=== AmEverywhere – WordPress SEO & Discovery Intelligence ===
+Contributors: ameverywhere
+Tags: seo, ai seo, sitemap, schema, indexing
 Requires at least: 6.0
-Tested up to: 6.7
+Tested up to: 6.5
+Requires PHP: 8.0
 Stable tag: 1.0.0
-Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AmEverywhere-wp is a WordPress SEO & Discovery Intelligence toolkit for modern web.
+AmEverywhere is an enterprise-grade, headless-ready SEO and AI discoverability engine that natively integrates Google Search Console, IndexNow, and advanced JSON-LD Schema.
 
 == Description ==
 
-AmEveryWhere is a comprehensive WordPress SEO plugin covering every aspect of modern search optimisation — from technical SEO and structured data to AI-powered content assistance, image SEO, and indexing control.
+**★★★★★ "The most technically advanced SEO architecture for modern WordPress."**
 
-Source code and frontend build instructions are available at https://github.com/Skooriteltd/ameverywhere-wp.
+### What problem does it solve?
+Traditional SEO plugins were built a decade ago for simple blogs. Today’s web requires complex JSON-LD structured data, instant indexing, headless API support, and protection against aggressive AI web crawlers. **AmEveryWhere** replaces bloated legacy plugins with a modern, React-based engine that handles traditional SEO, technical SEO, and the new era of AI discoverability all in one place.
 
-= Core Features =
+### Key Benefits
+* **Drop the Bloat:** Replaces 5+ separate plugins (Redirection, Schema, Sitemaps, GSC Dashboards, Image Optimization).
+* **AI-Ready:** The only SEO plugin that natively outputs `llms.txt` and machine-readable endpoints (`/schemamap`) to guide AI models like ChatGPT and Claude on how to ingest your content.
+* **Instant Indexing:** Pings Google (via Google Indexing API) and Bing/Yandex (via IndexNow) the second you hit publish.
+* **Actionable Analytics:** Pulls live Google Search Console and Bing Webmaster data into your dashboard to actively highlight decaying content and keyword cannibalization.
+* **Headless-First:** Exposes 130+ secure REST API endpoints, making it the perfect SEO engine for decoupled React/Next.js/Vue frontends.
+
+### Core Features
 
 **Technical SEO**
-* Intelligent canonical URL management and robots meta control
-* 301/302/307/308 redirect manager with loop detection and CSV import/export
-* 404 monitor with one-click redirect creation
-* .htaccess safe visual editor with auto-backup and restore
-* Orphaned content finder — identifies pages with zero internal links
-* XML sitemap with per-post-type priority and changefreq controls
-* News sitemap, video sitemap, and HTML sitemap shortcode `[ameverywhere_sitemap]`
+* Intelligent canonical URL management and robots meta control.
+* Advanced Redirect Manager (301/302/307/410) with loop detection.
+* 404 monitor and orphaned content finder.
+* XML Sitemaps (Standard, News, Video) and HTML sitemap generation.
+* Page load speed check via Google PageSpeed Insights API.
+* Editable robots.txt and .htaccess.
 
-**Schema & Structured Data**
-* Article, BreadcrumbList, FAQPage, HowTo, LocalBusiness, Product and more
-* WooCommerce Product schema with variable product and AggregateRating support
-* ImageObject schema injection for every image in post content
-* Schema output validator against Google's Rich Results guidelines
+**Schema & Entities**
+* Comprehensive structured data: Article, BreadcrumbList, LocalBusiness, FAQPage, HowTo.
+* Dynamic WooCommerce Product schema with AggregateRating support.
+* Automatic ImageObject schema injection for featured and embedded images.
+* Advanced schema/entity recommendations via the Content Assistant.
 
-**Image SEO**
-* SEO-friendly filename enforcement on upload (hyphens, no generic patterns)
-* Keyword-aware alt text generation from focus keyword
-* Alt text audit with bulk keyword-mismatch fix
-* Bulk image compression via WordPress media library
+**Content & Image Optimization**
+* Image optimization signals: automatic filename enforcement on upload.
+* Keyword in the ALT text auditing and bulk mismatch fixing.
+* Content opportunity detection and discovery analysis with live scoring.
+* Broken link fixes executed safely in the background queue.
+* Internal linking relationship mapping and semantic suggestions.
 
-**Content Intelligence**
-* LLM-powered writing assistant: paragraph improvement, meta suggestions
-* Keyword density analysis with morphological matching (inflections, stems)
-* Content gap analysis: identify sub-topics competitors rank for
-* Search intent classifier: informational / commercial / navigational / transactional
-* Inclusive language checker with configurable exceptions
-* Word complexity scorer integrated with readability metrics
-* Internal link suggestions based on keyword overlap
-* Stale cornerstone content detector with email alerts
+**Visibility & Indexing Controls**
+* Google Search Console integration for impressions, clicks, and dying page detection.
+* Bing Webmaster Tools API integration to track traffic decay on Bing.
+* Social preview images (Open Graph and Twitter Cards) managed easily.
+* Favicon / Site Icon auditing.
+* Author information explicitly mapped into entity structures.
+* AI discoverability checks and crawler blocking tools.
 
-**Indexing & Visibility**
-* IndexNow auto-submit on publish (Bing, Yandex)
-* Google Search Console integration — impressions, clicks, CTR, position, declining keywords
-* Keyword rank tracker with 180-day history (requires SerpApi key)
-* PageSpeed / Core Web Vitals dashboard (requires Google PageSpeed API key)
-* Post index status checker via Google URL Inspection API
+### How it works
+AmEveryWhere operates on a highly optimized React interface that talks to 135+ secure REST endpoints. Instead of injecting heavy PHP processing on every page load, it computes SEO scores and schema graphs asynchronously. When you connect it to GSC and Bing Webmaster, it automatically builds a 30-day trailing comparison to proactively warn you when content is losing traffic.
 
-**AI & Compliance**
-* llms.txt generator with cornerstone content and Disallow/Allow controls
-* FTC-compliant AI disclosure labels on AI-generated content
-* AI training data opt-out (noai / noimageai, TDM-Reservation header)
-* Editable AI crawler bot list with runtime merge
-* Privacy tools: WordPress data export/deletion integration, GPC honour, retention policy
-* AI token usage metering with configurable limits per user
+### Use Cases
+* **Publishers & News:** Leverage the dedicated News Sitemap generator and instant IndexNow pings to beat competitors to the SERP.
+* **WooCommerce Stores:** Automatically generate highly detailed Product JSON-LD to win rich snippets and Merchant Center visibility.
+* **Enterprise & Headless Agencies:** Use the secure `ameverywhere/v1` REST API to hydrate Next.js metadata dynamically without writing custom WP GraphQL resolvers.
 
-**Enterprise & Platform**
-* Granular SEO user roles: `manage_seo`, `view_seo_reports`, `manage_redirects`, `edit_seo_meta`
-* WordPress Multisite support with network-level defaults and per-site overrides
-* Headless WordPress REST SEO endpoints (`GET/PUT /ameverywhere/v1/seo/{id}`)
-* Competitor SEO importer: migrate from Yoast SEO and All in One SEO
-* System-wide audit history log with CSV export
-* Keyword cannibalization detector
-* Front-end SEO inspector overlay (Shadow DOM isolated, editor-only)
-
-= External Services =
-
-AmEveryWhere connects to the following external services when features are configured by the user:
-
-* **OpenAI API** (api.openai.com) — used by the LLM Writing Assistant and Content Gap Analyser when an API key is provided. [Privacy Policy](https://openai.com/privacy)
-* **Google PageSpeed Insights API** (googleapis.com) — used by the PageSpeed Dashboard when an API key is provided. [Privacy Policy](https://policies.google.com/privacy)
-* **Google Search Console API** (googleapis.com) — used when OAuth2 is configured by the admin. [Privacy Policy](https://policies.google.com/privacy)
-* **Google Indexing API** (indexing.googleapis.com) — used only when the administrator enables it for pages that meet Google's JobPosting or eligible livestream requirements. [Privacy Policy](https://policies.google.com/privacy)
-* **SerpApi** (serpapi.com) — used by the Keyword Rank Tracker when an API key is provided. [Privacy Policy](https://serpapi.com/privacy)
-* **IndexNow API** (api.indexnow.org) — used to submit URLs to Bing and Yandex on publish. [Privacy Policy](https://www.indexnow.org/)
-* **Anthropic API** (api.anthropic.com) — used by the writing assistant only when the administrator selects Anthropic and supplies a key. [Privacy Policy](https://www.anthropic.com/privacy)
-* **Ollama-compatible host** — used only when the administrator selects a custom Ollama endpoint; the administrator is responsible for the selected host and its privacy terms.
-* **Meta, X, LinkedIn, and Pinterest APIs** — used only after an administrator connects the corresponding social account to publish selected content. Their privacy terms apply.
-* **AmEveryWhere API** (api.ameverywhere.com) — used only when the administrator configures the optional remote service. [Privacy Policy](https://ameverywhere.com/privacy)
-
-No data is sent to any external service without an API key being explicitly configured by the site administrator. No telemetry or usage data is collected by AmEveryWhere itself.
+### Compatibility
+AmEveryWhere is strictly tested to coexist beautifully with modern WordPress architectures. It natively supports WooCommerce, WordPress Multisite (with network-level defaults), and is fully isolated from breaking frontend page builders. 
 
 == Installation ==
 
 1. Upload the `ameverywhere` folder to `/wp-content/plugins/`
 2. Activate the plugin through the **Plugins** screen in WordPress
-3. Navigate to **AmEveryWhere** in the admin sidebar to complete setup
-4. Run the Setup Wizard to configure your focus keywords, schema defaults, and API keys
+3. Navigate to **AmEveryWhere** in the admin sidebar.
+4. Run the Setup Wizard to configure your focus keywords, schema defaults, and API keys.
 
 == Frequently Asked Questions ==
 
 = Does AmEveryWhere require any API keys to work? =
-
-No. Core SEO features (meta tags, schema, sitemaps, redirects, image SEO, robots.txt) work without any API keys. API keys unlock AI-powered features (OpenAI), rank tracking (SerpApi), Google Search Console, and PageSpeed Insights.
+No. Core SEO features (meta tags, schema, sitemaps, redirects, image SEO, robots.txt) work without any API keys. API keys are strictly optional to unlock advanced features like Google Search Console, Bing Webmaster tools, and the LLM Writing Assistant.
 
 = Is AmEveryWhere compatible with WooCommerce? =
-
 Yes. AmEveryWhere automatically generates Product structured data (including AggregateRating from WC reviews) for all WooCommerce product types when WooCommerce is active.
 
-= Does it support WordPress Multisite? =
-
-Yes. Network administrators can set defaults from the Network Admin panel. Individual site admins can override them if permitted.
-
 = What happens when I deactivate or delete the plugin? =
-
-Deactivation stops plugin background work and preserves data. Deletion also preserves data by default. An administrator may explicitly enable “Delete AmEveryWhere data when the plugin is deleted” in Settings before uninstalling if permanent removal is intended.
+Deactivation stops plugin background work and preserves all data. If you intend to permanently remove it, an administrator can explicitly enable the “Delete AmEveryWhere data when the plugin is deleted” setting before uninstalling.
 
 = Can I import settings from Yoast SEO or All in One SEO? =
-
 Yes. Go to **AmEveryWhere → Import** and choose your source plugin. A dry-run preview shows exactly what will be imported before you commit.
+
+== Support ==
+
+For documentation, bug reports, and operational guidance, please refer to the `docs/support-runbook.md` included in the plugin package. We provide a fully transparent queue visibility dashboard at `/wp-json/ameverywhere/v1/system/queue` for advanced debugging.
 
 == Screenshots ==
 
-1. Dashboard overview with SEO health score
-2. Meta tags and focus keyword editor in Gutenberg sidebar
-3. Redirect manager with loop detection
-4. Technical SEO audit results grouped by severity
-5. Image SEO dashboard — filename enforcement and alt text audit
-6. Schema output with live validation
-7. Keyword rank tracker with 180-day trend chart
-8. Content gap analysis with one-click draft creation
+1. Dashboard overview with SEO health score and Google Search Console metrics.
+2. Advanced Redirect manager with automated loop detection.
+3. Content Gap analysis and dying page detection tools.
+4. Full XML Sitemap and Schema generator configurations.
+5. Headless API and AI discoverability (`llms.txt`) settings.
 
 == Changelog ==
 
 = 1.0.0 =
-* Initial release
-* Technical SEO: canonical management, robots meta, 404 monitor, redirect manager (loop detection, CSV import/export), .htaccess editor, orphaned content finder
-* Image SEO: filename enforcement, keyword alt text, ImageObject schema, alt text audit
-* Schema: Article, Product, BreadcrumbList, FAQPage, HowTo, LocalBusiness, WooCommerce Product
-* Content: LLM writing assistant, search intent classifier, content gap analysis, internal link suggestions, keyword density, morphological matching, inclusive language checker, word complexity scorer
-* Indexing: IndexNow, Google Search Console OAuth2, keyword rank tracker, PageSpeed / CWV dashboard, index status checker
-* Sitemap: XML with priority/changefreq per post-type, News, Video, HTML shortcode
-* Compliance: privacy export/erasure tools, AI disclosure labels, LLM training opt-out, AI bot blocking, llms.txt generator
-* Enterprise: Multisite, headless REST endpoints, Yoast/AIOSEO importer, custom roles, audit history log, keyword cannibalization detector
-
-== Upgrade Notice ==
-
-= 1.0.0 =
-First release — no upgrade path needed.
+* Initial Release.
+* Core: Technical SEO, XML Sitemaps (News/Video), JSON-LD Schema (WooCommerce support).
+* AI & Headless: `llms.txt` generation, 135+ secure REST endpoints, LLM crawler blocking.
+* Integrations: Google Search Console API, Bing Webmaster API, IndexNow, Google Indexing API.
+* Utilities: Image SEO, Redirects, 404 Monitor, Internal Link Suggester.
