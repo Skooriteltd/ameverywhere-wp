@@ -24,7 +24,7 @@ These items are not strictly technical blockers for a v1.0 release, but represen
 - [x] **PR-017**: Finalize legal wording with product/legal counsel regarding AI features.
 - [ ] **PR-018 to PR-021**: Miscellaneous edge-case hardening (queue visibility, cron recovery edge cases, scale testing).
 - [x] **PR-022**: Admin bundle size optimization (webpack chunking for React bundles).
-- [ ] **PR-023**: Complete REST test coverage (unit test suite expansion for the 135 endpoints).
-- [ ] **PR-024**: Accessibility audit of custom Vue/React widgets in the admin area.
+- [x] **PR-023**: Complete REST test coverage (unit test suite expansion for the 135 endpoints).
+- [x] **PR-024**: Accessibility audit of custom Vue/React widgets in the admin area.
 - [x] **PR-025**: Internationalization (i18n) complete string audit.
 - [ ] **PR-026**: Support operations runbook.

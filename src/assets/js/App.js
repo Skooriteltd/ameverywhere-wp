@@ -1381,7 +1381,7 @@ const App = () => {
 
             <div className="flex gap-6">
                 <aside className="w-64 flex-shrink-0">
-                    <nav className="flex flex-col gap-1">
+                    <nav className="flex flex-col gap-1" role="tablist" aria-orientation="vertical" aria-label="AmEveryWhere Settings">
                         <NavItem label="📊 Dashboard & GSC" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                         <NavItem label="📈 Analytics (GA4)" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
                         <NavItem label="🔗 Link Health" active={activeTab === 'links'} onClick={() => setActiveTab('links')} />
@@ -1403,7 +1403,7 @@ const App = () => {
                     </nav>
                 </aside>
 
-                <main className="flex-1">
+                <main className="flex-1" role="tabpanel" aria-label="Settings Panel">
                 {/* ══════════════ GSC DASHBOARD ══════════════ */}
                     {activeTab === 'dashboard' && (
                         <div className="space-y-6">
@@ -1412,7 +1412,7 @@ const App = () => {
                                     <h2 className="text-xl font-semibold m-0 text-slate-800">Google Search Console</h2>
                                     {gscData?.period && <p className="text-sm text-slate-500 mt-1 mb-0">{gscData.period.start} → {gscData.period.end} &nbsp;·&nbsp; {gscData.cached ? '⚡ Cached' : '🔄 Live'}</p>}
                                 </div>
-                                <button onClick={() => { setGscData(null); setCannData(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
+                                <button type="button" onClick={() => { setGscData(null); setCannData(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
                             </div>
 
                             {gscLoading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Connecting to Google Search Console…</span></div>}
@@ -1430,7 +1430,7 @@ const App = () => {
                             {gscData && (
                                 <div className="flex gap-2 border-b border-slate-200">
                                     {[['overview','📋 Overview'],['pages','📄 Top Pages'],['cannibalization','⚠ Cannibalization']].map(([id, label]) => (
-                                        <button key={id} onClick={() => setGscSubTab(id)}
+                                        <button type="button" key={id} onClick={() => setGscSubTab(id)}
                                             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors bg-transparent cursor-pointer ${gscSubTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>
                                     ))}
                                 </div>
@@ -1544,7 +1544,7 @@ const App = () => {
                                     <h2 className="text-xl font-semibold m-0 text-slate-800">Google Analytics 4</h2>
                                     {ga4Report?.period && <p className="text-sm text-slate-500 mt-1 mb-0">{ga4Report.period.start} → {ga4Report.period.end} &nbsp;·&nbsp; {ga4Report.cached ? '⚡ Cached' : '🔄 Live'}</p>}
                                 </div>
-                                <button onClick={() => { setGa4Report(null); setGa4Error(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
+                                <button type="button" onClick={() => { setGa4Report(null); setGa4Error(null); }} className="text-xs text-indigo-600 hover:underline bg-transparent border-none cursor-pointer p-0">↺ Refresh</button>
                             </div>
 
                             {ga4Loading && <div className="flex items-center gap-3 p-6 bg-slate-50 rounded-lg"><Spinner /><span className="text-slate-500">Connecting to Google Analytics 4…</span></div>}
@@ -1569,7 +1569,7 @@ const App = () => {
                                         <textarea rows={4} placeholder={'{ "type": "service_account", "client_email": "...", "private_key": "..." }'} value={ga4Settings.credentials} onChange={e => setGa4Settings(s => ({ ...s, credentials: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm font-mono" />
                                     </div>
                                     {ga4SaveMsg && <div className={`text-sm p-3 rounded ${ga4SaveMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{ga4SaveMsg.text}</div>}
-                                    <button onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save & Connect'}</button>
+                                    <button type="button" onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save & Connect'}</button>
                                 </div>
                             )}
 
@@ -1646,7 +1646,7 @@ const App = () => {
                                                 <textarea rows={3} placeholder="Paste new credentials to replace…" value={ga4Settings.credentials} onChange={e => setGa4Settings(s => ({ ...s, credentials: e.target.value }))} className="w-full border border-slate-200 rounded px-3 py-2 text-sm font-mono" />
                                             </div>
                                             {ga4SaveMsg && <div className={`text-sm p-3 rounded ${ga4SaveMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{ga4SaveMsg.text}</div>}
-                                            <button onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save Changes'}</button>
+                                            <button type="button" onClick={saveGa4Settings} disabled={ga4Saving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{ga4Saving ? 'Saving…' : 'Save Changes'}</button>
                                         </div>
                                     </details>
                                 </>
@@ -1661,7 +1661,7 @@ const App = () => {
 
                             <div className="flex gap-2 border-b border-slate-200">
                                 {[['orphans','🏝 Orphan Pages'],['stats','📊 Link Statistics']].map(([id, label]) => (
-                                    <button key={id} onClick={() => setLinksSubTab(id)}
+                                    <button type="button" key={id} onClick={() => setLinksSubTab(id)}
                                         className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors bg-transparent cursor-pointer ${linksSubTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>{label}</button>
                                 ))}
                             </div>
@@ -1975,7 +1975,7 @@ const App = () => {
                                         <h4 className="text-sm font-semibold text-slate-700 m-0">Export</h4>
                                         <p className="text-xs text-slate-500 m-0">Download all AmEveryWhere settings as a JSON file. Save it as a backup or use it to clone settings to another site.</p>
                                         {exportMsg && <div className={`text-xs px-3 py-2 rounded ${exportMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{exportMsg.text}</div>}
-                                        <button onClick={downloadExport} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">
+                                        <button type="button" onClick={downloadExport} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700">
                                             ⬇ Download Settings JSON
                                         </button>
                                     </div>
@@ -2000,31 +2000,31 @@ const App = () => {
                             <div className="flex justify-between items-center border-b pb-4">
                                 <h2 className="text-xl font-semibold m-0 text-slate-800">Technical SEO</h2>
                                 <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                    <button
+                                    <button type="button"
                                         onClick={() => setTechSubTab('robots')}
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'robots' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         robots.txt
                                     </button>
-                                    <button
+                                    <button type="button"
                                         onClick={() => setTechSubTab('redirects')}
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'redirects' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         Redirects Manager
                                     </button>
-                                    <button
+                                    <button type="button"
                                         onClick={() => setTechSubTab('404s')}
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === '404s' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         404 Error Monitor
                                     </button>
-                                    <button
+                                    <button type="button"
                                         onClick={() => setTechSubTab('htaccess')}
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'htaccess' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
                                         .htaccess Editor
                                     </button>
-                                    <button
+                                    <button type="button"
                                         onClick={() => { setTechSubTab('custom_pages'); loadCustom404(); }}
                                         className={`px-3 py-1.5 rounded-md font-medium text-xs transition-all ${techSubTab === 'custom_pages' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
                                     >
@@ -2264,7 +2264,7 @@ const App = () => {
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 {htaccessMsg && <span className={`text-sm px-3 py-1.5 rounded ${htaccessMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{htaccessMsg.text}</span>}
-                                                <button onClick={saveHtaccess} disabled={htaccessSaving || !htaccess.writable} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                                <button type="button" onClick={saveHtaccess} disabled={htaccessSaving || !htaccess.writable} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                                     {htaccessSaving ? 'Saving…' : '💾 Save .htaccess'}
                                                 </button>
                                                 {!htaccess.writable && <span className="text-xs text-slate-500">Set permissions to 644 to enable editing.</span>}
@@ -2295,7 +2295,7 @@ const App = () => {
                                                         ))}
                                                     </select>
                                                 </div>
-                                                <button onClick={saveCustom404Page} disabled={isSaving404Page} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                                <button type="button" onClick={saveCustom404Page} disabled={isSaving404Page} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                                     {isSaving404Page ? 'Saving…' : 'Save'}
                                                 </button>
                                             </div>
@@ -2353,8 +2353,8 @@ const App = () => {
                                         </div>
                                         <div className="flex items-center gap-3 pt-2">
                                             {sitemapSaveMsg && <span className={`text-sm ${sitemapSaveMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{sitemapSaveMsg.text}</span>}
-                                            <button onClick={saveSitemapCfg} disabled={sitemapSaving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{sitemapSaving ? 'Saving…' : 'Save Settings'}</button>
-                                            <button onClick={loadSitemapPreview} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded hover:bg-slate-200">👁 Preview</button>
+                                            <button type="button" onClick={saveSitemapCfg} disabled={sitemapSaving} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">{sitemapSaving ? 'Saving…' : 'Save Settings'}</button>
+                                            <button type="button" onClick={loadSitemapPreview} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded hover:bg-slate-200">👁 Preview</button>
                                         </div>
                                     </div>
 
@@ -2370,7 +2370,7 @@ const App = () => {
                                         <div className="p-6 space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-semibold text-slate-700 m-0">Live Preview — {sitemapPreview.total} pages</h3>
-                                                <button onClick={() => setSitemapPreview(null)} className="text-xs text-slate-400 hover:text-slate-600 bg-transparent border-none cursor-pointer">✕ Close</button>
+                                                <button type="button" onClick={() => setSitemapPreview(null)} className="text-xs text-slate-400 hover:text-slate-600 bg-transparent border-none cursor-pointer">✕ Close</button>
                                             </div>
                                             {sitemapPreview.tree.map((section, i) => (
                                                 <div key={i}>
@@ -2626,7 +2626,7 @@ const App = () => {
                                                             <span>output</span>
                                                             <strong className="text-slate-800 font-semibold uppercase">{rule.schema_type}</strong>
                                                         </div>
-                                                        <button 
+                                                        <button type="button" 
                                                             onClick={() => {
                                                                 const updated = schemaRules.filter((_, i) => i !== idx);
                                                                 setSchemaRules(updated);
@@ -2697,13 +2697,13 @@ const App = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-2">
-                                                            <button 
+                                                            <button type="button" 
                                                                 onClick={() => setEditingAccount(editingAccount?.id === acc.id ? null : acc)} 
                                                                 className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded transition-colors cursor-pointer border-none"
                                                             >
                                                                 {editingAccount?.id === acc.id ? 'Cancel' : 'Edit Routing'}
                                                             </button>
-                                                            <button onClick={() => deleteSocialAccount(acc.id)} className="text-xs text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors cursor-pointer border-none">
+                                                            <button type="button" onClick={() => deleteSocialAccount(acc.id)} className="text-xs text-red-600 hover:text-red-800 font-medium bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors cursor-pointer border-none">
                                                                 Disconnect
                                                             </button>
                                                         </div>
@@ -2802,22 +2802,22 @@ const App = () => {
                                 <div className="p-4 border border-slate-200 rounded-lg flex flex-col items-center text-center justify-center gap-3 bg-slate-50">
                                     <div className="font-semibold text-slate-800">Facebook</div>
                                     <p className="text-xs text-slate-500 m-0">Connect a Facebook Page to share updates automatically.</p>
-                                    <button onClick={() => handleOAuthConnect('facebook')} className="bg-blue-600 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-blue-700 cursor-pointer">Connect Facebook</button>
+                                    <button type="button" onClick={() => handleOAuthConnect('facebook')} className="bg-blue-600 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-blue-700 cursor-pointer">Connect Facebook</button>
                                 </div>
                                 <div className="p-4 border border-slate-200 rounded-lg flex flex-col items-center text-center justify-center gap-3 bg-slate-50">
                                     <div className="font-semibold text-slate-800">X (Twitter)</div>
                                     <p className="text-xs text-slate-500 m-0">Connect an X account to auto-tweet published content.</p>
-                                    <button onClick={() => handleOAuthConnect('twitter')} className="bg-slate-900 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-black cursor-pointer">Connect X (Twitter)</button>
+                                    <button type="button" onClick={() => handleOAuthConnect('twitter')} className="bg-slate-900 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-black cursor-pointer">Connect X (Twitter)</button>
                                 </div>
                                 <div className="p-4 border border-slate-200 rounded-lg flex flex-col items-center text-center justify-center gap-3 bg-slate-50">
                                     <div className="font-semibold text-slate-800">LinkedIn</div>
                                     <p className="text-xs text-slate-500 m-0">Connect a LinkedIn Profile or Company Page.</p>
-                                    <button onClick={() => handleOAuthConnect('linkedin')} className="bg-blue-700 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-blue-800 cursor-pointer">Connect LinkedIn</button>
+                                    <button type="button" onClick={() => handleOAuthConnect('linkedin')} className="bg-blue-700 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-blue-800 cursor-pointer">Connect LinkedIn</button>
                                 </div>
                                 <div className="p-4 border border-slate-200 rounded-lg flex flex-col items-center text-center justify-center gap-3 bg-slate-50">
                                     <div className="font-semibold text-slate-800">Pinterest</div>
                                     <p className="text-xs text-slate-500 m-0">Connect to pin your latest content automatically.</p>
-                                    <button onClick={() => handleOAuthConnect('pinterest')} className="bg-red-600 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-red-700 cursor-pointer">Connect Pinterest</button>
+                                    <button type="button" onClick={() => handleOAuthConnect('pinterest')} className="bg-red-600 text-white border-none rounded px-4 py-2 text-sm font-medium hover:bg-red-700 cursor-pointer">Connect Pinterest</button>
                                 </div>
                             </div>
 
@@ -3082,11 +3082,11 @@ const App = () => {
                                 {compressionStats && <p className="text-xs text-slate-400">Engine: <strong>{compressionStats.engine}</strong> · WebP generation is unavailable until safe delivery support ships.</p>}
                                 {compressionMsg && <p className={`text-sm ${compressionMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{compressionMsg.text}</p>}
                                 <div className="flex gap-3 pt-2">
-                                    <button onClick={saveCompressionConfig} disabled={isSavingCompression} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                    <button type="button" onClick={saveCompressionConfig} disabled={isSavingCompression} className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                         {isSavingCompression ? 'Saving…' : 'Save Settings'}
                                     </button>
                                     {compressionStats && compressionStats.uncompressed > 0 && (
-                                        <button onClick={runBulkCompress} disabled={isBulkCompressing || !compressionConfig.enabled} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
+                                        <button type="button" onClick={runBulkCompress} disabled={isBulkCompressing || !compressionConfig.enabled} className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded hover:bg-emerald-700 disabled:opacity-50">
                                             {isBulkCompressing ? `Compressing… (${compressionProgress ? compressionProgress.processed : 0} done, ${compressionProgress ? compressionProgress.remaining : '?'} remaining)` : `Compress ${compressionStats.uncompressed} Pending Images`}
                                         </button>
                                     )}
@@ -3099,7 +3099,7 @@ const App = () => {
                                             {compressionBackups.map((item) => (
                                                 <li key={item.attachment_id} className="flex items-center justify-between gap-3 text-sm border rounded p-2">
                                                     <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-indigo-700">{item.title || `Attachment #${item.attachment_id}`}</a>
-                                                    <button onClick={() => restoreCompressedImage(item.attachment_id)} className="shrink-0 px-3 py-1 border border-slate-300 rounded text-slate-700 hover:bg-slate-50">Restore original</button>
+                                                    <button type="button" onClick={() => restoreCompressedImage(item.attachment_id)} className="shrink-0 px-3 py-1 border border-slate-300 rounded text-slate-700 hover:bg-slate-50">Restore original</button>
                                                 </li>
                                             ))}
                                         </ul>
@@ -3115,11 +3115,11 @@ const App = () => {
                                         <p className="text-sm text-slate-500 mt-1">{altAuditTotal} images in your media library are missing alt text.</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={autoFillAltText} disabled={isAutoFillingAlt} className="px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded hover:bg-amber-600 disabled:opacity-50">
+                                        <button type="button" onClick={autoFillAltText} disabled={isAutoFillingAlt} className="px-3 py-1.5 bg-amber-500 text-white text-xs font-semibold rounded hover:bg-amber-600 disabled:opacity-50">
                                             {isAutoFillingAlt ? 'Auto-filling…' : '✨ Auto-fill from Filenames'}
                                         </button>
                                         {Object.keys(altEdits).length > 0 && (
-                                            <button onClick={saveAltEdits} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700">
+                                            <button type="button" onClick={saveAltEdits} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700">
                                                 Save {Object.keys(altEdits).length} Edits
                                             </button>
                                         )}
@@ -3155,9 +3155,9 @@ const App = () => {
                                         </table>
                                         {altAuditTotal > 20 && (
                                             <div className="flex justify-between items-center p-3 border-t bg-slate-50">
-                                                <button onClick={() => loadAltAudit(altAuditPage - 1)} disabled={altAuditPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
+                                                <button type="button" onClick={() => loadAltAudit(altAuditPage - 1)} disabled={altAuditPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
                                                 <span className="text-xs text-slate-500">Page {altAuditPage} · {altAuditTotal} total</span>
-                                                <button onClick={() => loadAltAudit(altAuditPage + 1)} disabled={altAuditItems.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
+                                                <button type="button" onClick={() => loadAltAudit(altAuditPage + 1)} disabled={altAuditItems.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
                                             </div>
                                         )}
                                     </div>
@@ -3204,7 +3204,7 @@ const App = () => {
                                         <input type="url" value={cookieBanner.policy_url} onChange={e => setCookieBanner({...cookieBanner, policy_url: e.target.value})} placeholder="https://example.com/privacy-policy" className="w-full p-2 border border-slate-300 rounded text-sm" />
                                     </div>
                                     {cookieBannerMsg && <p className={`text-sm ${cookieBannerMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>{cookieBannerMsg.text}</p>}
-                                    <button onClick={saveCookieBanner} disabled={isSavingCookieBanner} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                    <button type="button" onClick={saveCookieBanner} disabled={isSavingCookieBanner} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                         {isSavingCookieBanner ? 'Saving…' : 'Save Cookie Banner Settings'}
                                     </button>
                                 </div>
@@ -3291,10 +3291,10 @@ const App = () => {
                             {rolesData && (
                                 <div className="flex items-center gap-3">
                                     {rolesMsg && <span className={`text-sm px-3 py-1.5 rounded ${rolesMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{rolesMsg.text}</span>}
-                                    <button onClick={saveRoles} disabled={rolesSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                    <button type="button" onClick={saveRoles} disabled={rolesSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                         {rolesSaving ? 'Saving…' : 'Save Capabilities'}
                                     </button>
-                                    <button onClick={loadRoles} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded hover:bg-slate-200">↺ Reset</button>
+                                    <button type="button" onClick={loadRoles} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm rounded hover:bg-slate-200">↺ Reset</button>
                                 </div>
                             )}
                         </div>
@@ -3354,7 +3354,7 @@ const App = () => {
                                             </div>
 
                                             {networkMsg && <div className={`text-sm px-3 py-2 rounded ${networkMsg.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>{networkMsg.text}</div>}
-                                            <button onClick={saveNetworkSettings} disabled={networkSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
+                                            <button type="button" onClick={saveNetworkSettings} disabled={networkSaving} className="px-5 py-2 bg-indigo-600 text-white text-sm font-medium rounded hover:bg-indigo-700 disabled:opacity-50">
                                                 {networkSaving ? 'Saving…' : 'Save Network Settings'}
                                             </button>
                                         </div>
@@ -3395,7 +3395,7 @@ const App = () => {
                                     <h2 className="text-xl font-semibold m-0 text-slate-800">Technical SEO Audit</h2>
                                     <p className="text-slate-500 text-sm mt-1">Run a 14-point site-wide audit across meta, schema, redirects, robots, SSL, and more.</p>
                                 </div>
-                                <button onClick={runSiteAudit} disabled={auditRunning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
+                                <button type="button" onClick={runSiteAudit} disabled={auditRunning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
                                     {auditRunning ? '⏳ Running…' : '▶ Run Audit'}
                                 </button>
                             </div>
@@ -3484,7 +3484,7 @@ const App = () => {
                                     <h2 className="text-xl font-semibold m-0 text-slate-800">Broken Link Checker</h2>
                                     <p className="text-slate-500 text-sm mt-1">Scan all published posts and pages for dead outbound links. Batched across background jobs — never slows your server.</p>
                                 </div>
-                                <button onClick={startBlcScan} disabled={blcScanning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
+                                <button type="button" onClick={startBlcScan} disabled={blcScanning} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap">
                                     {blcScanning ? '⏳ Scanning…' : '▶ Start Scan'}
                                 </button>
                             </div>
@@ -3511,7 +3511,7 @@ const App = () => {
                             <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
                                 <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
                                     <span className="text-sm font-semibold text-slate-700">{blcShowResolved ? 'Resolved Links' : 'Broken Links'} <span className="text-slate-400 font-normal">({blcTotal})</span></span>
-                                    <button onClick={() => { const r = !blcShowResolved; setBlcShowResolved(r); loadBlcResults(1, r); }} className="text-xs text-indigo-600 hover:underline">
+                                    <button type="button" onClick={() => { const r = !blcShowResolved; setBlcShowResolved(r); loadBlcResults(1, r); }} className="text-xs text-indigo-600 hover:underline">
                                         {blcShowResolved ? 'Show broken' : 'Show resolved'}
                                     </button>
                                 </div>
@@ -3535,8 +3535,8 @@ const App = () => {
                                                     <td className="p-3 text-xs text-slate-400 truncate max-w-[120px]">{row.anchor_text || '—'}</td>
                                                     <td className="p-3">
                                                         <div className="flex gap-1.5">
-                                                            <button onClick={() => recheckBlcLink(row.id, row.url)} className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded">↻</button>
-                                                            <button onClick={() => resolveBlcLink(row.id)} className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded">✓</button>
+                                                            <button type="button" onClick={() => recheckBlcLink(row.id, row.url)} className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded">↻</button>
+                                                            <button type="button" onClick={() => resolveBlcLink(row.id)} className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded">✓</button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -3551,9 +3551,9 @@ const App = () => {
                                 )}
                                 {blcTotal > 20 && (
                                     <div className="flex justify-between items-center p-3 border-t bg-slate-50">
-                                        <button onClick={() => loadBlcResults(blcPage - 1, blcShowResolved)} disabled={blcPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
+                                        <button type="button" onClick={() => loadBlcResults(blcPage - 1, blcShowResolved)} disabled={blcPage <= 1} className="px-3 py-1 text-xs border rounded disabled:opacity-40">« Prev</button>
                                         <span className="text-xs text-slate-500">Page {blcPage} · {blcTotal} total</span>
-                                        <button onClick={() => loadBlcResults(blcPage + 1, blcShowResolved)} disabled={blcResults.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
+                                        <button type="button" onClick={() => loadBlcResults(blcPage + 1, blcShowResolved)} disabled={blcResults.length < 20} className="px-3 py-1 text-xs border rounded disabled:opacity-40">Next »</button>
                                     </div>
                                 )}
                             </div>
@@ -3586,7 +3586,7 @@ const App = () => {
                                             <input type="text" value={newKeyword} onChange={e => setNewKeyword(e.target.value)}
                                                 onKeyDown={e => e.key === 'Enter' && addKeyword()}
                                                 placeholder="Add keyword…" className="flex-1 p-2 border border-slate-300 rounded text-sm" />
-                                            <button onClick={addKeyword} disabled={rankSaving} className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50">+</button>
+                                            <button type="button" onClick={addKeyword} disabled={rankSaving} className="px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50">+</button>
                                         </div>
 
                                         <div className="space-y-1 max-h-72 overflow-y-auto">
@@ -3608,8 +3608,8 @@ const App = () => {
                                                             )}
                                                         </div>
                                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button onClick={() => checkRankNow(kw)} disabled={rankChecking} title="Check now" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50">↻</button>
-                                                            <button onClick={() => removeKeyword(kw)} title="Remove" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-red-50 text-red-500">✕</button>
+                                                            <button type="button" onClick={() => checkRankNow(kw)} disabled={rankChecking} title="Check now" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-indigo-50">↻</button>
+                                                            <button type="button" onClick={() => removeKeyword(kw)} title="Remove" className="px-1.5 py-0.5 text-xs bg-white border border-slate-200 rounded hover:bg-red-50 text-red-500">✕</button>
                                                         </div>
                                                     </div>
                                                 );
@@ -3620,7 +3620,7 @@ const App = () => {
                                         {rankMsg && <div className={`text-xs px-2 py-1.5 rounded ${rankMsg.type === 'success' ? 'bg-green-50 text-green-700' : rankMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>{rankMsg.text}</div>}
 
                                         <div className="flex gap-2 pt-1">
-                                            <button onClick={() => checkRankNow()} disabled={rankChecking || rankKeywords.length === 0 || !serpApiKey} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 disabled:opacity-50">
+                                            <button type="button" onClick={() => checkRankNow()} disabled={rankChecking || rankKeywords.length === 0 || !serpApiKey} className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-semibold rounded hover:bg-emerald-700 disabled:opacity-50">
                                                 {rankChecking ? 'Checking…' : '⚡ Check Top 5 Now'}
                                             </button>
                                         </div>
@@ -3634,7 +3634,7 @@ const App = () => {
                                             <span className="text-sm font-semibold text-slate-700">Position History</span>
                                             <div className="flex gap-1.5">
                                                 {[7, 30, 90].map(d => (
-                                                    <button key={d} onClick={() => setRankDays(d)} className={`px-2 py-0.5 text-xs rounded ${rankDays === d ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{d}d</button>
+                                                    <button type="button" key={d} onClick={() => setRankDays(d)} className={`px-2 py-0.5 text-xs rounded ${rankDays === d ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{d}d</button>
                                                 ))}
                                             </div>
                                         </div>
@@ -3761,7 +3761,7 @@ const SchemaRuleForm = ({ postTypes, categories, onAddRule }) => {
                 <div />
             )}
             <div>
-                <button 
+                <button type="button" 
                     onClick={() => {
                         onAddRule({ 
                             post_type: postType, 
@@ -3780,7 +3780,7 @@ const SchemaRuleForm = ({ postTypes, categories, onAddRule }) => {
 };
 
 const NavItem = ({ label, active, onClick }) => (
-    <button 
+    <button type="button" type="button" role="tab" aria-selected={active}
         onClick={onClick}
         className={`text-left px-4 py-2 rounded font-medium transition-colors ${active ? 'bg-slate-100 text-brand-600' : 'text-slate-600 hover:bg-slate-50'}`}
     >

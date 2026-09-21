@@ -1,4 +1,16 @@
+if (!defined('MINUTE_IN_SECONDS')) define('MINUTE_IN_SECONDS', 60);
+if (!defined('HOUR_IN_SECONDS')) define('HOUR_IN_SECONDS', 3600);
+if (!defined('DAY_IN_SECONDS')) define('DAY_IN_SECONDS', 86400);
+if (!defined('WEEK_IN_SECONDS')) define('WEEK_IN_SECONDS', 604800);
+if (!defined('MONTH_IN_SECONDS')) define('MONTH_IN_SECONDS', 2592000);
+if (!defined('YEAR_IN_SECONDS')) define('YEAR_IN_SECONDS', 31536000);
 <?php
+if (!defined('MINUTE_IN_SECONDS')) define('MINUTE_IN_SECONDS', 60);
+if (!defined('HOUR_IN_SECONDS')) define('HOUR_IN_SECONDS', 3600);
+if (!defined('DAY_IN_SECONDS')) define('DAY_IN_SECONDS', 86400);
+if (!defined('WEEK_IN_SECONDS')) define('WEEK_IN_SECONDS', 604800);
+if (!defined('MONTH_IN_SECONDS')) define('MONTH_IN_SECONDS', 2592000);
+if (!defined('YEAR_IN_SECONDS')) define('YEAR_IN_SECONDS', 31536000);
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -604,8 +616,12 @@ if (!function_exists('add_action')) {
     }
 }
 
+global $mock_rest_routes;
+$mock_rest_routes = [];
 if (!function_exists('register_rest_route')) {
     function register_rest_route(string $namespace, string $route, array $args = [], bool $override = false): bool {
+        global $mock_rest_routes;
+        $mock_rest_routes[$namespace . $route] = $args;
         return true;
     }
 }
@@ -688,3 +704,13 @@ if (!function_exists('register_deactivation_hook')) {
 
 
 
+
+if (!class_exists('WP_REST_Server')) {
+	class WP_REST_Server {
+		const READABLE = 'GET';
+		const CREATABLE = 'POST';
+		const EDITABLE = 'POST, PUT, PATCH';
+		const DELETABLE = 'DELETE';
+		const ALLMETHODS = 'GET, POST, PUT, PATCH, DELETE';
+	}
+}
