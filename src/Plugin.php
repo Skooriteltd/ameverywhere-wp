@@ -291,6 +291,7 @@ class Plugin {
 		$this->container->singleton( 'competitor_seo_importer', \AmEveryWhere\Modules\Import\CompetitorSeoImporter::class );
 		$this->container->singleton( 'multisite_network_seo', \AmEveryWhere\Modules\Analytics\MultisiteNetworkSeo::class );
 		$this->container->singleton( 'google_search_console', \AmEveryWhere\Modules\Analytics\GoogleSearchConsoleIntegration::class );
+		$this->container->singleton( 'bing_webmaster', \AmEveryWhere\Modules\Analytics\BingWebmasterIntegration::class );
 		$this->container->singleton( 'keyword_rank_tracker', \AmEveryWhere\Modules\Analytics\KeywordRankTracker::class );
 	}
 
@@ -495,6 +496,9 @@ class Plugin {
 		/** @var \AmEveryWhere\Modules\Analytics\GoogleSearchConsoleIntegration $gsc */
 		$gsc = $this->container->get( 'google_search_console' );
 		$gsc->register();
+
+		$bing = $this->container->get( 'bing_webmaster' );
+		$bing->register();
 
 		/** @var \AmEveryWhere\Modules\Analytics\KeywordRankTracker $rankTracker */
 		$rankTracker = $this->container->get( 'keyword_rank_tracker' );
