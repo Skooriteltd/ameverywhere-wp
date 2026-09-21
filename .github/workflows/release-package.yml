@@ -30,6 +30,22 @@ jobs:
       - name: Build reproducible plugin archive
         run: ./package-zip.sh
 
+      - name: Test ZIP installation in temporary WordPress
+        run: |
+          npm -g install @wordpress/env
+          ZIP_FILE=$(ls dist/ameverywhere-*.zip | head -n 1)
+          # wp-env supports installing from a local ZIP file
+          echo "{\"core\": \"WordPress/WordPress#master\", \"plugins\": [\"${ZIP_FILE}\"]}" > .wp-env.json
+          wp-env start
+          
+          # Verify activation and check for fatal errors
+          wp-env run cli wp plugin is-active ameverywhere || wp-env run cli wp plugin activate ameverywhere
+          
+          # Verify the tables were created successfully
+          wp-env run cli wp db query "SHOW TABLES LIKE '%ameverywhere%';" | grep ameverywhere
+          
+          wp-env stop
+
       - name: Upload package and manifest
         uses: actions/upload-artifact@v4
         with:

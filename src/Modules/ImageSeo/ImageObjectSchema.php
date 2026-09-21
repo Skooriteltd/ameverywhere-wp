@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\ImageSeo;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -15,201 +15,206 @@ if (!defined('ABSPATH')) {
  *
  * BL-003
  */
-class ImageObjectSchema
-{
-    private const ENABLED_OPTION  = 'ameverywhere_image_schema_enabled';
-    private const LICENSE_OPTION  = 'ameverywhere_image_license_url';
+class ImageObjectSchema {
 
-    public function register(): void
-    {
-        add_action('wp_footer', [$this, 'outputImageSchema'], 15);
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	private const ENABLED_OPTION = 'ameverywhere_image_schema_enabled';
+	private const LICENSE_OPTION = 'ameverywhere_image_license_url';
 
-    // ── Schema output ─────────────────────────────────────────────────────────
+	public function register(): void {
+		add_action( 'wp_footer', array( $this, 'outputImageSchema' ), 15 );
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-    public function outputImageSchema(): void
-    {
-        if (!is_singular()) {
-            return;
-        }
+	// ── Schema output ─────────────────────────────────────────────────────────
 
-        if (get_option(self::ENABLED_OPTION, 'yes') === 'no') {
-            return;
-        }
+	public function outputImageSchema(): void {
+		if ( ! is_singular() ) {
+			return;
+		}
 
-        $images = $this->collectImages(get_the_ID());
+		if ( get_option( self::ENABLED_OPTION, 'yes' ) === 'no' ) {
+			return;
+		}
 
-        if (empty($images)) {
-            return;
-        }
+		$images = $this->collectImages( get_the_ID() );
 
-        $licenseUrl = get_option(self::LICENSE_OPTION, home_url('/'));
+		if ( empty( $images ) ) {
+			return;
+		}
 
-        $objects = [];
-        foreach ($images as $img) {
-            $obj = array_filter([
-                '@context'           => 'https://schema.org',
-                '@type'              => 'ImageObject',
-                'url'                => $img['url'],
-                'contentUrl'         => $img['url'],
-                'width'              => $img['width']  ?: null,
-                'height'             => $img['height'] ?: null,
-                'name'               => $img['alt']    ?: get_the_title(),
-                'caption'            => $img['caption'] ?: null,
-                'creditText'         => get_bloginfo('name'),
-                'acquireLicensePage' => $licenseUrl ?: null,
-            ]);
+		$licenseUrl = get_option( self::LICENSE_OPTION, home_url( '/' ) );
 
-            $objects[] = $obj;
-        }
+		$objects = array();
+		foreach ( $images as $img ) {
+			$obj = array_filter(
+				array(
+					'@context'           => 'https://schema.org',
+					'@type'              => 'ImageObject',
+					'url'                => $img['url'],
+					'contentUrl'         => $img['url'],
+					'width'              => $img['width'] ?: null,
+					'height'             => $img['height'] ?: null,
+					'name'               => $img['alt'] ?: get_the_title(),
+					'caption'            => $img['caption'] ?: null,
+					'creditText'         => get_bloginfo( 'name' ),
+					'acquireLicensePage' => $licenseUrl ?: null,
+				)
+			);
 
-        if (empty($objects)) {
-            return;
-        }
+			$objects[] = $obj;
+		}
 
-        $schema = (count($objects) === 1)
-            ? $objects[0]
-            : ['@context' => 'https://schema.org', '@graph' => $objects];
+		if ( empty( $objects ) ) {
+			return;
+		}
 
-        // Remove @context from individual objects when using @graph
-        if (isset($schema['@graph'])) {
-            foreach ($schema['@graph'] as &$item) {
-                unset($item['@context']);
-            }
-            unset($item);
-        }
+		$schema = ( count( $objects ) === 1 )
+			? $objects[0]
+			: array(
+				'@context' => 'https://schema.org',
+				'@graph'   => $objects,
+			);
 
-        echo '<script type="application/ld+json">'
-            . wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)
-            . '</script>' . "\n";
-    }
+		// Remove @context from individual objects when using @graph
+		if ( isset( $schema['@graph'] ) ) {
+			foreach ( $schema['@graph'] as &$item ) {
+				unset( $item['@context'] );
+			}
+			unset( $item );
+		}
 
-    // ── Image collection ──────────────────────────────────────────────────────
+		echo '<script type="application/ld+json">'
+			. wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT )
+			. '</script>' . "\n";
+	}
 
-    /**
-     * Collect all images for a post: featured image + content images.
-     * Returns array of { url, width, height, alt, caption }.
-     */
-    private function collectImages(int $postId): array
-    {
-        $seen   = [];
-        $images = [];
+	// ── Image collection ──────────────────────────────────────────────────────
 
-        // 1. Featured image
-        $thumbId = get_post_thumbnail_id($postId);
-        if ($thumbId) {
-            $src = wp_get_attachment_image_src($thumbId, 'full');
-            if ($src && !empty($src[0])) {
-                $url = $src[0];
-                if (!isset($seen[$url])) {
-                    $seen[$url] = true;
-                    $images[]   = [
-                        'url'     => $url,
-                        'width'   => (int) ($src[1] ?? 0),
-                        'height'  => (int) ($src[2] ?? 0),
-                        'alt'     => (string) get_post_meta($thumbId, '_wp_attachment_image_alt', true),
-                        'caption' => wp_get_attachment_caption($thumbId),
-                    ];
-                }
-            }
-        }
+	/**
+	 * Collect all images for a post: featured image + content images.
+	 * Returns array of { url, width, height, alt, caption }.
+	 */
+	private function collectImages( int $postId ): array {
+		$seen   = array();
+		$images = array();
 
-        // 2. Content images (wp-image-{id} class pattern)
-        $content = get_post_field('post_content', $postId);
-        if (empty($content)) {
-            return $images;
-        }
+		// 1. Featured image
+		$thumbId = get_post_thumbnail_id( $postId );
+		if ( $thumbId ) {
+			$src = wp_get_attachment_image_src( $thumbId, 'full' );
+			if ( $src && ! empty( $src[0] ) ) {
+				$url = $src[0];
+				if ( ! isset( $seen[ $url ] ) ) {
+					$seen[ $url ] = true;
+					$images[]     = array(
+						'url'     => $url,
+						'width'   => (int) ( $src[1] ?? 0 ),
+						'height'  => (int) ( $src[2] ?? 0 ),
+						'alt'     => (string) get_post_meta( $thumbId, '_wp_attachment_image_alt', true ),
+						'caption' => wp_get_attachment_caption( $thumbId ),
+					);
+				}
+			}
+		}
 
-        // Extract attachment IDs from class="wp-image-123"
-        preg_match_all('/class=["\'][^"\']*wp-image-(\d+)[^"\']*["\']/', $content, $idMatches);
-        $attachmentIds = array_unique(array_map('intval', $idMatches[1] ?? []));
+		// 2. Content images (wp-image-{id} class pattern)
+		$content = get_post_field( 'post_content', $postId );
+		if ( empty( $content ) ) {
+			return $images;
+		}
 
-        foreach ($attachmentIds as $attId) {
-            $src = wp_get_attachment_image_src($attId, 'full');
-            if (!$src || empty($src[0])) {
-                continue;
-            }
-            $url = $src[0];
-            if (isset($seen[$url])) {
-                continue;
-            }
-            $seen[$url] = true;
-            $images[]   = [
-                'url'     => $url,
-                'width'   => (int) ($src[1] ?? 0),
-                'height'  => (int) ($src[2] ?? 0),
-                'alt'     => (string) get_post_meta($attId, '_wp_attachment_image_alt', true),
-                'caption' => wp_get_attachment_caption($attId),
-            ];
-        }
+		// Extract attachment IDs from class="wp-image-123"
+		preg_match_all( '/class=["\'][^"\']*wp-image-(\d+)[^"\']*["\']/', $content, $idMatches );
+		$attachmentIds = array_unique( array_map( 'intval', $idMatches[1] ?? array() ) );
 
-        // Also capture <img src="..."> without wp-image class (external or non-library images)
-        preg_match_all('/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $content, $srcMatches);
-        foreach ($srcMatches[1] ?? [] as $rawSrc) {
-            $url = esc_url_raw($rawSrc);
-            if (empty($url) || isset($seen[$url])) {
-                continue;
-            }
-            // Only include images hosted on this site
-            if (strpos($url, home_url()) !== 0) {
-                continue;
-            }
-            $seen[$url] = true;
+		foreach ( $attachmentIds as $attId ) {
+			$src = wp_get_attachment_image_src( $attId, 'full' );
+			if ( ! $src || empty( $src[0] ) ) {
+				continue;
+			}
+			$url = $src[0];
+			if ( isset( $seen[ $url ] ) ) {
+				continue;
+			}
+			$seen[ $url ] = true;
+			$images[]     = array(
+				'url'     => $url,
+				'width'   => (int) ( $src[1] ?? 0 ),
+				'height'  => (int) ( $src[2] ?? 0 ),
+				'alt'     => (string) get_post_meta( $attId, '_wp_attachment_image_alt', true ),
+				'caption' => wp_get_attachment_caption( $attId ),
+			);
+		}
 
-            // Try to extract alt from the same <img> tag
-            preg_match('/alt=["\']([^"\']*)["\']/', $srcMatches[0][array_search($rawSrc, $srcMatches[1])], $altMatch);
+		// Also capture <img src="..."> without wp-image class (external or non-library images)
+		preg_match_all( '/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $content, $srcMatches );
+		foreach ( $srcMatches[1] ?? array() as $rawSrc ) {
+			$url = esc_url_raw( $rawSrc );
+			if ( empty( $url ) || isset( $seen[ $url ] ) ) {
+				continue;
+			}
+			// Only include images hosted on this site
+			if ( strpos( $url, home_url() ) !== 0 ) {
+				continue;
+			}
+			$seen[ $url ] = true;
 
-            $images[] = [
-                'url'     => $url,
-                'width'   => 0,
-                'height'  => 0,
-                'alt'     => $altMatch[1] ?? '',
-                'caption' => '',
-            ];
-        }
+			// Try to extract alt from the same <img> tag
+			preg_match( '/alt=["\']([^"\']*)["\']/', $srcMatches[0][ array_search( $rawSrc, $srcMatches[1] ) ], $altMatch );
 
-        return $images;
-    }
+			$images[] = array(
+				'url'     => $url,
+				'width'   => 0,
+				'height'  => 0,
+				'alt'     => $altMatch[1] ?? '',
+				'caption' => '',
+			);
+		}
 
-    // ── REST routes ───────────────────────────────────────────────────────────
+		return $images;
+	}
 
-    public function registerRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/settings/image-schema', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getSettings'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveSettings'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
-            ],
-        ]);
-    }
+	// ── REST routes ───────────────────────────────────────────────────────────
 
-    public function getSettings(\WP_REST_Request $request): \WP_REST_Response
-    {
-        return rest_ensure_response([
-            'enabled'     => get_option(self::ENABLED_OPTION, 'yes') === 'yes',
-            'license_url' => get_option(self::LICENSE_OPTION, home_url('/')),
-        ]);
-    }
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/settings/image-schema',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getSettings' ),
+					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveSettings' ),
+					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				),
+			)
+		);
+	}
 
-    public function saveSettings(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
+	public function getSettings( \WP_REST_Request $request ): \WP_REST_Response {
+		return rest_ensure_response(
+			array(
+				'enabled'     => get_option( self::ENABLED_OPTION, 'yes' ) === 'yes',
+				'license_url' => get_option( self::LICENSE_OPTION, home_url( '/' ) ),
+			)
+		);
+	}
 
-        if (isset($params['enabled'])) {
-            update_option(self::ENABLED_OPTION, $params['enabled'] ? 'yes' : 'no');
-        }
+	public function saveSettings( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
 
-        if (isset($params['license_url'])) {
-            update_option(self::LICENSE_OPTION, esc_url_raw($params['license_url']));
-        }
+		if ( isset( $params['enabled'] ) ) {
+			update_option( self::ENABLED_OPTION, $params['enabled'] ? 'yes' : 'no' );
+		}
 
-        return rest_ensure_response(['success' => true]);
-    }
+		if ( isset( $params['license_url'] ) ) {
+			update_option( self::LICENSE_OPTION, esc_url_raw( $params['license_url'] ) );
+		}
+
+		return rest_ensure_response( array( 'success' => true ) );
+	}
 }

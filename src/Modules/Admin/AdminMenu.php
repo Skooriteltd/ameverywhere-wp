@@ -2,65 +2,62 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-class AdminMenu
-{
-    public function registerMenu(): void
-    {
-        add_menu_page(
-            'AmEveryWhere SEO',
-            'AmEveryWhere',
-            'manage_options',
-            'ameverywhere',
-            [$this, 'renderAdminPage'],
-            'dashicons-chart-area',
-            85
-        );
-    }
+class AdminMenu {
 
-    public function enqueueAssets(string $hook): void
-    {
-        // Only load assets on our plugin page
-        if ($hook !== 'toplevel_page_ameverywhere') {
-            return;
-        }
+	public function registerMenu(): void {
+		add_menu_page(
+			'AmEveryWhere SEO',
+			'AmEveryWhere',
+			'manage_options',
+			'ameverywhere',
+			array( $this, 'renderAdminPage' ),
+			'dashicons-chart-area',
+			85
+		);
+	}
 
-        $assetFile = AMEVERYWHERE_PLUGIN_DIR . 'build/index.asset.php';
-        
-        if (file_exists($assetFile)) {
-            $assets = require $assetFile;
-            wp_enqueue_script(
-                'ameverywhere-admin-js',
-                AMEVERYWHERE_PLUGIN_URL . 'build/index.js',
-                $assets['dependencies'],
-                $assets['version'],
-                true
-            );
+	public function enqueueAssets( string $hook ): void {
+		// Only load assets on our plugin page
+		if ( $hook !== 'toplevel_page_ameverywhere' ) {
+			return;
+		}
 
-            $adminConfig = [
-                'apiUrl'        => esc_url_raw(rest_url('ameverywhere/v1')),
-                'nonce'         => wp_create_nonce('wp_rest'),
-                'setupComplete' => get_option('ameverywhere_setup_complete') ? '1' : '0',
-                'isMultisite'   => is_multisite() ? '1' : '0',
-            ];
+		$assetFile = AMEVERYWHERE_PLUGIN_DIR . 'build/index.asset.php';
 
-            wp_localize_script('ameverywhere-admin-js', 'amEveryWhereAdminConfig', $adminConfig);
-        }
+		if ( file_exists( $assetFile ) ) {
+			$assets = require $assetFile;
+			wp_enqueue_script(
+				'ameverywhere-admin-js',
+				AMEVERYWHERE_PLUGIN_URL . 'build/index.js',
+				$assets['dependencies'],
+				$assets['version'],
+				true
+			);
 
-        wp_enqueue_style(
-            'ameverywhere-admin-css',
-            AMEVERYWHERE_PLUGIN_URL . 'build/index.css',
-            [],
-            AMEVERYWHERE_VERSION
-        );
-        wp_style_add_data('ameverywhere-admin-css', 'rtl', 'replace');
-    }
+			$adminConfig = array(
+				'apiUrl'        => esc_url_raw( rest_url( 'ameverywhere/v1' ) ),
+				'nonce'         => wp_create_nonce( 'wp_rest' ),
+				'setupComplete' => get_option( 'ameverywhere_setup_complete' ) ? '1' : '0',
+				'isMultisite'   => is_multisite() ? '1' : '0',
+			);
 
-    public function renderAdminPage(): void
-    {
-        echo '<div class="wrap"><div id="ameverywhere-admin-app"></div></div>';
-    }
+			wp_localize_script( 'ameverywhere-admin-js', 'amEveryWhereAdminConfig', $adminConfig );
+		}
+
+		wp_enqueue_style(
+			'ameverywhere-admin-css',
+			AMEVERYWHERE_PLUGIN_URL . 'build/index.css',
+			array(),
+			AMEVERYWHERE_VERSION
+		);
+		wp_style_add_data( 'ameverywhere-admin-css', 'rtl', 'replace' );
+	}
+
+	public function renderAdminPage(): void {
+		echo '<div class="wrap"><div id="ameverywhere-admin-app"></div></div>';
+	}
 }

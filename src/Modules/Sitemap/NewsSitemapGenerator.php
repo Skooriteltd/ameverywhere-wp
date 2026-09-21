@@ -2,58 +2,59 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-class NewsSitemapGenerator
-{
-    public function serveSitemap(): void
-    {
-        header('Content-Type: text/xml; charset=utf-8');
-        header('X-Robots-Tag: noindex, follow', true);
+class NewsSitemapGenerator {
 
-        echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' . "\n";
-        echo '        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">' . "\n";
+	public function serveSitemap(): void {
+		header( 'Content-Type: text/xml; charset=utf-8' );
+		header( 'X-Robots-Tag: noindex, follow', true );
 
-        // Google News sitemaps only contain URLs published in the last 48 hours
-        $posts = get_posts([
-            'post_type'      => 'post',
-            'post_status'    => 'publish',
-            'posts_per_page' => 1000,
-            'date_query'     => [
-                [
-                    'after' => '48 hours ago',
-                ],
-            ],
-        ]);
+		echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+		echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' . "\n";
+		echo '        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">' . "\n";
 
-        $siteName = get_bloginfo('name');
+		// Google News sitemaps only contain URLs published in the last 48 hours
+		$posts = get_posts(
+			array(
+				'post_type'      => 'post',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1000,
+				'date_query'     => array(
+					array(
+						'after' => '48 hours ago',
+					),
+				),
+			)
+		);
 
-        foreach ($posts as $post) {
-            $noindex = get_post_meta($post->ID, '_ameverywhere_noindex', true);
-            if ($noindex === 'yes') {
-                continue;
-            }
+		$siteName = get_bloginfo( 'name' );
 
-            $url = get_permalink($post->ID);
-            $publishDate = get_post_time('Y-m-d\TH:i:s+00:00', false, $post);
-            $title = get_the_title($post->ID);
+		foreach ( $posts as $post ) {
+			$noindex = get_post_meta( $post->ID, '_ameverywhere_noindex', true );
+			if ( $noindex === 'yes' ) {
+				continue;
+			}
 
-            echo "  <url>\n";
-            echo "    <loc>" . esc_url($url) . "</loc>\n";
-            echo "    <news:news>\n";
-            echo "      <news:publication>\n";
-            echo "        <news:name>" . esc_html($siteName) . "</news:name>\n";
-            echo "        <news:language>" . esc_html(get_bloginfo('language')) . "</news:language>\n";
-            echo "      </news:publication>\n";
-            echo "      <news:publication_date>" . esc_html($publishDate) . "</news:publication_date>\n";
-            echo "      <news:title>" . esc_html($title) . "</news:title>\n";
-            echo "    </news:news>\n";
-            echo "  </url>\n";
-        }
+			$url         = get_permalink( $post->ID );
+			$publishDate = get_post_time( 'Y-m-d\TH:i:s+00:00', false, $post );
+			$title       = get_the_title( $post->ID );
 
-        echo '</urlset>';
-    }
+			echo "  <url>\n";
+			echo '    <loc>' . esc_url( $url ) . "</loc>\n";
+			echo "    <news:news>\n";
+			echo "      <news:publication>\n";
+			echo '        <news:name>' . esc_html( $siteName ) . "</news:name>\n";
+			echo '        <news:language>' . esc_html( get_bloginfo( 'language' ) ) . "</news:language>\n";
+			echo "      </news:publication>\n";
+			echo '      <news:publication_date>' . esc_html( $publishDate ) . "</news:publication_date>\n";
+			echo '      <news:title>' . esc_html( $title ) . "</news:title>\n";
+			echo "    </news:news>\n";
+			echo "  </url>\n";
+		}
+
+		echo '</urlset>';
+	}
 }

@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -13,239 +13,250 @@ if (!defined('ABSPATH')) {
  * BL-010: Editable custom AI bot list (merged with built-in AI_BOTS at runtime).
  * BL-032: LLM training data opt-out (NoAI directive + TDM-Reservation HTTP header).
  */
-class RobotsTxtEditor
-{
-    private const OPTION_KEY           = 'ameverywhere_robots_txt';
-    private const CUSTOM_BOTS_OPTION   = 'ameverywhere_custom_ai_bots';
-    private const TRAINING_OPT_OUT_OPT = 'ameverywhere_ai_training_optout';
+class RobotsTxtEditor {
 
-    // List of major AI scraper/crawler User-Agents (built-in, always applied)
-    private const AI_BOTS = [
-        'GPTBot',
-        'ChatGPT-User',
-        'CCBot',
-        'Google-Extended',
-        'Anthropic-AI',
-        'Claude-Web',
-        'ClaudeBot',
-        'cohere-ai',
-        'Omgilibot',
-        'Omgili',
-        'PerplexityBot',
-        'YouBot',
-    ];
+	private const OPTION_KEY           = 'ameverywhere_robots_txt';
+	private const CUSTOM_BOTS_OPTION   = 'ameverywhere_custom_ai_bots';
+	private const TRAINING_OPT_OUT_OPT = 'ameverywhere_ai_training_optout';
 
-    /**
-     * Register hooks.
-     */
-    public function register(): void
-    {
-        add_filter('robots_txt', [$this, 'filterRobotsTxt'], 999, 2);
-        add_action('init', [$this, 'proactiveBlockAiBots']);
-        add_action('send_headers', [$this, 'addTrainingOptOutHeaders']);
-    }
+	// List of major AI scraper/crawler User-Agents (built-in, always applied)
+	private const AI_BOTS = array(
+		'GPTBot',
+		'ChatGPT-User',
+		'CCBot',
+		'Google-Extended',
+		'Anthropic-AI',
+		'Claude-Web',
+		'ClaudeBot',
+		'cohere-ai',
+		'Omgilibot',
+		'Omgili',
+		'PerplexityBot',
+		'YouBot',
+	);
 
-    /**
-     * Register REST routes for the robots.txt editor.
-     */
-    public function registerRoutes(): void
-    {
-        $adminCap = fn() => current_user_can('manage_options');
+	/**
+	 * Register hooks.
+	 */
+	public function register(): void {
+		add_filter( 'robots_txt', array( $this, 'filterRobotsTxt' ), 999, 2 );
+		add_action( 'init', array( $this, 'proactiveBlockAiBots' ) );
+		add_action( 'send_headers', array( $this, 'addTrainingOptOutHeaders' ) );
+	}
 
-        register_rest_route('ameverywhere/v1', '/robots-txt', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getRobotsTxt'],
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'updateRobotsTxt'],
-                'permission_callback' => $adminCap,
-            ],
-        ]);
+	/**
+	 * Register REST routes for the robots.txt editor.
+	 */
+	public function registerRoutes(): void {
+		$adminCap = fn() => current_user_can( 'manage_options' );
 
-        // BL-010: Editable AI bot list
-        register_rest_route('ameverywhere/v1', '/ai-bots', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getAiBots'],
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'updateAiBots'],
-                'permission_callback' => $adminCap,
-            ],
-        ]);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/robots-txt',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getRobotsTxt' ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'updateRobotsTxt' ),
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
 
-        // BL-032: Training data opt-out toggle
-        register_rest_route('ameverywhere/v1', '/ai-training-optout', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => fn() => rest_ensure_response(['enabled' => get_option(self::TRAINING_OPT_OUT_OPT, 'no') === 'yes']),
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => function (\WP_REST_Request $req) {
-                    $p = $req->get_json_params();
-                    update_option(self::TRAINING_OPT_OUT_OPT, !empty($p['enabled']) ? 'yes' : 'no');
-                    return rest_ensure_response(['success' => true]);
-                },
-                'permission_callback' => $adminCap,
-            ],
-        ]);
-    }
+		// BL-010: Editable AI bot list
+		register_rest_route(
+			'ameverywhere/v1',
+			'/ai-bots',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getAiBots' ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'updateAiBots' ),
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
 
-    // ── BL-010: Bot list management ───────────────────────────────────────────
+		// BL-032: Training data opt-out toggle
+		register_rest_route(
+			'ameverywhere/v1',
+			'/ai-training-optout',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => fn() => rest_ensure_response( array( 'enabled' => get_option( self::TRAINING_OPT_OUT_OPT, 'no' ) === 'yes' ) ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => function ( \WP_REST_Request $req ) {
+						$p = $req->get_json_params();
+						update_option( self::TRAINING_OPT_OUT_OPT, ! empty( $p['enabled'] ) ? 'yes' : 'no' );
+						return rest_ensure_response( array( 'success' => true ) );
+					},
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
+	}
 
-    /**
-     * Merge the built-in AI_BOTS with any custom additions from wp_options.
-     */
-    public function getMergedBotList(): array
-    {
-        $custom = (array) get_option(self::CUSTOM_BOTS_OPTION, []);
-        return array_unique(array_merge(self::AI_BOTS, $custom));
-    }
+	// ── BL-010: Bot list management ───────────────────────────────────────────
 
-    public function getAiBots(\WP_REST_Request $request): \WP_REST_Response
-    {
-        return rest_ensure_response([
-            'builtin' => self::AI_BOTS,
-            'custom'  => (array) get_option(self::CUSTOM_BOTS_OPTION, []),
-            'merged'  => $this->getMergedBotList(),
-        ]);
-    }
+	/**
+	 * Merge the built-in AI_BOTS with any custom additions from wp_options.
+	 */
+	public function getMergedBotList(): array {
+		$custom = (array) get_option( self::CUSTOM_BOTS_OPTION, array() );
+		return array_unique( array_merge( self::AI_BOTS, $custom ) );
+	}
 
-    public function updateAiBots(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params      = $request->get_json_params();
-        $customBots  = array_map('sanitize_text_field', (array) ($params['custom_bots'] ?? []));
-        // Sanitise: alphanumeric, hyphens, underscores, dots only; max 100 chars each; max 50 bots
-        $customBots  = array_slice(
-            array_filter($customBots, fn($b) => preg_match('/^[a-zA-Z0-9\-_\.]+$/', $b) && mb_strlen($b) <= 100),
-            0, 50
-        );
+	public function getAiBots( \WP_REST_Request $request ): \WP_REST_Response {
+		return rest_ensure_response(
+			array(
+				'builtin' => self::AI_BOTS,
+				'custom'  => (array) get_option( self::CUSTOM_BOTS_OPTION, array() ),
+				'merged'  => $this->getMergedBotList(),
+			)
+		);
+	}
 
-        update_option(self::CUSTOM_BOTS_OPTION, array_values($customBots));
+	public function updateAiBots( \WP_REST_Request $request ): \WP_REST_Response {
+		$params     = $request->get_json_params();
+		$customBots = array_map( 'sanitize_text_field', (array) ( $params['custom_bots'] ?? array() ) );
+		// Sanitise: alphanumeric, hyphens, underscores, dots only; max 100 chars each; max 50 bots
+		$customBots = array_slice(
+			array_filter( $customBots, fn( $b ) => preg_match( '/^[a-zA-Z0-9\-_\.]+$/', $b ) && mb_strlen( $b ) <= 100 ),
+			0,
+			50
+		);
 
-        return rest_ensure_response(['success' => true, 'merged' => $this->getMergedBotList()]);
-    }
+		update_option( self::CUSTOM_BOTS_OPTION, array_values( $customBots ) );
 
-    // ── robots.txt endpoints ──────────────────────────────────────────────────
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'merged'  => $this->getMergedBotList(),
+			)
+		);
+	}
 
-    public function getRobotsTxt(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $custom = get_option(self::OPTION_KEY, '');
+	// ── robots.txt endpoints ──────────────────────────────────────────────────
 
-        if (empty($custom)) {
-            $custom = $this->getDefaultRobotsTxt();
-        }
+	public function getRobotsTxt( \WP_REST_Request $request ): \WP_REST_Response {
+		$custom = get_option( self::OPTION_KEY, '' );
 
-        return rest_ensure_response([
-            'content'         => $custom,
-            'block_ai_bots'   => get_option('ameverywhere_block_ai_bots', 'no') === 'yes',
-            'training_optout' => get_option(self::TRAINING_OPT_OUT_OPT, 'no') === 'yes',
-        ]);
-    }
+		if ( empty( $custom ) ) {
+			$custom = $this->getDefaultRobotsTxt();
+		}
 
-    public function updateRobotsTxt(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
+		return rest_ensure_response(
+			array(
+				'content'         => $custom,
+				'block_ai_bots'   => get_option( 'ameverywhere_block_ai_bots', 'no' ) === 'yes',
+				'training_optout' => get_option( self::TRAINING_OPT_OUT_OPT, 'no' ) === 'yes',
+			)
+		);
+	}
 
-        if (isset($params['content'])) {
-            update_option(self::OPTION_KEY, sanitize_textarea_field($params['content']));
-        }
+	public function updateRobotsTxt( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
 
-        if (isset($params['block_ai_bots'])) {
-            update_option('ameverywhere_block_ai_bots', $params['block_ai_bots'] ? 'yes' : 'no');
-        }
+		if ( isset( $params['content'] ) ) {
+			update_option( self::OPTION_KEY, sanitize_textarea_field( $params['content'] ) );
+		}
 
-        return rest_ensure_response(['success' => true]);
-    }
+		if ( isset( $params['block_ai_bots'] ) ) {
+			update_option( 'ameverywhere_block_ai_bots', $params['block_ai_bots'] ? 'yes' : 'no' );
+		}
 
-    // ── robots.txt filter ─────────────────────────────────────────────────────
+		return rest_ensure_response( array( 'success' => true ) );
+	}
 
-    public function filterRobotsTxt(string $output, bool $public): string
-    {
-        $custom = get_option(self::OPTION_KEY, '');
+	// ── robots.txt filter ─────────────────────────────────────────────────────
 
-        if (empty($custom)) {
-            $custom = $this->getDefaultRobotsTxt();
-        }
+	public function filterRobotsTxt( string $output, bool $public ): string {
+		$custom = get_option( self::OPTION_KEY, '' );
 
-        // BL-010: use merged bot list (built-in + custom)
-        if (get_option('ameverywhere_block_ai_bots', 'no') === 'yes') {
-            $custom .= "\n# Block AI Crawlers and LLM Bots (AmEveryWhere AI Crawler Manager)\n";
-            foreach ($this->getMergedBotList() as $bot) {
-                $custom .= "User-agent: " . $bot . "\nDisallow: /\n";
-            }
-            $custom .= "\n";
-        }
+		if ( empty( $custom ) ) {
+			$custom = $this->getDefaultRobotsTxt();
+		}
 
-        // BL-032: LLM training data opt-out directive
-        if (get_option(self::TRAINING_OPT_OUT_OPT, 'no') === 'yes') {
-            $custom .= "\n# AI Training Data Opt-Out (AmEveryWhere)\nUser-agent: *\nNoAI: 1\nNoImageAI: 1\n";
-        }
+		// BL-010: use merged bot list (built-in + custom)
+		if ( get_option( 'ameverywhere_block_ai_bots', 'no' ) === 'yes' ) {
+			$custom .= "\n# Block AI Crawlers and LLM Bots (AmEveryWhere AI Crawler Manager)\n";
+			foreach ( $this->getMergedBotList() as $bot ) {
+				$custom .= 'User-agent: ' . $bot . "\nDisallow: /\n";
+			}
+			$custom .= "\n";
+		}
 
-        return $custom;
-    }
+		// BL-032: LLM training data opt-out directive
+		if ( get_option( self::TRAINING_OPT_OUT_OPT, 'no' ) === 'yes' ) {
+			$custom .= "\n# AI Training Data Opt-Out (AmEveryWhere)\nUser-agent: *\nNoAI: 1\nNoImageAI: 1\n";
+		}
 
-    // ── BL-032: HTTP headers for training opt-out ─────────────────────────────
+		return $custom;
+	}
 
-    public function addTrainingOptOutHeaders(): void
-    {
-        if (get_option(self::TRAINING_OPT_OUT_OPT, 'no') !== 'yes') {
-            return;
-        }
+	// ── BL-032: HTTP headers for training opt-out ─────────────────────────────
 
-        if (is_admin() || (defined('REST_REQUEST') && REST_REQUEST)) {
-            return;
-        }
+	public function addTrainingOptOutHeaders(): void {
+		if ( get_option( self::TRAINING_OPT_OUT_OPT, 'no' ) !== 'yes' ) {
+			return;
+		}
 
-        header('TDM-Reservation: 1');
-        header('X-Robots-Tag: noai, noimageai', false);
-    }
+		if ( is_admin() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			return;
+		}
 
-    /**
-     * Returns a static method that MetaTagsGenerator can call to add a per-post AI meta tag.
-     * Usage in MetaTagsGenerator::getMetaTags(): echo RobotsTxtEditor::getPerPostAiMeta(get_the_ID());
-     */
-    public static function getPerPostAiMeta(int $postId): string
-    {
-        $allowAi = get_post_meta($postId, '_ameverywhere_ai_training_allow', true);
-        if ($allowAi === 'yes') {
-            return '<meta name="robots" content="ai">' . "\n";
-        }
+		header( 'TDM-Reservation: 1' );
+		header( 'X-Robots-Tag: noai, noimageai', false );
+	}
 
-        return '';
-    }
+	/**
+	 * Returns a static method that MetaTagsGenerator can call to add a per-post AI meta tag.
+	 * Usage in MetaTagsGenerator::getMetaTags(): echo RobotsTxtEditor::getPerPostAiMeta(get_the_ID());
+	 */
+	public static function getPerPostAiMeta( int $postId ): string {
+		$allowAi = get_post_meta( $postId, '_ameverywhere_ai_training_allow', true );
+		if ( $allowAi === 'yes' ) {
+			return '<meta name="robots" content="ai">' . "\n";
+		}
 
-    // ── Proactive HTTP-level AI bot blocking ──────────────────────────────────
+		return '';
+	}
 
-    public function proactiveBlockAiBots(): void
-    {
-        if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX) || (defined('REST_REQUEST') && REST_REQUEST)) {
-            return;
-        }
+	// ── Proactive HTTP-level AI bot blocking ──────────────────────────────────
 
-        if (get_option('ameverywhere_block_ai_bots', 'no') !== 'yes') {
-            return;
-        }
+	public function proactiveBlockAiBots(): void {
+		if ( is_admin() || ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			return;
+		}
 
-        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'])) : '';
-        if (empty($userAgent)) {
-            return;
-        }
+		if ( get_option( 'ameverywhere_block_ai_bots', 'no' ) !== 'yes' ) {
+			return;
+		}
 
-        foreach ($this->getMergedBotList() as $bot) {
-            if (stripos($userAgent, $bot) !== false) {
-                status_header(403);
-                header('Content-Type: text/html; charset=utf-8');
-                $siteName = esc_html(get_bloginfo('name'));
-                $homeUrl  = esc_url(home_url('/'));
-                echo "<!DOCTYPE html>
+		$userAgent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
+		if ( empty( $userAgent ) ) {
+			return;
+		}
+
+		foreach ( $this->getMergedBotList() as $bot ) {
+			if ( stripos( $userAgent, $bot ) !== false ) {
+				status_header( 403 );
+				header( 'Content-Type: text/html; charset=utf-8' );
+				$siteName = esc_html( get_bloginfo( 'name' ) );
+				$homeUrl  = esc_url( home_url( '/' ) );
+				echo "<!DOCTYPE html>
 <html lang=\"en\">
 <head>
 <meta charset=\"UTF-8\">
@@ -270,25 +281,27 @@ a:hover{background:#2563eb}
 </div>
 </body>
 </html>";
-                exit;
-            }
-        }
-    }
+				exit;
+			}
+		}
+	}
 
-    // ── Default robots.txt ────────────────────────────────────────────────────
+	// ── Default robots.txt ────────────────────────────────────────────────────
 
-    private function getDefaultRobotsTxt(): string
-    {
-        $siteUrl = site_url('/');
+	private function getDefaultRobotsTxt(): string {
+		$siteUrl = site_url( '/' );
 
-        return implode("\n", [
-            'User-agent: *',
-            'Disallow: /wp-admin/',
-            'Allow: /wp-admin/admin-ajax.php',
-            '',
-            'Sitemap: ' . $siteUrl . 'sitemap.xml',
-            'Sitemap: ' . $siteUrl . 'news-sitemap.xml',
-            '',
-        ]);
-    }
+		return implode(
+			"\n",
+			array(
+				'User-agent: *',
+				'Disallow: /wp-admin/',
+				'Allow: /wp-admin/admin-ajax.php',
+				'',
+				'Sitemap: ' . $siteUrl . 'sitemap.xml',
+				'Sitemap: ' . $siteUrl . 'news-sitemap.xml',
+				'',
+			)
+		);
+	}
 }

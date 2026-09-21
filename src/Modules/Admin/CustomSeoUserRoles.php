@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -15,132 +15,130 @@ if (!defined('ABSPATH')) {
  * - manage_redirects   → create/edit/delete redirect rules
  * - edit_seo_meta      → edit SEO meta fields per-post
  */
-class CustomSeoUserRoles
-{
-    private const CAPABILITIES = [
-        'manage_seo',
-        'view_seo_reports',
-        'manage_redirects',
-        'edit_seo_meta',
-    ];
+class CustomSeoUserRoles {
 
-    public static function activate(): void
-    {
-        self::addCapabilities();
-    }
+	private const CAPABILITIES = array(
+		'manage_seo',
+		'view_seo_reports',
+		'manage_redirects',
+		'edit_seo_meta',
+	);
 
-    public static function deactivate(): void
-    {
-        self::removeCapabilities();
-    }
+	public static function activate(): void {
+		self::addCapabilities();
+	}
 
-    public static function addCapabilities(): void
-    {
-        // Administrator: all capabilities
-        $admin = get_role('administrator');
-        if ($admin) {
-            foreach (self::CAPABILITIES as $cap) {
-                $admin->add_cap($cap, true);
-            }
-        }
+	public static function deactivate(): void {
+		self::removeCapabilities();
+	}
 
-        // Editor: everything except manage_seo (settings)
-        $editor = get_role('editor');
-        if ($editor) {
-            $editor->add_cap('view_seo_reports', true);
-            $editor->add_cap('manage_redirects', true);
-            $editor->add_cap('edit_seo_meta', true);
-        }
+	public static function addCapabilities(): void {
+		// Administrator: all capabilities
+		$admin = get_role( 'administrator' );
+		if ( $admin ) {
+			foreach ( self::CAPABILITIES as $cap ) {
+				$admin->add_cap( $cap, true );
+			}
+		}
 
-        // Author: can only edit SEO meta on their own posts
-        $author = get_role('author');
-        if ($author) {
-            $author->add_cap('edit_seo_meta', true);
-        }
-    }
+		// Editor: everything except manage_seo (settings)
+		$editor = get_role( 'editor' );
+		if ( $editor ) {
+			$editor->add_cap( 'view_seo_reports', true );
+			$editor->add_cap( 'manage_redirects', true );
+			$editor->add_cap( 'edit_seo_meta', true );
+		}
 
-    public static function removeCapabilities(): void
-    {
-        $roles = ['administrator', 'editor', 'author', 'contributor'];
-        foreach ($roles as $roleName) {
-            $role = get_role($roleName);
-            if ($role) {
-                foreach (self::CAPABILITIES as $cap) {
-                    $role->remove_cap($cap);
-                }
-            }
-        }
-    }
+		// Author: can only edit SEO meta on their own posts
+		$author = get_role( 'author' );
+		if ( $author ) {
+			$author->add_cap( 'edit_seo_meta', true );
+		}
+	}
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-        // Re-apply capabilities on every request in case they were reset
-        add_action('init', [static::class, 'addCapabilities']);
-    }
+	public static function removeCapabilities(): void {
+		$roles = array( 'administrator', 'editor', 'author', 'contributor' );
+		foreach ( $roles as $roleName ) {
+			$role = get_role( $roleName );
+			if ( $role ) {
+				foreach ( self::CAPABILITIES as $cap ) {
+					$role->remove_cap( $cap );
+				}
+			}
+		}
+	}
 
-    public function registerRoutes(): void
-    {
-        $adminCap = fn() => current_user_can('manage_options');
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+		// Re-apply capabilities on every request in case they were reset
+		add_action( 'init', array( static::class, 'addCapabilities' ) );
+	}
 
-        register_rest_route('ameverywhere/v1', '/roles/capabilities', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getCapabilities'],
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveCapabilities'],
-                'permission_callback' => $adminCap,
-            ],
-        ]);
-    }
+	public function registerRoutes(): void {
+		$adminCap = fn() => current_user_can( 'manage_options' );
 
-    public function getCapabilities(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $roles  = get_editable_roles();
-        $result = [];
+		register_rest_route(
+			'ameverywhere/v1',
+			'/roles/capabilities',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getCapabilities' ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveCapabilities' ),
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
+	}
 
-        foreach ($roles as $slug => $roleData) {
-            $result[$slug] = [
-                'label'       => $roleData['name'],
-                'capabilities' => array_filter($roleData['capabilities'], fn($k) => in_array($k, self::CAPABILITIES, true), ARRAY_FILTER_USE_KEY),
-            ];
-        }
+	public function getCapabilities( \WP_REST_Request $request ): \WP_REST_Response {
+		$roles  = get_editable_roles();
+		$result = array();
 
-        return rest_ensure_response([
-            'seo_capabilities' => self::CAPABILITIES,
-            'roles'            => $result,
-        ]);
-    }
+		foreach ( $roles as $slug => $roleData ) {
+			$result[ $slug ] = array(
+				'label'        => $roleData['name'],
+				'capabilities' => array_filter( $roleData['capabilities'], fn( $k ) => in_array( $k, self::CAPABILITIES, true ), ARRAY_FILTER_USE_KEY ),
+			);
+		}
 
-    public function saveCapabilities(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
+		return rest_ensure_response(
+			array(
+				'seo_capabilities' => self::CAPABILITIES,
+				'roles'            => $result,
+			)
+		);
+	}
 
-        // Params: { role_slug: { cap: true|false, ... }, ... }
-        foreach ($params as $roleSlug => $caps) {
-            $roleSlug = sanitize_key($roleSlug);
-            if ($roleSlug === 'administrator') {
-                continue; // Never downgrade administrators
-            }
-            $role = get_role($roleSlug);
-            if (!$role || !is_array($caps)) {
-                continue;
-            }
-            foreach ($caps as $cap => $granted) {
-                if (!in_array($cap, self::CAPABILITIES, true)) {
-                    continue; // Only allow SEO-specific capabilities
-                }
-                if ($granted) {
-                    $role->add_cap($cap, true);
-                } else {
-                    $role->remove_cap($cap);
-                }
-            }
-        }
+	public function saveCapabilities( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
 
-        return rest_ensure_response(['success' => true]);
-    }
+		// Params: { role_slug: { cap: true|false, ... }, ... }
+		foreach ( $params as $roleSlug => $caps ) {
+			$roleSlug = sanitize_key( $roleSlug );
+			if ( $roleSlug === 'administrator' ) {
+				continue; // Never downgrade administrators
+			}
+			$role = get_role( $roleSlug );
+			if ( ! $role || ! is_array( $caps ) ) {
+				continue;
+			}
+			foreach ( $caps as $cap => $granted ) {
+				if ( ! in_array( $cap, self::CAPABILITIES, true ) ) {
+					continue; // Only allow SEO-specific capabilities
+				}
+				if ( $granted ) {
+					$role->add_cap( $cap, true );
+				} else {
+					$role->remove_cap( $cap );
+				}
+			}
+		}
+
+		return rest_ensure_response( array( 'success' => true ) );
+	}
 }

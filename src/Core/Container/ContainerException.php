@@ -2,10 +2,10 @@
 
 namespace AmEveryWhere\Core\Container;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-class ContainerException extends \RuntimeException
-{
+class ContainerException extends \RuntimeException {
+
 }

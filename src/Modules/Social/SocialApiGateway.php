@@ -77,7 +77,7 @@ class SocialApiGateway
             'access_token' => $token
         ];
 
-        $response = wp_remote_post($apiUrl, [
+        $response = wp_safe_remote_post($apiUrl, [
             'body' => $body
         ]);
 
@@ -108,7 +108,7 @@ class SocialApiGateway
             'text' => $message . "\n" . $url
         ];
 
-        $response = wp_remote_post($apiUrl, [
+        $response = wp_safe_remote_post($apiUrl, [
             'headers' => [
                 'Authorization' => 'Bearer ' . $token,
                 'Content-Type' => 'application/json'
@@ -136,7 +136,7 @@ class SocialApiGateway
 
     private function shareLinkedIn(string $token, string $message, string $url): array
     {
-        $meResponse = wp_remote_get('https://api.linkedin.com/v2/userinfo', [
+        $meResponse = wp_safe_remote_get('https://api.linkedin.com/v2/userinfo', [
             'headers' => ['Authorization' => 'Bearer ' . $token]
         ]);
         
@@ -171,7 +171,7 @@ class SocialApiGateway
             'isReshareDisabledByAuthor' => false,
         ];
 
-        $response = wp_remote_post($apiUrl, [
+        $response = wp_safe_remote_post($apiUrl, [
             'headers' => [
                 'Authorization'            => 'Bearer ' . $token,
                 'Content-Type'             => 'application/json',
@@ -208,7 +208,7 @@ class SocialApiGateway
             'visibility' => ['com.linkedin.ugc.MemberNetworkVisibility' => 'PUBLIC'],
         ];
 
-        $legacyResponse = wp_remote_post($legacyApiUrl, [
+        $legacyResponse = wp_safe_remote_post($legacyApiUrl, [
             'headers' => [
                 'Authorization'            => 'Bearer ' . $token,
                 'Content-Type'             => 'application/json',
@@ -239,7 +239,7 @@ class SocialApiGateway
 
     private function sharePinterest(string $token, string $message, string $url): array
     {
-        $boardsRes = wp_remote_get('https://api.pinterest.com/v5/boards', [
+        $boardsRes = wp_safe_remote_get('https://api.pinterest.com/v5/boards', [
              'headers' => ['Authorization' => 'Bearer ' . $token]
         ]);
         if (is_wp_error($boardsRes)) {
@@ -261,7 +261,7 @@ class SocialApiGateway
             'link' => $url
         ];
 
-        $response = wp_remote_post($apiUrl, [
+        $response = wp_safe_remote_post($apiUrl, [
             'headers' => [
                 'Authorization' => 'Bearer ' . $token,
                 'Content-Type' => 'application/json'

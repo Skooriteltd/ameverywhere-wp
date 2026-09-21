@@ -2,95 +2,96 @@
 
 namespace AmEveryWhere\Modules\Social;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Security\KeyVault;
 
-class SocialAccountManager
-{
-    private const OPTION_KEY = 'ameverywhere_social_accounts';
+class SocialAccountManager {
 
-    public function getAccounts(): array
-    {
-        $accounts = get_option(self::OPTION_KEY, []);
-        return is_array($accounts) ? $accounts : [];
-    }
+	private const OPTION_KEY = 'ameverywhere_social_accounts';
 
-    public function getAccountsByNetwork(string $network): array
-    {
-        return array_filter($this->getAccounts(), function ($account) use ($network) {
-            return $account['network'] === $network;
-        });
-    }
+	public function getAccounts(): array {
+		$accounts = get_option( self::OPTION_KEY, array() );
+		return is_array( $accounts ) ? $accounts : array();
+	}
 
-    public function saveAccount(array $accountData): void
-    {
-        $accounts = $this->getAccounts();
-        
-        // Use a standard unique ID based on network and uuid
-        $accountId = $accountData['id'] ?? (($accountData['network'] ?? 'account') . '_' . (function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('', true)));
-        $accountData['id'] = $accountId;
+	public function getAccountsByNetwork( string $network ): array {
+		return array_filter(
+			$this->getAccounts(),
+			function ( $account ) use ( $network ) {
+				return $account['network'] === $network;
+			}
+		);
+	}
 
-        if (!empty($accountData['access_token'])) {
-            $accountData['access_token'] = KeyVault::encrypt($accountData['access_token']);
-        }
+	public function saveAccount( array $accountData ): void {
+		$accounts = $this->getAccounts();
 
-        // Check if exists, update or append
-        $exists = false;
-        foreach ($accounts as $index => $acc) {
-            if ($acc['id'] === $accountId) {
-                $accounts[$index] = array_merge($acc, $accountData);
-                $exists = true;
-                break;
-            }
-        }
+		// Use a standard unique ID based on network and uuid
+		$accountId         = $accountData['id'] ?? ( ( $accountData['network'] ?? 'account' ) . '_' . ( function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : uniqid( '', true ) ) );
+		$accountData['id'] = $accountId;
 
-        if (!$exists) {
-            $accounts[] = $accountData;
-        }
+		if ( ! empty( $accountData['access_token'] ) ) {
+			$accountData['access_token'] = KeyVault::encrypt( $accountData['access_token'] );
+		}
 
-        update_option(self::OPTION_KEY, $accounts);
-    }
+		// Check if exists, update or append
+		$exists = false;
+		foreach ( $accounts as $index => $acc ) {
+			if ( $acc['id'] === $accountId ) {
+				$accounts[ $index ] = array_merge( $acc, $accountData );
+				$exists             = true;
+				break;
+			}
+		}
 
-    public function deleteAccount(string $accountId): bool
-    {
-        $accounts = $this->getAccounts();
-        $initialCount = count($accounts);
+		if ( ! $exists ) {
+			$accounts[] = $accountData;
+		}
 
-        $accounts = array_filter($accounts, function ($account) use ($accountId) {
-            return $account['id'] !== $accountId;
-        });
+		update_option( self::OPTION_KEY, $accounts );
+	}
 
-        if (count($accounts) !== $initialCount) {
-            update_option(self::OPTION_KEY, array_values($accounts));
-            return true;
-        }
+	public function deleteAccount( string $accountId ): bool {
+		$accounts     = $this->getAccounts();
+		$initialCount = count( $accounts );
 
-        return false;
-    }
+		$accounts = array_filter(
+			$accounts,
+			function ( $account ) use ( $accountId ) {
+				return $account['id'] !== $accountId;
+			}
+		);
 
-    public function updateAccount(string $accountId, array $data): bool
-    {
-        $accounts = $this->getAccounts();
-        $updated = false;
+		if ( count( $accounts ) !== $initialCount ) {
+			update_option( self::OPTION_KEY, array_values( $accounts ) );
+			return true;
+		}
 
-        foreach ($accounts as $index => $acc) {
-            if ($acc['id'] === $accountId) {
-                // Ensure we don't overwrite id, network, or access_token with empty values
-                unset($data['id'], $data['network'], $data['access_token']);
-                $accounts[$index] = array_merge($acc, $data);
-                $updated = true;
-                break;
-            }
-        }
+		return false;
+	}
 
-        if ($updated) {
-            update_option(self::OPTION_KEY, $accounts);
-            return true;
-        }
+	public function updateAccount( string $accountId, array $data ): bool {
+		$accounts = $this->getAccounts();
+		$updated  = false;
 
-        return false;
-    }
+		foreach ( $accounts as $index => $acc ) {
+			if ( $acc['id'] === $accountId ) {
+				// Ensure we don't overwrite id, network, or access_token with empty values
+				unset( $data['id'], $data['network'], $data['access_token'] );
+				$accounts[ $index ] = array_merge( $acc, $data );
+				$updated            = true;
+				break;
+			}
+		}
+
+		if ( $updated ) {
+			update_option( self::OPTION_KEY, $accounts );
+			return true;
+		}
+
+		return false;
+	}
 }

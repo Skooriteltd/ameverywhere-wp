@@ -2,41 +2,39 @@
 
 namespace AmEveryWhere\Core\Container;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-class Container
-{
-    private array $instances = [];
-    private array $bindings = [];
+class Container {
 
-    public function singleton(string $abstract, $concrete = null): void
-    {
-        if ($concrete === null) {
-            $concrete = $abstract;
-        }
+	private array $instances = array();
+	private array $bindings  = array();
 
-        if ($concrete instanceof \Closure) {
-            $this->bindings[$abstract] = $concrete;
-        } else {
-            $this->bindings[$abstract] = function () use ($concrete) {
-                return new $concrete();
-            };
-        }
-    }
+	public function singleton( string $abstract, $concrete = null ): void {
+		if ( $concrete === null ) {
+			$concrete = $abstract;
+		}
 
-    public function get(string $abstract)
-    {
-        if (isset($this->instances[$abstract])) {
-            return $this->instances[$abstract];
-        }
+		if ( $concrete instanceof \Closure ) {
+			$this->bindings[ $abstract ] = $concrete;
+		} else {
+			$this->bindings[ $abstract ] = function () use ( $concrete ) {
+				return new $concrete();
+			};
+		}
+	}
 
-        if (isset($this->bindings[$abstract])) {
-            $this->instances[$abstract] = $this->bindings[$abstract]();
-            return $this->instances[$abstract];
-        }
+	public function get( string $abstract ) {
+		if ( isset( $this->instances[ $abstract ] ) ) {
+			return $this->instances[ $abstract ];
+		}
 
-        throw new ContainerException("No binding found for {$abstract}");
-    }
+		if ( isset( $this->bindings[ $abstract ] ) ) {
+			$this->instances[ $abstract ] = $this->bindings[ $abstract ]();
+			return $this->instances[ $abstract ];
+		}
+
+		throw new ContainerException( "No binding found for {$abstract}" );
+	}
 }

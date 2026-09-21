@@ -2,302 +2,321 @@
 
 namespace AmEveryWhere\Core\Ai;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Security\KeyVault;
 use AmEveryWhere\Core\Api\BackendApiClient;
 use AmEveryWhere\Modules\Ai\UsageMeteringManager;
 
-class AiGateway
-{
-    private BackendApiClient $apiClient;
+class AiGateway {
 
-    public function __construct(?BackendApiClient $apiClient = null)
-    {
-        $this->apiClient = $apiClient ?: new BackendApiClient();
-    }
+	private BackendApiClient $apiClient;
 
-    /**
-     * Encrypt sensitive data using KeyVault.
-     */
-    public function encrypt(string $data): string
-    {
-        return KeyVault::encrypt($data);
-    }
+	public function __construct( ?BackendApiClient $apiClient = null ) {
+		$this->apiClient = $apiClient ?: new BackendApiClient();
+	}
 
-    /**
-     * Decrypt sensitive data using KeyVault.
-     */
-    public function decrypt(string $data): string
-    {
-        return KeyVault::decrypt($data);
-    }
+	/**
+	 * Encrypt sensitive data using KeyVault.
+	 */
+	public function encrypt( string $data ): string {
+		return KeyVault::encrypt( $data );
+	}
 
-    /**
-     * Route generative prompts dynamically to the Backend API (cloud) or selected BYOK provider.
-     */
-    public function queryModel(string $prompt, string $systemPrompt = 'You are a helpful SEO writing assistant.'): array
-    {
-        // 1. If Backend API key is configured, offload heavy computation to Backend API
-        if ($this->apiClient->isConfigured()) {
-            $remoteResult = $this->apiClient->generateAi([
-                'prompt'        => $prompt,
-                'system_prompt' => $systemPrompt,
-            ]);
+	/**
+	 * Decrypt sensitive data using KeyVault.
+	 */
+	public function decrypt( string $data ): string {
+		return KeyVault::decrypt( $data );
+	}
 
-            if (!empty($remoteResult['success'])) {
-                return [
-                    'success' => true,
-                    'text'    => $remoteResult['data']['text'] ?? '',
-                ];
-            }
+	/**
+	 * Route generative prompts dynamically to the Backend API (cloud) or selected BYOK provider.
+	 */
+	public function queryModel( string $prompt, string $systemPrompt = 'You are a helpful SEO writing assistant.' ): array {
+		// 1. If Backend API key is configured, offload heavy computation to Backend API
+		if ( $this->apiClient->isConfigured() ) {
+			$remoteResult = $this->apiClient->generateAi(
+				array(
+					'prompt'        => $prompt,
+					'system_prompt' => $systemPrompt,
+				)
+			);
 
-            // If remote result failed with a non-fallback error, return the error
-            if (empty($remoteResult['fallback'])) {
-                return $remoteResult;
-            }
-        }
+			if ( ! empty( $remoteResult['success'] ) ) {
+				return array(
+					'success' => true,
+					'text'    => $remoteResult['data']['text'] ?? '',
+				);
+			}
 
-        // 2. BYOK (Bring Your Own Key) Fallback Mode
-        $provider = get_option('ameverywhere_ai_provider');
-        if (!$provider) {
-            $provider = get_option('ameverywhere_ai_provider', 'openai');
-        }
+			// If remote result failed with a non-fallback error, return the error
+			if ( empty( $remoteResult['fallback'] ) ) {
+				return $remoteResult;
+			}
+		}
 
-        $userId = get_current_user_id();
-        $metering = class_exists(UsageMeteringManager::class) ? UsageMeteringManager::getInstance() : null;
-        if ($userId && $metering && !$metering->checkLimit($userId, $provider)) {
-            return [
-                'success' => false,
-                'message' => __('AI token usage limit exceeded for this billing cycle.', 'ameverywhere')
-            ];
-        }
+		// 2. BYOK (Bring Your Own Key) Fallback Mode
+		$provider = get_option( 'ameverywhere_ai_provider' );
+		if ( ! $provider ) {
+			$provider = get_option( 'ameverywhere_ai_provider', 'openai' );
+		}
 
-        $result = match ($provider) {
-            'openai'    => $this->queryOpenAi($prompt, $systemPrompt),
-            'anthropic' => $this->queryAnthropic($prompt, $systemPrompt),
-            'ollama'    => $this->queryOllama($prompt, $systemPrompt),
-            default     => [
-                'success' => false,
-                'message' => __('Invalid AI provider selected.', 'ameverywhere')
-            ],
-        };
+		$userId   = get_current_user_id();
+		$metering = class_exists( UsageMeteringManager::class ) ? UsageMeteringManager::getInstance() : null;
+		if ( $userId && $metering && ! $metering->checkLimit( $userId, $provider ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'AI token usage limit exceeded for this billing cycle.', 'ameverywhere' ),
+			);
+		}
 
-        if ($userId && $metering && !empty($result['success'])) {
-            $tokensUsed = (int) ceil((strlen($prompt . $systemPrompt) + strlen($result['text'] ?? '')) / 4);
-            $metering->record($userId, $provider, 'content_assistant', $tokensUsed);
-        }
+		$result = match ( $provider ) {
+			'openai'    => $this->queryOpenAi( $prompt, $systemPrompt ),
+			'anthropic' => $this->queryAnthropic( $prompt, $systemPrompt ),
+			'ollama'    => $this->queryOllama( $prompt, $systemPrompt ),
+			default     => array(
+				'success' => false,
+				'message' => __( 'Invalid AI provider selected.', 'ameverywhere' ),
+			),
+		};
 
-        return $result;
-    }
+		if ( $userId && $metering && ! empty( $result['success'] ) ) {
+			$tokensUsed = (int) ceil( ( strlen( $prompt . $systemPrompt ) + strlen( $result['text'] ?? '' ) ) / 4 );
+			$metering->record( $userId, $provider, 'content_assistant', $tokensUsed );
+		}
 
-    /**
-     * Query OpenAI Chat Completions API.
-     */
-    private function queryOpenAi(string $prompt, string $systemPrompt): array
-    {
-        $encryptedKey = get_option('ameverywhere_openai_key', '');
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_openai_api_key', '');
-        }
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_openai_key', '');
-        }
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_openai_api_key', '');
-        }
-        $apiKey = KeyVault::decrypt($encryptedKey);
+		return $result;
+	}
 
-        if (empty($apiKey)) {
-            return [
-                'success' => false,
-                'message' => __('OpenAI API key is missing or not configured.', 'ameverywhere')
-            ];
-        }
+	/**
+	 * Query OpenAI Chat Completions API.
+	 */
+	private function queryOpenAi( string $prompt, string $systemPrompt ): array {
+		$encryptedKey = get_option( 'ameverywhere_openai_key', '' );
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_openai_api_key', '' );
+		}
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_openai_key', '' );
+		}
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_openai_api_key', '' );
+		}
+		$apiKey = KeyVault::decrypt( $encryptedKey );
 
-        $model = get_option('ameverywhere_openai_model');
-        if (!$model) {
-            $model = get_option('ameverywhere_openai_model', 'gpt-4o-mini');
-        }
+		if ( empty( $apiKey ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'OpenAI API key is missing or not configured.', 'ameverywhere' ),
+			);
+		}
 
-        $url = 'https://api.openai.com/v1/chat/completions';
-        $body = [
-            'model' => $model,
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $prompt]
-            ],
-            'temperature' => 0.7,
-            'max_tokens' => 1000
-        ];
+		$model = get_option( 'ameverywhere_openai_model' );
+		if ( ! $model ) {
+			$model = get_option( 'ameverywhere_openai_model', 'gpt-4o-mini' );
+		}
 
-        $response = wp_remote_post($url, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type' => 'application/json'
-            ],
-            'body' => json_encode($body),
-            'timeout' => 30
-        ]);
+		$url  = 'https://api.openai.com/v1/chat/completions';
+		$body = array(
+			'model'       => $model,
+			'messages'    => array(
+				array(
+					'role'    => 'system',
+					'content' => $systemPrompt,
+				),
+				array(
+					'role'    => 'user',
+					'content' => $prompt,
+				),
+			),
+			'temperature' => 0.7,
+			'max_tokens'  => 1000,
+		);
 
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => $response->get_error_message()
-            ];
-        }
+		$response = wp_safe_remote_post(
+			$url,
+			array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $apiKey,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => json_encode( $body ),
+				'timeout' => 30,
+			)
+		);
 
-        $responseCode = wp_remote_retrieve_response_code($response);
-        $responseBody = wp_remote_retrieve_body($response);
-        $data = json_decode($responseBody, true);
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'success' => false,
+				'message' => $response->get_error_message(),
+			);
+		}
 
-        if ($responseCode !== 200) {
-            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('OpenAI API Error.', 'ameverywhere');
-            return [
-                'success' => false,
-                'message' => $errMsg
-            ];
-        }
+		$responseCode = wp_remote_retrieve_response_code( $response );
+		$responseBody = wp_remote_retrieve_body( $response );
+		$data         = json_decode( $responseBody, true );
 
-        $content = isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '';
-        return [
-            'success' => true,
-            'text' => trim($content)
-        ];
-    }
+		if ( $responseCode !== 200 ) {
+			$errMsg = isset( $data['error']['message'] ) ? $data['error']['message'] : __( 'OpenAI API Error.', 'ameverywhere' );
+			return array(
+				'success' => false,
+				'message' => $errMsg,
+			);
+		}
 
-    /**
-     * Query Anthropic Messages API.
-     */
-    private function queryAnthropic(string $prompt, string $systemPrompt): array
-    {
-        $encryptedKey = get_option('ameverywhere_anthropic_key', '');
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_anthropic_api_key', '');
-        }
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_anthropic_key', '');
-        }
-        if (empty($encryptedKey)) {
-            $encryptedKey = get_option('ameverywhere_anthropic_api_key', '');
-        }
-        $apiKey = KeyVault::decrypt($encryptedKey);
+		$content = isset( $data['choices'][0]['message']['content'] ) ? $data['choices'][0]['message']['content'] : '';
+		return array(
+			'success' => true,
+			'text'    => trim( $content ),
+		);
+	}
 
-        if (empty($apiKey)) {
-            return [
-                'success' => false,
-                'message' => __('Anthropic API key is missing or not configured.', 'ameverywhere')
-            ];
-        }
+	/**
+	 * Query Anthropic Messages API.
+	 */
+	private function queryAnthropic( string $prompt, string $systemPrompt ): array {
+		$encryptedKey = get_option( 'ameverywhere_anthropic_key', '' );
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_anthropic_api_key', '' );
+		}
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_anthropic_key', '' );
+		}
+		if ( empty( $encryptedKey ) ) {
+			$encryptedKey = get_option( 'ameverywhere_anthropic_api_key', '' );
+		}
+		$apiKey = KeyVault::decrypt( $encryptedKey );
 
-        $model = get_option('ameverywhere_anthropic_model');
-        if (!$model) {
-            $model = get_option('ameverywhere_anthropic_model', 'claude-3-5-sonnet-20241022');
-        }
+		if ( empty( $apiKey ) ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Anthropic API key is missing or not configured.', 'ameverywhere' ),
+			);
+		}
 
-        $url = 'https://api.anthropic.com/v1/messages';
-        $body = [
-            'model' => $model,
-            'max_tokens' => 1000,
-            'system' => $systemPrompt,
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt]
-            ],
-            'temperature' => 0.7
-        ];
+		$model = get_option( 'ameverywhere_anthropic_model' );
+		if ( ! $model ) {
+			$model = get_option( 'ameverywhere_anthropic_model', 'claude-3-5-sonnet-20241022' );
+		}
 
-        $response = wp_remote_post($url, [
-            'headers' => [
-                'x-api-key' => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'Content-Type' => 'application/json'
-            ],
-            'body' => json_encode($body),
-            'timeout' => 30
-        ]);
+		$url  = 'https://api.anthropic.com/v1/messages';
+		$body = array(
+			'model'       => $model,
+			'max_tokens'  => 1000,
+			'system'      => $systemPrompt,
+			'messages'    => array(
+				array(
+					'role'    => 'user',
+					'content' => $prompt,
+				),
+			),
+			'temperature' => 0.7,
+		);
 
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => $response->get_error_message()
-            ];
-        }
+		$response = wp_safe_remote_post(
+			$url,
+			array(
+				'headers' => array(
+					'x-api-key'         => $apiKey,
+					'anthropic-version' => '2023-06-01',
+					'Content-Type'      => 'application/json',
+				),
+				'body'    => json_encode( $body ),
+				'timeout' => 30,
+			)
+		);
 
-        $responseCode = wp_remote_retrieve_response_code($response);
-        $responseBody = wp_remote_retrieve_body($response);
-        $data = json_decode($responseBody, true);
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'success' => false,
+				'message' => $response->get_error_message(),
+			);
+		}
 
-        if ($responseCode !== 200) {
-            $errMsg = isset($data['error']['message']) ? $data['error']['message'] : __('Anthropic API Error.', 'ameverywhere');
-            return [
-                'success' => false,
-                'message' => $errMsg
-            ];
-        }
+		$responseCode = wp_remote_retrieve_response_code( $response );
+		$responseBody = wp_remote_retrieve_body( $response );
+		$data         = json_decode( $responseBody, true );
 
-        $content = isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '';
-        return [
-            'success' => true,
-            'text' => trim($content)
-        ];
-    }
+		if ( $responseCode !== 200 ) {
+			$errMsg = isset( $data['error']['message'] ) ? $data['error']['message'] : __( 'Anthropic API Error.', 'ameverywhere' );
+			return array(
+				'success' => false,
+				'message' => $errMsg,
+			);
+		}
 
-    /**
-     * Query local Ollama API.
-     */
-    private function queryOllama(string $prompt, string $systemPrompt): array
-    {
-        $ollamaUrl = get_option('ameverywhere_ollama_url');
-        if (!$ollamaUrl) {
-            $ollamaUrl = get_option('ameverywhere_ollama_url', 'http://localhost:11434');
-        }
-        $ollamaUrl = rtrim($ollamaUrl, '/');
-        
-        $url = $ollamaUrl . '/api/chat';
-        $body = [
-            'model' => 'llama3',
-            'messages' => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user', 'content' => $prompt]
-            ],
-            'options' => [
-                'temperature' => 0.7
-            ],
-            'stream' => false
-        ];
+		$content = isset( $data['content'][0]['text'] ) ? $data['content'][0]['text'] : '';
+		return array(
+			'success' => true,
+			'text'    => trim( $content ),
+		);
+	}
 
-        $response = wp_remote_post($url, [
-            'headers' => [
-                'Content-Type' => 'application/json'
-            ],
-            'body' => json_encode($body),
-            'timeout' => 30
-        ]);
+	/**
+	 * Query local Ollama API.
+	 */
+	private function queryOllama( string $prompt, string $systemPrompt ): array {
+		$ollamaUrl = get_option( 'ameverywhere_ollama_url' );
+		if ( ! $ollamaUrl ) {
+			$ollamaUrl = get_option( 'ameverywhere_ollama_url', 'http://localhost:11434' );
+		}
+		$ollamaUrl = rtrim( $ollamaUrl, '/' );
 
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => sprintf(__('Ollama Connection Error: %s', 'ameverywhere'), $response->get_error_message())
-            ];
-        }
+		$url  = $ollamaUrl . '/api/chat';
+		$body = array(
+			'model'    => 'llama3',
+			'messages' => array(
+				array(
+					'role'    => 'system',
+					'content' => $systemPrompt,
+				),
+				array(
+					'role'    => 'user',
+					'content' => $prompt,
+				),
+			),
+			'options'  => array(
+				'temperature' => 0.7,
+			),
+			'stream'   => false,
+		);
 
-        $responseCode = wp_remote_retrieve_response_code($response);
-        $responseBody = wp_remote_retrieve_body($response);
-        $data = json_decode($responseBody, true);
+		$response = wp_safe_remote_post(
+			$url,
+			array(
+				'headers' => array(
+					'Content-Type' => 'application/json',
+				),
+				'body'    => json_encode( $body ),
+				'timeout' => 30,
+			)
+		);
 
-        if ($responseCode !== 200) {
-            return [
-                'success' => false,
-                'message' => __('Ollama local instance returned an error.', 'ameverywhere')
-            ];
-        }
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'success' => false,
+				'message' => sprintf( __( 'Ollama Connection Error: %s', 'ameverywhere' ), $response->get_error_message() ),
+			);
+		}
 
-        $content = isset($data['message']['content']) ? $data['message']['content'] : '';
-        return [
-            'success' => true,
-            'text' => trim($content)
-        ];
-    }
+		$responseCode = wp_remote_retrieve_response_code( $response );
+		$responseBody = wp_remote_retrieve_body( $response );
+		$data         = json_decode( $responseBody, true );
+
+		if ( $responseCode !== 200 ) {
+			return array(
+				'success' => false,
+				'message' => __( 'Ollama local instance returned an error.', 'ameverywhere' ),
+			);
+		}
+
+		$content = isset( $data['message']['content'] ) ? $data['message']['content'] : '';
+		return array(
+			'success' => true,
+			'text'    => trim( $content ),
+		);
+	}
 }

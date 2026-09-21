@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -16,205 +16,204 @@ if (!defined('ABSPATH')) {
  *
  * BL-020
  */
-class SchemaOutputValidator
-{
-    private const CACHE_TTL = HOUR_IN_SECONDS;
+class SchemaOutputValidator {
 
-    /** Minimum required properties per schema @type */
-    private const REQUIRED_PROPS = [
-        'Article'          => ['headline', 'author', 'datePublished'],
-        'NewsArticle'      => ['headline', 'author', 'datePublished'],
-        'BlogPosting'      => ['headline', 'author', 'datePublished'],
-        'Product'          => ['name', 'offers'],
-        'FAQPage'          => ['mainEntity'],
-        'HowTo'            => ['name', 'step'],
-        'LocalBusiness'    => ['name', 'address'],
-        'Recipe'           => ['name', 'recipeIngredient', 'recipeInstructions'],
-        'Event'            => ['name', 'startDate', 'location'],
-        'Person'           => ['name'],
-        'Organization'     => ['name'],
-        'BreadcrumbList'   => ['itemListElement'],
-        'VideoObject'      => ['name', 'description', 'thumbnailUrl', 'uploadDate'],
-        'ImageObject'      => ['url'],
-        'Review'           => ['reviewRating', 'author'],
-        'JobPosting'       => ['title', 'description', 'datePosted', 'hiringOrganization'],
-    ];
+	private const CACHE_TTL = HOUR_IN_SECONDS;
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	/** Minimum required properties per schema @type */
+	private const REQUIRED_PROPS = array(
+		'Article'        => array( 'headline', 'author', 'datePublished' ),
+		'NewsArticle'    => array( 'headline', 'author', 'datePublished' ),
+		'BlogPosting'    => array( 'headline', 'author', 'datePublished' ),
+		'Product'        => array( 'name', 'offers' ),
+		'FAQPage'        => array( 'mainEntity' ),
+		'HowTo'          => array( 'name', 'step' ),
+		'LocalBusiness'  => array( 'name', 'address' ),
+		'Recipe'         => array( 'name', 'recipeIngredient', 'recipeInstructions' ),
+		'Event'          => array( 'name', 'startDate', 'location' ),
+		'Person'         => array( 'name' ),
+		'Organization'   => array( 'name' ),
+		'BreadcrumbList' => array( 'itemListElement' ),
+		'VideoObject'    => array( 'name', 'description', 'thumbnailUrl', 'uploadDate' ),
+		'ImageObject'    => array( 'url' ),
+		'Review'         => array( 'reviewRating', 'author' ),
+		'JobPosting'     => array( 'title', 'description', 'datePosted', 'hiringOrganization' ),
+	);
 
-    public function registerRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/schema/validate', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'validateSchema'],
-            'permission_callback' => fn() => current_user_can('edit_posts'),
-        ]);
-    }
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-    public function validateSchema(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
-    {
-        $params = $request->get_json_params();
-        $postId = absint($params['post_id'] ?? 0);
-        $url    = sanitize_url($params['url'] ?? '');
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/schema/validate',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'validateSchema' ),
+				'permission_callback' => fn() => current_user_can( 'edit_posts' ),
+			)
+		);
+	}
 
-        if ($postId > 0) {
-            $url = get_permalink($postId);
-        }
+	public function validateSchema( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$params = $request->get_json_params();
+		$postId = absint( $params['post_id'] ?? 0 );
+		$url    = sanitize_url( $params['url'] ?? '' );
 
-        if (empty($url)) {
-            return new \WP_Error('missing_target', 'Provide post_id or url.', ['status' => 400]);
-        }
+		if ( $postId > 0 ) {
+			$url = get_permalink( $postId );
+		}
 
-        if (!$this->isLocalUrl($url)) {
-            return new \WP_Error('invalid_target', __('Schema validation accepts only URLs on this WordPress site.', 'ameverywhere'), ['status' => 400]);
-        }
+		if ( empty( $url ) ) {
+			return new \WP_Error( 'missing_target', 'Provide post_id or url.', array( 'status' => 400 ) );
+		}
 
-        $cacheKey = 'ameverywhere_schema_validation_' . md5($url);
-        $cached   = get_transient($cacheKey);
-        if ($cached !== false) {
-            return rest_ensure_response(array_merge($cached, ['cached' => true]));
-        }
+		if ( ! $this->isLocalUrl( $url ) ) {
+			return new \WP_Error( 'invalid_target', __( 'Schema validation accepts only URLs on this WordPress site.', 'ameverywhere' ), array( 'status' => 400 ) );
+		}
 
-        $result = $this->runValidation($url);
-        set_transient($cacheKey, $result, self::CACHE_TTL);
+		$cacheKey = 'ameverywhere_schema_validation_' . md5( $url );
+		$cached   = get_transient( $cacheKey );
+		if ( $cached !== false ) {
+			return rest_ensure_response( array_merge( $cached, array( 'cached' => true ) ) );
+		}
 
-        return rest_ensure_response(array_merge($result, ['cached' => false]));
-    }
+		$result = $this->runValidation( $url );
+		set_transient( $cacheKey, $result, self::CACHE_TTL );
 
-    // ── Validation engine ─────────────────────────────────────────────────────
+		return rest_ensure_response( array_merge( $result, array( 'cached' => false ) ) );
+	}
 
-    private function runValidation(string $url): array
-    {
-        // Fetch the rendered page
-        $response = wp_safe_remote_get($url, [
-            'timeout'    => 20,
-            'redirection' => 3,
-            'limit_response_size' => 2 * MB_IN_BYTES,
-            'user-agent' => 'AmEveryWhere Schema Validator/1.0',
-        ]);
+	// ── Validation engine ─────────────────────────────────────────────────────
 
-        if (is_wp_error($response)) {
-            return [
-                'url'           => $url,
-                'error'         => 'Could not fetch page: ' . $response->get_error_message(),
-                'schemas_found' => [],
-                'google_test_url' => $this->googleTestUrl($url),
-                'validated_at'  => current_time('mysql'),
-            ];
-        }
+	private function runValidation( string $url ): array {
+		// Fetch the rendered page
+		$response = wp_safe_remote_get(
+			$url,
+			array(
+				'timeout'             => 20,
+				'redirection'         => 3,
+				'limit_response_size' => 2 * MB_IN_BYTES,
+				'user-agent'          => 'AmEveryWhere Schema Validator/1.0',
+			)
+		);
 
-        $html   = wp_remote_retrieve_body($response);
-        $blocks = $this->extractJsonLdBlocks($html);
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'url'             => $url,
+				'error'           => 'Could not fetch page: ' . $response->get_error_message(),
+				'schemas_found'   => array(),
+				'google_test_url' => $this->googleTestUrl( $url ),
+				'validated_at'    => current_time( 'mysql' ),
+			);
+		}
 
-        $schemasFound = [];
-        foreach ($blocks as $json) {
-            $decoded = json_decode($json, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-                $schemasFound[] = [
-                    'type'   => 'unknown',
-                    'valid'  => false,
-                    'errors' => ['Invalid JSON: ' . json_last_error_msg()],
-                    'warnings' => [],
-                    'raw_snippet' => mb_substr($json, 0, 200),
-                ];
-                continue;
-            }
+		$html   = wp_remote_retrieve_body( $response );
+		$blocks = $this->extractJsonLdBlocks( $html );
 
-            // Handle @graph arrays
-            if (isset($decoded['@graph']) && is_array($decoded['@graph'])) {
-                foreach ($decoded['@graph'] as $item) {
-                    $schemasFound[] = $this->validateBlock($item);
-                }
-            } else {
-                $schemasFound[] = $this->validateBlock($decoded);
-            }
-        }
+		$schemasFound = array();
+		foreach ( $blocks as $json ) {
+			$decoded = json_decode( $json, true );
+			if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $decoded ) ) {
+				$schemasFound[] = array(
+					'type'        => 'unknown',
+					'valid'       => false,
+					'errors'      => array( 'Invalid JSON: ' . json_last_error_msg() ),
+					'warnings'    => array(),
+					'raw_snippet' => mb_substr( $json, 0, 200 ),
+				);
+				continue;
+			}
 
-        return [
-            'url'             => $url,
-            'schemas_found'   => $schemasFound,
-            'total_schemas'   => count($schemasFound),
-            'total_errors'    => array_sum(array_map(fn($s) => count($s['errors']), $schemasFound)),
-            'google_test_url' => $this->googleTestUrl($url),
-            'validated_at'    => current_time('mysql'),
-        ];
-    }
+			// Handle @graph arrays
+			if ( isset( $decoded['@graph'] ) && is_array( $decoded['@graph'] ) ) {
+				foreach ( $decoded['@graph'] as $item ) {
+					$schemasFound[] = $this->validateBlock( $item );
+				}
+			} else {
+				$schemasFound[] = $this->validateBlock( $decoded );
+			}
+		}
 
-    private function validateBlock(array $block): array
-    {
-        $type     = $block['@type'] ?? 'unknown';
-        $errors   = [];
-        $warnings = [];
+		return array(
+			'url'             => $url,
+			'schemas_found'   => $schemasFound,
+			'total_schemas'   => count( $schemasFound ),
+			'total_errors'    => array_sum( array_map( fn( $s ) => count( $s['errors'] ), $schemasFound ) ),
+			'google_test_url' => $this->googleTestUrl( $url ),
+			'validated_at'    => current_time( 'mysql' ),
+		);
+	}
 
-        // Check @context
-        if (empty($block['@context'])) {
-            $errors[] = 'Missing @context. Should be "https://schema.org".';
-        } elseif (!in_array($block['@context'], ['https://schema.org', 'http://schema.org'], true)) {
-            $warnings[] = '@context "' . $block['@context'] . '" is non-standard. Use "https://schema.org".';
-        }
+	private function validateBlock( array $block ): array {
+		$type     = $block['@type'] ?? 'unknown';
+		$errors   = array();
+		$warnings = array();
 
-        // Check @type
-        if (empty($type) || $type === 'unknown') {
-            $errors[] = 'Missing or invalid @type.';
-        }
+		// Check @context
+		if ( empty( $block['@context'] ) ) {
+			$errors[] = 'Missing @context. Should be "https://schema.org".';
+		} elseif ( ! in_array( $block['@context'], array( 'https://schema.org', 'http://schema.org' ), true ) ) {
+			$warnings[] = '@context "' . $block['@context'] . '" is non-standard. Use "https://schema.org".';
+		}
 
-        // Check required properties
-        if (isset(self::REQUIRED_PROPS[$type])) {
-            foreach (self::REQUIRED_PROPS[$type] as $prop) {
-                if (empty($block[$prop])) {
-                    $errors[] = "Required property \"{$prop}\" is missing for {$type}.";
-                }
-            }
-        }
+		// Check @type
+		if ( empty( $type ) || $type === 'unknown' ) {
+			$errors[] = 'Missing or invalid @type.';
+		}
 
-        // Type-specific warnings
-        if (in_array($type, ['Article', 'NewsArticle', 'BlogPosting'], true)) {
-            if (!empty($block['datePublished']) && empty($block['dateModified'])) {
-                $warnings[] = 'Consider adding "dateModified" for freshness signals.';
-            }
-            if (empty($block['image'])) {
-                $warnings[] = '"image" property recommended for Article rich results.';
-            }
-        }
+		// Check required properties
+		if ( isset( self::REQUIRED_PROPS[ $type ] ) ) {
+			foreach ( self::REQUIRED_PROPS[ $type ] as $prop ) {
+				if ( empty( $block[ $prop ] ) ) {
+					$errors[] = "Required property \"{$prop}\" is missing for {$type}.";
+				}
+			}
+		}
 
-        if ($type === 'Product' && empty($block['offers']['price'])) {
-            $warnings[] = 'Price is missing from the offers object. Required for price-eligible rich snippets.';
-        }
+		// Type-specific warnings
+		if ( in_array( $type, array( 'Article', 'NewsArticle', 'BlogPosting' ), true ) ) {
+			if ( ! empty( $block['datePublished'] ) && empty( $block['dateModified'] ) ) {
+				$warnings[] = 'Consider adding "dateModified" for freshness signals.';
+			}
+			if ( empty( $block['image'] ) ) {
+				$warnings[] = '"image" property recommended for Article rich results.';
+			}
+		}
 
-        return [
-            'type'       => $type,
-            'valid'      => empty($errors),
-            'errors'     => $errors,
-            'warnings'   => $warnings,
-        ];
-    }
+		if ( $type === 'Product' && empty( $block['offers']['price'] ) ) {
+			$warnings[] = 'Price is missing from the offers object. Required for price-eligible rich snippets.';
+		}
 
-    private function extractJsonLdBlocks(string $html): array
-    {
-        preg_match_all(
-            '/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/si',
-            $html,
-            $matches
-        );
+		return array(
+			'type'     => $type,
+			'valid'    => empty( $errors ),
+			'errors'   => $errors,
+			'warnings' => $warnings,
+		);
+	}
 
-        return array_map('trim', $matches[1] ?? []);
-    }
+	private function extractJsonLdBlocks( string $html ): array {
+		preg_match_all(
+			'/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/si',
+			$html,
+			$matches
+		);
 
-    private function googleTestUrl(string $url): string
-    {
-        return 'https://search.google.com/test/rich-results?url=' . rawurlencode($url);
-    }
+		return array_map( 'trim', $matches[1] ?? array() );
+	}
 
-    private function isLocalUrl(string $url): bool
-    {
-        if (!wp_http_validate_url($url)) {
-            return false;
-        }
+	private function googleTestUrl( string $url ): string {
+		return 'https://search.google.com/test/rich-results?url=' . rawurlencode( $url );
+	}
 
-        return strtolower((string) wp_parse_url($url, PHP_URL_HOST))
-            === strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST));
-    }
+	private function isLocalUrl( string $url ): bool {
+		if ( ! wp_http_validate_url( $url ) ) {
+			return false;
+		}
+
+		return strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) )
+			=== strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+	}
 }

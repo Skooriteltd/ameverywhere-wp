@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Core\Api;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Security\KeyVault;
@@ -16,230 +16,234 @@ use AmEveryWhere\Core\Security\KeyVault;
  * Offloads heavy computational workloads (AI generation, full-site auditing,
  * content gap analysis, keyword cannibalization, and rank tracking).
  */
-class BackendApiClient
-{
-    private const DEFAULT_API_URL = 'https://api.ameverywhere.com/v1';
-    private const TIMEOUT = 30;
+class BackendApiClient {
 
-    /**
-     * Get the configured Backend API base URL.
-     */
-    public function getApiUrl(): string
-    {
-        $url = get_option('ameverywhere_backend_api_url', self::DEFAULT_API_URL);
-        return untrailingslashit(!empty($url) ? $url : self::DEFAULT_API_URL);
-    }
+	private const DEFAULT_API_URL = 'https://api.ameverywhere.com/v1';
+	private const TIMEOUT         = 30;
 
-    /**
-     * Get the decrypted API key for AmEveryWhere backend.
-     */
-    public function getApiKey(): string
-    {
-        $encryptedKey = get_option('ameverywhere_api_key', '');
+	/**
+	 * Get the configured Backend API base URL.
+	 */
+	public function getApiUrl(): string {
+		$url = get_option( 'ameverywhere_backend_api_url', self::DEFAULT_API_URL );
+		return untrailingslashit( ! empty( $url ) ? $url : self::DEFAULT_API_URL );
+	}
 
-        if (empty($encryptedKey)) {
-            return '';
-        }
+	/**
+	 * Get the decrypted API key for AmEveryWhere backend.
+	 */
+	public function getApiKey(): string {
+		$encryptedKey = get_option( 'ameverywhere_api_key', '' );
 
-        return KeyVault::decrypt($encryptedKey);
-    }
+		if ( empty( $encryptedKey ) ) {
+			return '';
+		}
 
-    /**
-     * Determine if the remote backend API is configured.
-     */
-    public function isConfigured(): bool
-    {
-        return !empty($this->getApiKey());
-    }
+		return KeyVault::decrypt( $encryptedKey );
+	}
 
-    /**
-     * Test connection to the AmEveryWhere Backend API.
-     */
-    public function testConnection(): array
-    {
-        if (!$this->isConfigured()) {
-            return [
-                'success' => false,
-                'message' => __('No AmEveryWhere API key configured. Operating in local / BYOK fallback mode.', 'ameverywhere'),
-                'mode'    => 'fallback',
-            ];
-        }
+	/**
+	 * Determine if the remote backend API is configured.
+	 */
+	public function isConfigured(): bool {
+		return ! empty( $this->getApiKey() );
+	}
 
-        $result = $this->get('/health');
-        if (!empty($result['success'])) {
-            return [
-                'success' => true,
-                'message' => __('Successfully connected to AmEveryWhere Backend API.', 'ameverywhere'),
-                'mode'    => 'cloud',
-                'data'    => $result['data'] ?? [],
-            ];
-        }
+	/**
+	 * Test connection to the AmEveryWhere Backend API.
+	 */
+	public function testConnection(): array {
+		if ( ! $this->isConfigured() ) {
+			return array(
+				'success' => false,
+				'message' => __( 'No AmEveryWhere API key configured. Operating in local / BYOK fallback mode.', 'ameverywhere' ),
+				'mode'    => 'fallback',
+			);
+		}
 
-        return [
-            'success' => false,
-            'message' => $result['message'] ?? __('Failed to connect to AmEveryWhere Backend API.', 'ameverywhere'),
-            'mode'    => 'fallback',
-        ];
-    }
+		$result = $this->get( '/health' );
+		if ( ! empty( $result['success'] ) ) {
+			return array(
+				'success' => true,
+				'message' => __( 'Successfully connected to AmEveryWhere Backend API.', 'ameverywhere' ),
+				'mode'    => 'cloud',
+				'data'    => $result['data'] ?? array(),
+			);
+		}
 
-    /**
-     * Send a POST request to the Backend API.
-     */
-    public function post(string $endpoint, array $payload = []): array
-    {
-        $url = $this->getApiUrl() . '/' . ltrim($endpoint, '/');
-        $apiKey = $this->getApiKey();
+		return array(
+			'success' => false,
+			'message' => $result['message'] ?? __( 'Failed to connect to AmEveryWhere Backend API.', 'ameverywhere' ),
+			'mode'    => 'fallback',
+		);
+	}
 
-        $headers = [
-            'Content-Type' => 'application/json',
-            'Accept'       => 'application/json',
-            'User-Agent'   => 'AmEveryWhere-WP/' . (defined('AMEVERYWHERE_VERSION') ? AMEVERYWHERE_VERSION : '1.0.0'),
-        ];
+	/**
+	 * Send a POST request to the Backend API.
+	 */
+	public function post( string $endpoint, array $payload = array() ): array {
+		$url    = $this->getApiUrl() . '/' . ltrim( $endpoint, '/' );
+		$apiKey = $this->getApiKey();
 
-        if (!empty($apiKey)) {
-            $headers['Authorization'] = 'Bearer ' . $apiKey;
-        }
+		$headers = array(
+			'Content-Type' => 'application/json',
+			'Accept'       => 'application/json',
+			'User-Agent'   => 'AmEveryWhere-WP/' . ( defined( 'AMEVERYWHERE_VERSION' ) ? AMEVERYWHERE_VERSION : '1.0.0' ),
+		);
 
-        // Include client origin metadata for license/rate-limit verification
-        $payload['site_url'] = get_site_url();
+		if ( ! empty( $apiKey ) ) {
+			$headers['Authorization'] = 'Bearer ' . $apiKey;
+		}
 
-        $response = wp_remote_post($url, [
-            'headers' => $headers,
-            'body'    => wp_json_encode($payload),
-            'timeout' => self::TIMEOUT,
-        ]);
+		// Include client origin metadata for license/rate-limit verification
+		$payload['site_url'] = get_site_url();
 
-        return $this->handleResponse($response);
-    }
+		$response = wp_safe_remote_post(
+			$url,
+			array(
+				'headers' => $headers,
+				'body'    => wp_json_encode( $payload ),
+				'timeout' => self::TIMEOUT,
+			)
+		);
 
-    /**
-     * Send a GET request to the Backend API.
-     */
-    public function get(string $endpoint, array $params = []): array
-    {
-        $url = $this->getApiUrl() . '/' . ltrim($endpoint, '/');
-        if (!empty($params)) {
-            $url = add_query_arg($params, $url);
-        }
+		return $this->handleResponse( $response );
+	}
 
-        $apiKey = $this->getApiKey();
+	/**
+	 * Send a GET request to the Backend API.
+	 */
+	public function get( string $endpoint, array $params = array() ): array {
+		$url = $this->getApiUrl() . '/' . ltrim( $endpoint, '/' );
+		if ( ! empty( $params ) ) {
+			$url = add_query_arg( $params, $url );
+		}
 
-        $headers = [
-            'Accept'     => 'application/json',
-            'User-Agent' => 'AmEveryWhere-WP/' . (defined('AMEVERYWHERE_VERSION') ? AMEVERYWHERE_VERSION : '1.0.0'),
-        ];
+		$apiKey = $this->getApiKey();
 
-        if (!empty($apiKey)) {
-            $headers['Authorization'] = 'Bearer ' . $apiKey;
-        }
+		$headers = array(
+			'Accept'     => 'application/json',
+			'User-Agent' => 'AmEveryWhere-WP/' . ( defined( 'AMEVERYWHERE_VERSION' ) ? AMEVERYWHERE_VERSION : '1.0.0' ),
+		);
 
-        $response = wp_remote_get($url, [
-            'headers' => $headers,
-            'timeout' => self::TIMEOUT,
-        ]);
+		if ( ! empty( $apiKey ) ) {
+			$headers['Authorization'] = 'Bearer ' . $apiKey;
+		}
 
-        return $this->handleResponse($response);
-    }
+		$response = wp_safe_remote_get(
+			$url,
+			array(
+				'headers' => $headers,
+				'timeout' => self::TIMEOUT,
+			)
+		);
 
-    /**
-     * Offload AI Generation request to Backend API.
-     */
-    public function generateAi(array $payload): array
-    {
-        if (!$this->isConfigured()) {
-            return [
-                'success'  => false,
-                'fallback' => true,
-                'message'  => __('AmEveryWhere Backend API key is not set; falling back to BYOK provider.', 'ameverywhere'),
-            ];
-        }
+		return $this->handleResponse( $response );
+	}
 
-        return $this->post('/ai/generate', $payload);
-    }
+	/**
+	 * Offload AI Generation request to Backend API.
+	 */
+	public function generateAi( array $payload ): array {
+		if ( ! $this->isConfigured() ) {
+			return array(
+				'success'  => false,
+				'fallback' => true,
+				'message'  => __( 'AmEveryWhere Backend API key is not set; falling back to BYOK provider.', 'ameverywhere' ),
+			);
+		}
 
-    /**
-     * Offload Content Gap Analysis to Backend API.
-     */
-    public function analyzeContentGap(string $keyword, array $existingTopics): array
-    {
-        if (!$this->isConfigured()) {
-            return [
-                'success'  => false,
-                'fallback' => true,
-                'message'  => __('Backend API key not configured; falling back to local processing.', 'ameverywhere'),
-            ];
-        }
+		return $this->post( '/ai/generate', $payload );
+	}
 
-        return $this->post('/analysis/content-gap', [
-            'keyword'         => $keyword,
-            'existing_topics' => $existingTopics,
-        ]);
-    }
+	/**
+	 * Offload Content Gap Analysis to Backend API.
+	 */
+	public function analyzeContentGap( string $keyword, array $existingTopics ): array {
+		if ( ! $this->isConfigured() ) {
+			return array(
+				'success'  => false,
+				'fallback' => true,
+				'message'  => __( 'Backend API key not configured; falling back to local processing.', 'ameverywhere' ),
+			);
+		}
 
-    /**
-     * Offload Keyword Cannibalization computation to Backend API.
-     */
-    public function analyzeCannibalization(array $postKeywordMap): array
-    {
-        if (!$this->isConfigured()) {
-            return [
-                'success'  => false,
-                'fallback' => true,
-                'message'  => __('Backend API key not configured; falling back to local matrix processing.', 'ameverywhere'),
-            ];
-        }
+		return $this->post(
+			'/analysis/content-gap',
+			array(
+				'keyword'         => $keyword,
+				'existing_topics' => $existingTopics,
+			)
+		);
+	}
 
-        return $this->post('/analysis/cannibalization', [
-            'posts' => $postKeywordMap,
-        ]);
-    }
+	/**
+	 * Offload Keyword Cannibalization computation to Backend API.
+	 */
+	public function analyzeCannibalization( array $postKeywordMap ): array {
+		if ( ! $this->isConfigured() ) {
+			return array(
+				'success'  => false,
+				'fallback' => true,
+				'message'  => __( 'Backend API key not configured; falling back to local matrix processing.', 'ameverywhere' ),
+			);
+		}
 
-    /**
-     * Offload Technical SEO Site Audit to Backend API.
-     */
-    public function dispatchTechnicalAudit(array $siteMetadata): array
-    {
-        if (!$this->isConfigured()) {
-            return [
-                'success'  => false,
-                'fallback' => true,
-                'message'  => __('Backend API key not configured; running audit locally via WP-Cron.', 'ameverywhere'),
-            ];
-        }
+		return $this->post(
+			'/analysis/cannibalization',
+			array(
+				'posts' => $postKeywordMap,
+			)
+		);
+	}
 
-        return $this->post('/audit/technical/dispatch', [
-            'site' => $siteMetadata,
-        ]);
-    }
+	/**
+	 * Offload Technical SEO Site Audit to Backend API.
+	 */
+	public function dispatchTechnicalAudit( array $siteMetadata ): array {
+		if ( ! $this->isConfigured() ) {
+			return array(
+				'success'  => false,
+				'fallback' => true,
+				'message'  => __( 'Backend API key not configured; running audit locally via WP-Cron.', 'ameverywhere' ),
+			);
+		}
 
-    /**
-     * Parse HTTP response into standard associative array.
-     */
-    private function handleResponse($response): array
-    {
-        if (is_wp_error($response)) {
-            return [
-                'success' => false,
-                'message' => $response->get_error_message(),
-            ];
-        }
+		return $this->post(
+			'/audit/technical/dispatch',
+			array(
+				'site' => $siteMetadata,
+			)
+		);
+	}
 
-        $code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
+	/**
+	 * Parse HTTP response into standard associative array.
+	 */
+	private function handleResponse( $response ): array {
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'success' => false,
+				'message' => $response->get_error_message(),
+			);
+		}
 
-        if ($code >= 200 && $code < 300) {
-            return [
-                'success' => true,
-                'data'    => $data,
-            ];
-        }
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
 
-        $errorMessage = $data['message'] ?? $data['error'] ?? sprintf(__('API returned error code %d', 'ameverywhere'), $code);
-        return [
-            'success' => false,
-            'message' => $errorMessage,
-            'code'    => $code,
-        ];
-    }
+		if ( $code >= 200 && $code < 300 ) {
+			return array(
+				'success' => true,
+				'data'    => $data,
+			);
+		}
+
+		$errorMessage = $data['message'] ?? $data['error'] ?? sprintf( __( 'API returned error code %d', 'ameverywhere' ), $code );
+		return array(
+			'success' => false,
+			'message' => $errorMessage,
+			'code'    => $code,
+		);
+	}
 }

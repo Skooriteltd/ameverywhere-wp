@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 .ameverywhere-wrapper {
-    /* Namespace our tailwind utilities to prevent conflicts with WP Admin */
-    box-sizing: border-box;
+	/* Namespace our tailwind utilities to prevent conflicts with WP Admin */
+	box-sizing: border-box;
 }
 
 .ameverywhere-wrapper * {
-    box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 /* Form validation error state */
@@ -16,6 +16,6 @@
 .aew-field-error textarea,
 .aew-field-error select,
 .components-text-control__input.aew-field-error {
-    border-color: #dc2626 !important;
-    box-shadow: 0 0 0 1px #dc2626 !important;
+	border-color: #dc2626 !important;
+	box-shadow: 0 0 0 1px #dc2626 !important;
 }

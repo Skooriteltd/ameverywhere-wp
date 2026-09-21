@@ -2,141 +2,169 @@
 
 namespace AmEveryWhere\Modules\Admin;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * BulkMetaEditor: Provides a REST endpoint for reading and batch-saving
  * SEO meta (title, description, noindex) across all posts/pages.
  */
-class BulkMetaEditor
-{
-    public function registerRestRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/bulk-meta', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getPosts'],
-                'permission_callback' => fn() => current_user_can('edit_posts'),
-                'args'                => [
-                    'page'      => ['default' => 1,    'sanitize_callback' => 'absint'],
-                    'per_page'  => ['default' => 25,   'sanitize_callback' => 'absint'],
-                    'post_type' => ['default' => 'post','sanitize_callback' => 'sanitize_text_field'],
-                    'search'    => ['default' => '',    'sanitize_callback' => 'sanitize_text_field'],
-                ],
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveMeta'],
-                'permission_callback' => fn() => current_user_can('edit_posts'),
-            ],
-        ]);
-    }
+class BulkMetaEditor {
 
-    public function getPosts(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $page     = max(1, $request->get_param('page'));
-        $perPage  = min(100, max(5, $request->get_param('per_page')));
-        $postType = $request->get_param('post_type');
-        $search   = $request->get_param('search');
+	public function registerRestRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/bulk-meta',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getPosts' ),
+					'permission_callback' => fn() => current_user_can( 'edit_posts' ),
+					'args'                => array(
+						'page'      => array(
+							'default'           => 1,
+							'sanitize_callback' => 'absint',
+						),
+						'per_page'  => array(
+							'default'           => 25,
+							'sanitize_callback' => 'absint',
+						),
+						'post_type' => array(
+							'default'           => 'post',
+							'sanitize_callback' => 'sanitize_text_field',
+						),
+						'search'    => array(
+							'default'           => '',
+							'sanitize_callback' => 'sanitize_text_field',
+						),
+					),
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveMeta' ),
+					'permission_callback' => fn() => current_user_can( 'edit_posts' ),
+				),
+			)
+		);
+	}
 
-        $args = [
-            'post_type'      => $postType,
-            'post_status'    => 'publish',
-            'posts_per_page' => $perPage,
-            'paged'          => $page,
-            'orderby'        => 'modified',
-            'order'          => 'DESC',
-        ];
+	public function getPosts( \WP_REST_Request $request ): \WP_REST_Response {
+		$page     = max( 1, $request->get_param( 'page' ) );
+		$perPage  = min( 100, max( 5, $request->get_param( 'per_page' ) ) );
+		$postType = $request->get_param( 'post_type' );
+		$search   = $request->get_param( 'search' );
 
-        if (!empty($search)) {
-            $args['s'] = $search;
-        }
+		$args = array(
+			'post_type'      => $postType,
+			'post_status'    => 'publish',
+			'posts_per_page' => $perPage,
+			'paged'          => $page,
+			'orderby'        => 'modified',
+			'order'          => 'DESC',
+		);
 
-        $query = new \WP_Query($args);
-        $items = [];
+		if ( ! empty( $search ) ) {
+			$args['s'] = $search;
+		}
 
-        foreach ($query->posts as $post) {
-            $seoTitle = get_post_meta($post->ID, '_ameverywhere_seo_title', true);
-            $seoDesc  = get_post_meta($post->ID, '_ameverywhere_meta_description', true);
-            $noIndex  = get_post_meta($post->ID, '_ameverywhere_noindex', true);
+		$query = new \WP_Query( $args );
+		$items = array();
 
-            // Compute a simple SEO score indicator
-            $score = 0;
-            if (!empty($seoTitle) && strlen($seoTitle) >= 40 && strlen($seoTitle) <= 60) $score += 50;
-            elseif (!empty($seoTitle)) $score += 25;
-            if (!empty($seoDesc) && strlen($seoDesc) >= 120 && strlen($seoDesc) <= 160) $score += 50;
-            elseif (!empty($seoDesc)) $score += 25;
+		foreach ( $query->posts as $post ) {
+			$seoTitle = get_post_meta( $post->ID, '_ameverywhere_seo_title', true );
+			$seoDesc  = get_post_meta( $post->ID, '_ameverywhere_meta_description', true );
+			$noIndex  = get_post_meta( $post->ID, '_ameverywhere_noindex', true );
 
-            $items[] = [
-                'id'          => $post->ID,
-                'title'       => get_the_title($post->ID),
-                'url'         => get_permalink($post->ID),
-                'seo_title'   => $seoTitle,
-                'seo_desc'    => $seoDesc,
-                'noindex'     => $noIndex === 'yes',
-                'score'       => $score,
-                'modified'    => get_the_modified_date('Y-m-d', $post->ID),
-            ];
-        }
+			// Compute a simple SEO score indicator
+			$score = 0;
+			if ( ! empty( $seoTitle ) && strlen( $seoTitle ) >= 40 && strlen( $seoTitle ) <= 60 ) {
+				$score += 50;
+			} elseif ( ! empty( $seoTitle ) ) {
+				$score += 25;
+			}
+			if ( ! empty( $seoDesc ) && strlen( $seoDesc ) >= 120 && strlen( $seoDesc ) <= 160 ) {
+				$score += 50;
+			} elseif ( ! empty( $seoDesc ) ) {
+				$score += 25;
+			}
 
-        return rest_ensure_response([
-            'items'      => $items,
-            'total'      => (int) $query->found_posts,
-            'pages'      => (int) $query->max_num_pages,
-            'page'       => $page,
-            'post_types' => $this->getEditablePostTypes(),
-        ]);
-    }
+			$items[] = array(
+				'id'        => $post->ID,
+				'title'     => get_the_title( $post->ID ),
+				'url'       => get_permalink( $post->ID ),
+				'seo_title' => $seoTitle,
+				'seo_desc'  => $seoDesc,
+				'noindex'   => $noIndex === 'yes',
+				'score'     => $score,
+				'modified'  => get_the_modified_date( 'Y-m-d', $post->ID ),
+			);
+		}
 
-    public function saveMeta(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params  = $request->get_json_params();
-        $updates = $params['updates'] ?? [];
+		return rest_ensure_response(
+			array(
+				'items'      => $items,
+				'total'      => (int) $query->found_posts,
+				'pages'      => (int) $query->max_num_pages,
+				'page'       => $page,
+				'post_types' => $this->getEditablePostTypes(),
+			)
+		);
+	}
 
-        if (empty($updates) || !is_array($updates)) {
-            return new \WP_Error('missing_data', 'No updates provided.', ['status' => 400]);
-        }
+	public function saveMeta( \WP_REST_Request $request ): \WP_REST_Response {
+		$params  = $request->get_json_params();
+		$updates = $params['updates'] ?? array();
 
-        $saved   = [];
-        $errors  = [];
+		if ( empty( $updates ) || ! is_array( $updates ) ) {
+			return new \WP_Error( 'missing_data', 'No updates provided.', array( 'status' => 400 ) );
+		}
 
-        foreach ($updates as $update) {
-            $postId = absint($update['id'] ?? 0);
+		$saved  = array();
+		$errors = array();
 
-            if (!$postId || !current_user_can('edit_post', $postId)) {
-                $errors[] = ['id' => $postId, 'error' => 'Permission denied or invalid post.'];
-                continue;
-            }
+		foreach ( $updates as $update ) {
+			$postId = absint( $update['id'] ?? 0 );
 
-            if (isset($update['seo_title'])) {
-                update_post_meta($postId, '_ameverywhere_seo_title', sanitize_text_field($update['seo_title']));
-            }
-            if (isset($update['seo_desc'])) {
-                update_post_meta($postId, '_ameverywhere_meta_description', sanitize_textarea_field($update['seo_desc']));
-            }
-            if (isset($update['noindex'])) {
-                update_post_meta($postId, '_ameverywhere_noindex', $update['noindex'] ? 'yes' : 'no');
-            }
+			if ( ! $postId || ! current_user_can( 'edit_post', $postId ) ) {
+				$errors[] = array(
+					'id'    => $postId,
+					'error' => 'Permission denied or invalid post.',
+				);
+				continue;
+			}
 
-            $saved[] = $postId;
-        }
+			if ( isset( $update['seo_title'] ) ) {
+				update_post_meta( $postId, '_ameverywhere_seo_title', sanitize_text_field( $update['seo_title'] ) );
+			}
+			if ( isset( $update['seo_desc'] ) ) {
+				update_post_meta( $postId, '_ameverywhere_meta_description', sanitize_textarea_field( $update['seo_desc'] ) );
+			}
+			if ( isset( $update['noindex'] ) ) {
+				update_post_meta( $postId, '_ameverywhere_noindex', $update['noindex'] ? 'yes' : 'no' );
+			}
 
-        return rest_ensure_response([
-            'success' => true,
-            'saved'   => $saved,
-            'errors'  => $errors,
-        ]);
-    }
+			$saved[] = $postId;
+		}
 
-    private function getEditablePostTypes(): array
-    {
-        $types = get_post_types(['public' => true], 'objects');
-        $result = [];
-        foreach ($types as $type) {
-            $result[] = ['name' => $type->name, 'label' => $type->label];
-        }
-        return $result;
-    }
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'saved'   => $saved,
+				'errors'  => $errors,
+			)
+		);
+	}
+
+	private function getEditablePostTypes(): array {
+		$types  = get_post_types( array( 'public' => true ), 'objects' );
+		$result = array();
+		foreach ( $types as $type ) {
+			$result[] = array(
+				'name'  => $type->name,
+				'label' => $type->label,
+			);
+		}
+		return $result;
+	}
 }

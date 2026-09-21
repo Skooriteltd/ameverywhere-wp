@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\ImageSeo;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Event\EventManager;
@@ -12,218 +12,211 @@ use AmEveryWhere\Core\Event\EventManager;
  * Automatically sets image alt text and title attributes based on configurable templates.
  * Also redirects attachment pages to the parent post to prevent thin content.
  */
-class ImageSeoModule
-{
-    private EventManager $eventManager;
+class ImageSeoModule {
 
-    public function __construct(EventManager $eventManager)
-    {
-        $this->eventManager = $eventManager;
-    }
+	private EventManager $eventManager;
 
-    public function boot(): void
-    {
-        // Editorial content is never rewritten by default. An administrator may
-        // opt into filename suggestions for newly uploaded attachments only.
-        if (get_option('ameverywhere_auto_generate_alt', 'no') === 'yes') {
-            $this->eventManager->addAction('add_attachment', [$this, 'autoSetAltText']);
-        }
+	public function __construct( EventManager $eventManager ) {
+		$this->eventManager = $eventManager;
+	}
 
-        // Redirect attachment pages to parent post
-        $this->eventManager->addAction('template_redirect', [$this, 'redirectAttachmentPages']);
+	public function boot(): void {
+		// Editorial content is never rewritten by default. An administrator may
+		// opt into filename suggestions for newly uploaded attachments only.
+		if ( get_option( 'ameverywhere_auto_generate_alt', 'no' ) === 'yes' ) {
+			$this->eventManager->addAction( 'add_attachment', array( $this, 'autoSetAltText' ) );
+		}
 
-        // Boot image alt audit (bulk repair REST endpoints)
-        $altAudit = new ImageAltAudit();
-        $altAudit->register();
+		// Redirect attachment pages to parent post
+		$this->eventManager->addAction( 'template_redirect', array( $this, 'redirectAttachmentPages' ) );
 
-        // Boot image compressor
-        $compressor = new ImageCompressor();
-        $compressor->boot();
-    }
+		// Boot image alt audit (bulk repair REST endpoints)
+		$altAudit = new ImageAltAudit();
+		$altAudit->register();
 
-    /**
-     * Fix missing alt text in Gutenberg core/image blocks at render time.
-     * This runs after the block has been converted to HTML so it catches
-     * blocks saved without alt text in the block attributes.
-     *
-     * @param string $blockContent Rendered HTML output of the block
-     * @param array  $block        Block data array including block name and attributes
-     */
-    public function fixGutenbergImageAlt(string $blockContent, array $block): string
-    {
-        if ($block['blockName'] !== 'core/image') {
-            return $blockContent;
-        }
+		// Boot image compressor
+		$compressor = new ImageCompressor();
+		$compressor->boot();
+	}
 
-        // An explicit empty alternative text marks a decorative image and must
-        // never be replaced with filename-generated copy.
-        if (array_key_exists('alt', $block['attrs'] ?? [])) {
-            return $blockContent;
-        }
+	/**
+	 * Fix missing alt text in Gutenberg core/image blocks at render time.
+	 * This runs after the block has been converted to HTML so it catches
+	 * blocks saved without alt text in the block attributes.
+	 *
+	 * @param string $blockContent Rendered HTML output of the block
+	 * @param array  $block        Block data array including block name and attributes
+	 */
+	public function fixGutenbergImageAlt( string $blockContent, array $block ): string {
+		if ( $block['blockName'] !== 'core/image' ) {
+			return $blockContent;
+		}
 
-        // Try to get alt from the attachment in the media library
-        $imageId = (int) ($block['attrs']['id'] ?? 0);
-        $altText = '';
+		// An explicit empty alternative text marks a decorative image and must
+		// never be replaced with filename-generated copy.
+		if ( array_key_exists( 'alt', $block['attrs'] ?? array() ) ) {
+			return $blockContent;
+		}
 
-        if ($imageId > 0) {
-            $altText = (string) get_post_meta($imageId, '_wp_attachment_image_alt', true);
-        }
+		// Try to get alt from the attachment in the media library
+		$imageId = (int) ( $block['attrs']['id'] ?? 0 );
+		$altText = '';
 
-        if (empty($altText)) {
-            return $blockContent; // No alt available — leave as-is rather than add empty
-        }
+		if ( $imageId > 0 ) {
+			$altText = (string) get_post_meta( $imageId, '_wp_attachment_image_alt', true );
+		}
 
-        // Inject the alt attribute into the rendered <img> tag
-        $blockContent = preg_replace_callback(
-            '/<img\b([^>]*?)>/i',
-            function ($matches) use ($altText) {
-                $attrs = $matches[1];
-                // Preserve all author-provided alt attributes, including alt="".
-                if (preg_match('/\balt\s*=/i', $attrs)) {
-                    return $matches[0];
-                }
-                $safeAlt = esc_attr($altText);
-                $attrs = "alt=\"{$safeAlt}\" " . $attrs;
-                return "<img {$attrs}>";
-            },
-            $blockContent
-        ) ?? $blockContent;
+		if ( empty( $altText ) ) {
+			return $blockContent; // No alt available — leave as-is rather than add empty
+		}
 
-        return $blockContent;
-    }
+		// Inject the alt attribute into the rendered <img> tag
+		$blockContent = preg_replace_callback(
+			'/<img\b([^>]*?)>/i',
+			function ( $matches ) use ( $altText ) {
+				$attrs = $matches[1];
+				// Preserve all author-provided alt attributes, including alt="".
+				if ( preg_match( '/\balt\s*=/i', $attrs ) ) {
+					return $matches[0];
+				}
+				$safeAlt = esc_attr( $altText );
+				$attrs   = "alt=\"{$safeAlt}\" " . $attrs;
+				return "<img {$attrs}>";
+			},
+			$blockContent
+		) ?? $blockContent;
+
+		return $blockContent;
+	}
 
 
-    /**
-     * Automatically set alt text and title when a new image is uploaded.
-     * Uses the filename (cleaned up) as the default alt text.
-     *
-     * BL-007: Incorporates focus keyword from parent post if available.
-     */
-    public function autoSetAltText(int $attachmentId): void
-    {
-        $attachment = get_post($attachmentId);
-        if (!$attachment || !wp_attachment_is_image($attachmentId)) {
-            return;
-        }
+	/**
+	 * Automatically set alt text and title when a new image is uploaded.
+	 * Uses the filename (cleaned up) as the default alt text.
+	 *
+	 * BL-007: Incorporates focus keyword from parent post if available.
+	 */
+	public function autoSetAltText( int $attachmentId ): void {
+		$attachment = get_post( $attachmentId );
+		if ( ! $attachment || ! wp_attachment_is_image( $attachmentId ) ) {
+			return;
+		}
 
-        // Only set if alt text is empty
-        $existingAlt = get_post_meta($attachmentId, '_wp_attachment_image_alt', true);
-        if (!empty($existingAlt)) {
-            return;
-        }
+		// Only set if alt text is empty
+		$existingAlt = get_post_meta( $attachmentId, '_wp_attachment_image_alt', true );
+		if ( ! empty( $existingAlt ) ) {
+			return;
+		}
 
-        // Clean up filename to create readable alt text
-        $filename = pathinfo(get_attached_file($attachmentId), PATHINFO_FILENAME);
-        $altText  = $this->cleanFilename($filename);
+		// Clean up filename to create readable alt text
+		$filename = pathinfo( get_attached_file( $attachmentId ), PATHINFO_FILENAME );
+		$altText  = $this->cleanFilename( $filename );
 
-        // BL-007: Prepend focus keyword from parent post if set and not already included
-        $parentId = (int) $attachment->post_parent;
-        if ($parentId > 0) {
-            $keyword = (string) get_post_meta($parentId, '_ameverywhere_focus_keyword', true);
-            if (!empty($keyword) && stripos($altText, $keyword) === false) {
-                $altText = mb_strimwidth($keyword . ' - ' . $altText, 0, 125, '');
-            }
-        }
+		// BL-007: Prepend focus keyword from parent post if set and not already included
+		$parentId = (int) $attachment->post_parent;
+		if ( $parentId > 0 ) {
+			$keyword = (string) get_post_meta( $parentId, '_ameverywhere_focus_keyword', true );
+			if ( ! empty( $keyword ) && stripos( $altText, $keyword ) === false ) {
+				$altText = mb_strimwidth( $keyword . ' - ' . $altText, 0, 125, '' );
+			}
+		}
 
-        if (!empty($altText)) {
-            update_post_meta($attachmentId, '_wp_attachment_image_alt', $altText);
-            // Mark as autogenerated so bulk-fix-keyword-alt can safely update it later
-            update_post_meta($attachmentId, '_ameverywhere_alt_autogenerated', 'yes');
+		if ( ! empty( $altText ) ) {
+			update_post_meta( $attachmentId, '_wp_attachment_image_alt', $altText );
+			// Mark as autogenerated so bulk-fix-keyword-alt can safely update it later
+			update_post_meta( $attachmentId, '_ameverywhere_alt_autogenerated', 'yes' );
 
-        }
-    }
+		}
+	}
 
-    /**
-     * Scan post content for images missing alt attributes and add them
-     * based on the attachment's alt text or the post title.
-     */
-    public function fixMissingAltTags(array $data, array $postarr): array
-    {
-        if (empty($data['post_content'])) {
-            return $data;
-        }
+	/**
+	 * Scan post content for images missing alt attributes and add them
+	 * based on the attachment's alt text or the post title.
+	 */
+	public function fixMissingAltTags( array $data, array $postarr ): array {
+		if ( empty( $data['post_content'] ) ) {
+			return $data;
+		}
 
-        $content = $data['post_content'];
-        $postTitle = $data['post_title'] ?? '';
+		$content   = $data['post_content'];
+		$postTitle = $data['post_title'] ?? '';
 
-        // Find <img> tags without alt or with empty alt
-        $content = preg_replace_callback(
-            '/<img\b([^>]*?)>/i',
-            function ($matches) use ($postTitle) {
-                $tag = $matches[0];
-                $attrs = $matches[1];
+		// Find <img> tags without alt or with empty alt
+		$content = preg_replace_callback(
+			'/<img\b([^>]*?)>/i',
+			function ( $matches ) use ( $postTitle ) {
+				$tag   = $matches[0];
+				$attrs = $matches[1];
 
-                // Preserve all author-provided alt attributes, including alt="".
-                if (preg_match('/\balt\s*=/i', $attrs)) {
-                    return $tag;
-                }
+				// Preserve all author-provided alt attributes, including alt="".
+				if ( preg_match( '/\balt\s*=/i', $attrs ) ) {
+					return $tag;
+				}
 
-                // Try to get alt from attachment
-                $altText = '';
-                if (preg_match('/wp-image-(\d+)/i', $attrs, $idMatch)) {
-                    $attachmentId = (int) $idMatch[1];
-                    $altText = get_post_meta($attachmentId, '_wp_attachment_image_alt', true);
-                }
+				// Try to get alt from attachment
+				$altText = '';
+				if ( preg_match( '/wp-image-(\d+)/i', $attrs, $idMatch ) ) {
+					$attachmentId = (int) $idMatch[1];
+					$altText      = get_post_meta( $attachmentId, '_wp_attachment_image_alt', true );
+				}
 
-                // Fallback to post title
-                if (empty($altText)) {
-                    $altText = $postTitle;
-                }
+				// Fallback to post title
+				if ( empty( $altText ) ) {
+					$altText = $postTitle;
+				}
 
-                if (empty($altText)) {
-                    return $tag;
-                }
+				if ( empty( $altText ) ) {
+					return $tag;
+				}
 
-                $altAttr = 'alt="' . esc_attr($altText) . '"';
+				$altAttr = 'alt="' . esc_attr( $altText ) . '"';
 
-                $tag = str_replace('<img', '<img ' . $altAttr, $tag);
+				$tag = str_replace( '<img', '<img ' . $altAttr, $tag );
 
-                return $tag;
-            },
-            $content
-        );
+				return $tag;
+			},
+			$content
+		);
 
-        $data['post_content'] = $content;
-        return $data;
-    }
+		$data['post_content'] = $content;
+		return $data;
+	}
 
-    /**
-     * Redirect attachment pages to their parent post to prevent thin content issues.
-     */
-    public function redirectAttachmentPages(): void
-    {
-        if (!is_attachment()) {
-            return;
-        }
+	/**
+	 * Redirect attachment pages to their parent post to prevent thin content issues.
+	 */
+	public function redirectAttachmentPages(): void {
+		if ( ! is_attachment() ) {
+			return;
+		}
 
-        global $post;
+		global $post;
 
-        if ($post && $post->post_parent > 0) {
-            $parentUrl = get_permalink($post->post_parent);
-        } else {
-            $parentUrl = home_url('/');
-        }
+		if ( $post && $post->post_parent > 0 ) {
+			$parentUrl = get_permalink( $post->post_parent );
+		} else {
+			$parentUrl = home_url( '/' );
+		}
 
-        wp_redirect($parentUrl, 301);
-        exit;
-    }
+		wp_redirect( $parentUrl, 301 );
+		exit;
+	}
 
-    /**
-     * Clean a filename into readable alt text.
-     * "my-awesome_image-2024" → "My Awesome Image 2024"
-     */
-    private function cleanFilename(string $filename): string
-    {
-        // Remove common size suffixes like -300x200
-        $cleaned = preg_replace('/-\d+x\d+$/', '', $filename);
+	/**
+	 * Clean a filename into readable alt text.
+	 * "my-awesome_image-2024" → "My Awesome Image 2024"
+	 */
+	private function cleanFilename( string $filename ): string {
+		// Remove common size suffixes like -300x200
+		$cleaned = preg_replace( '/-\d+x\d+$/', '', $filename );
 
-        // Replace separators with spaces
-        $cleaned = str_replace(['-', '_', '.'], ' ', $cleaned);
+		// Replace separators with spaces
+		$cleaned = str_replace( array( '-', '_', '.' ), ' ', $cleaned );
 
-        // Remove extra spaces and capitalize
-        $cleaned = preg_replace('/\s+/', ' ', $cleaned);
-        $cleaned = ucwords(trim($cleaned));
+		// Remove extra spaces and capitalize
+		$cleaned = preg_replace( '/\s+/', ' ', $cleaned );
+		$cleaned = ucwords( trim( $cleaned ) );
 
-        return $cleaned;
-    }
+		return $cleaned;
+	}
 }

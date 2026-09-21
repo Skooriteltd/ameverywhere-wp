@@ -8,13 +8,13 @@ Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Next-generation WordPress SEO and AEO plugin engineered for the AI-first search era.
+AmEverywhere-wp is a WordPress SEO & Discovery Intelligence toolkit for modern web.
 
 == Description ==
 
 AmEveryWhere is a comprehensive WordPress SEO plugin covering every aspect of modern search optimisation — from technical SEO and structured data to AI-powered content assistance, image SEO, and indexing control.
 
-Source code and frontend build instructions are available at https://github.com/ameverywhere/ameverywhere-wp.
+Source code and frontend build instructions are available at https://github.com/Skooriteltd/ameverywhere-wp.
 
 = Core Features =
 

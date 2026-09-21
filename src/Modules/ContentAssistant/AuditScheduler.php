@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -14,232 +14,285 @@ if (!defined('ABSPATH')) {
  *
  * BL-023
  */
-class AuditScheduler
-{
-    private const RESULTS_OPTION  = 'ameverywhere_last_audit_results';
-    private const HISTORY_OPTION  = 'ameverywhere_audit_history';
-    private const SCHEDULE_OPTION = 'ameverywhere_audit_schedule';
-    private const CRON_HOOK       = 'ameverywhere_scheduled_audit';
-    private const HISTORY_MAX     = 12;
+class AuditScheduler {
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-        add_action(self::CRON_HOOK, [$this, 'runScheduledAudit']);
-        add_filter('cron_schedules', [$this, 'registerSchedules']);
+	private const RESULTS_OPTION  = 'ameverywhere_last_audit_results';
+	private const HISTORY_OPTION  = 'ameverywhere_audit_history';
+	private const SCHEDULE_OPTION = 'ameverywhere_audit_schedule';
+	private const CRON_HOOK       = 'ameverywhere_scheduled_audit';
+	private const HISTORY_MAX     = 12;
 
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            $config = $this->getConfig();
-            $this->setupSchedule($config['frequency']);
-        }
-    }
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+		add_action( self::CRON_HOOK, array( $this, 'runScheduledAudit' ) );
+		add_filter( 'cron_schedules', array( $this, 'registerSchedules' ) );
 
-    public function registerSchedules(array $schedules): array
-    {
-        $schedules['ameverywhere_monthly'] = [
-            'interval' => 30 * DAY_IN_SECONDS,
-            'display'  => __('Once Monthly', 'ameverywhere'),
-        ];
-        return $schedules;
-    }
+		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
+			$config = $this->getConfig();
+			$this->setupSchedule( $config['frequency'] );
+		}
+	}
 
-    // ── REST routes ───────────────────────────────────────────────────────────
+	public function registerSchedules( array $schedules ): array {
+		$schedules['ameverywhere_monthly'] = array(
+			'interval' => 30 * DAY_IN_SECONDS,
+			'display'  => __( 'Once Monthly', 'ameverywhere' ),
+		);
+		return $schedules;
+	}
 
-    public function registerRoutes(): void
-    {
-        $adminCap = fn() => current_user_can('manage_options');
+	// ── REST routes ───────────────────────────────────────────────────────────
 
-        register_rest_route('ameverywhere/v1', '/audit/schedule', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getSchedule'],
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveSchedule'],
-                'permission_callback' => $adminCap,
-            ],
-        ]);
+	public function registerRoutes(): void {
+		$adminCap = fn() => current_user_can( 'manage_options' );
 
-        register_rest_route('ameverywhere/v1', '/audit/results', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'getResults'],
-            'permission_callback' => $adminCap,
-        ]);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/audit/schedule',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getSchedule' ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveSchedule' ),
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
 
-        register_rest_route('ameverywhere/v1', '/audit/run-now', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'runNow'],
-            'permission_callback' => $adminCap,
-        ]);
-    }
+		register_rest_route(
+			'ameverywhere/v1',
+			'/audit/results',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'getResults' ),
+				'permission_callback' => $adminCap,
+			)
+		);
 
-    // ── REST callbacks ────────────────────────────────────────────────────────
+		register_rest_route(
+			'ameverywhere/v1',
+			'/audit/run-now',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'runNow' ),
+				'permission_callback' => $adminCap,
+			)
+		);
+	}
 
-    public function getSchedule(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $config   = $this->getConfig();
-        $nextRun  = wp_next_scheduled(self::CRON_HOOK);
-        $lastRun  = get_option(self::RESULTS_OPTION, []);
+	// ── REST callbacks ────────────────────────────────────────────────────────
 
-        return rest_ensure_response([
-            'frequency'      => $config['frequency'],
-            'email_enabled'  => $config['email_enabled'],
-            'email_address'  => $config['email_address'],
-            'next_run'       => $nextRun ? date('Y-m-d H:i:s', $nextRun) : null,
-            'last_run'       => $lastRun['timestamp'] ?? null,
-        ]);
-    }
+	public function getSchedule( \WP_REST_Request $request ): \WP_REST_Response {
+		$config  = $this->getConfig();
+		$nextRun = wp_next_scheduled( self::CRON_HOOK );
+		$lastRun = get_option( self::RESULTS_OPTION, array() );
 
-    public function saveSchedule(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params    = $request->get_json_params();
-        $frequency = in_array($params['frequency'] ?? '', ['weekly', 'monthly'], true)
-            ? $params['frequency'] : 'weekly';
-        $emailEnabled = (bool) ($params['email_enabled'] ?? true);
-        $emailAddress = sanitize_email($params['email_address'] ?? get_option('admin_email'));
+		return rest_ensure_response(
+			array(
+				'frequency'     => $config['frequency'],
+				'email_enabled' => $config['email_enabled'],
+				'email_address' => $config['email_address'],
+				'next_run'      => $nextRun ? date( 'Y-m-d H:i:s', $nextRun ) : null,
+				'last_run'      => $lastRun['timestamp'] ?? null,
+			)
+		);
+	}
 
-        $config = compact('frequency', 'emailEnabled', 'emailAddress');
-        $config['email_enabled'] = $emailEnabled;
-        $config['email_address'] = $emailAddress;
-        unset($config['emailEnabled'], $config['emailAddress']);
+	public function saveSchedule( \WP_REST_Request $request ): \WP_REST_Response {
+		$params       = $request->get_json_params();
+		$frequency    = in_array( $params['frequency'] ?? '', array( 'weekly', 'monthly' ), true )
+			? $params['frequency'] : 'weekly';
+		$emailEnabled = (bool) ( $params['email_enabled'] ?? true );
+		$emailAddress = sanitize_email( $params['email_address'] ?? get_option( 'admin_email' ) );
 
-        update_option(self::SCHEDULE_OPTION, $config);
-        $this->setupSchedule($frequency);
+		$config                  = compact( 'frequency', 'emailEnabled', 'emailAddress' );
+		$config['email_enabled'] = $emailEnabled;
+		$config['email_address'] = $emailAddress;
+		unset( $config['emailEnabled'], $config['emailAddress'] );
 
-        return rest_ensure_response(['success' => true, 'config' => $config]);
-    }
+		update_option( self::SCHEDULE_OPTION, $config );
+		$this->setupSchedule( $frequency );
 
-    public function getResults(\WP_REST_Request $request): \WP_REST_Response
-    {
-        return rest_ensure_response([
-            'last_results' => get_option(self::RESULTS_OPTION, null),
-            'history'      => get_option(self::HISTORY_OPTION, []),
-        ]);
-    }
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'config'  => $config,
+			)
+		);
+	}
 
-    public function runNow(\WP_REST_Request $request): \WP_REST_Response
-    {
-        wp_schedule_single_event(time() + 2, self::CRON_HOOK);
-        return rest_ensure_response(['success' => true, 'message' => 'Audit will run momentarily.']);
-    }
+	public function getResults( \WP_REST_Request $request ): \WP_REST_Response {
+		return rest_ensure_response(
+			array(
+				'last_results' => get_option( self::RESULTS_OPTION, null ),
+				'history'      => get_option( self::HISTORY_OPTION, array() ),
+			)
+		);
+	}
 
-    // ── Audit logic ───────────────────────────────────────────────────────────
+	public function runNow( \WP_REST_Request $request ): \WP_REST_Response {
+		wp_schedule_single_event( time() + 2, self::CRON_HOOK );
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'message' => 'Audit will run momentarily.',
+			)
+		);
+	}
 
-    public function runScheduledAudit(): void
-    {
-        $issues   = 0;
-        $warnings = 0;
-        $passed   = 0;
-        $details  = [];
+	// ── Audit logic ───────────────────────────────────────────────────────────
 
-        // 1. Missing meta descriptions
-        $missingMeta = (new \WP_Query([
-            'post_type' => ['post', 'page'], 'post_status' => 'publish',
-            'posts_per_page' => 1,
-            'meta_query' => [['key' => '_ameverywhere_meta_description', 'compare' => 'NOT EXISTS']],
-        ]))->found_posts;
-        if ($missingMeta > 0) { $warnings++; $details['missing_meta_descriptions'] = $missingMeta; }
-        else { $passed++; }
+	public function runScheduledAudit(): void {
+		$issues   = 0;
+		$warnings = 0;
+		$passed   = 0;
+		$details  = array();
 
-        // 2. Missing alt text
-        $missingAlt = (new \WP_Query([
-            'post_type' => 'attachment', 'post_status' => 'inherit',
-            'post_mime_type' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-            'posts_per_page' => 1,
-            'meta_query' => [['key' => '_wp_attachment_image_alt', 'compare' => 'NOT EXISTS']],
-        ]))->found_posts;
-        if ($missingAlt > 0) { $warnings++; $details['missing_alt_text'] = $missingAlt; }
-        else { $passed++; }
+		// 1. Missing meta descriptions
+		$missingMeta = ( new \WP_Query(
+			array(
+				'post_type'      => array( 'post', 'page' ),
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'meta_query'     => array(
+					array(
+						'key'     => '_ameverywhere_meta_description',
+						'compare' => 'NOT EXISTS',
+					),
+				),
+			)
+		) )->found_posts;
+		if ( $missingMeta > 0 ) {
+			++$warnings;
+			$details['missing_meta_descriptions'] = $missingMeta; } else {
+			++$passed; }
 
-        // 3. 404 count
-        global $wpdb;
-        $logTable = $wpdb->prefix . 'ameverywhere_404_logs';
-        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($logTable)));
-        $count404 = $tableExists ? (int) $wpdb->get_var("SELECT COUNT(*) FROM $logTable") : 0;
-        if ($count404 > 20) { $issues++; $details['404_count'] = $count404; }
-        elseif ($count404 > 5) { $warnings++; $details['404_count'] = $count404; }
-        else { $passed++; }
+			// 2. Missing alt text
+			$missingAlt = ( new \WP_Query(
+				array(
+					'post_type'      => 'attachment',
+					'post_status'    => 'inherit',
+					'post_mime_type' => array( 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ),
+					'posts_per_page' => 1,
+					'meta_query'     => array(
+						array(
+							'key'     => '_wp_attachment_image_alt',
+							'compare' => 'NOT EXISTS',
+						),
+					),
+				)
+			) )->found_posts;
+		if ( $missingAlt > 0 ) {
+			++$warnings;
+			$details['missing_alt_text'] = $missingAlt; } else {
+			++$passed; }
 
-        // 4. Noindex on front page
-        $frontPageId = (int) get_option('page_on_front');
-        $frontNoindex = $frontPageId > 0 ? get_post_meta($frontPageId, '_ameverywhere_noindex', true) : '';
-        if ($frontNoindex === 'yes') { $issues++; $details['front_page_noindex'] = true; }
-        else { $passed++; }
+			// 3. 404 count
+			global $wpdb;
+			$logTable    = $wpdb->prefix . 'ameverywhere_404_logs';
+			$tableExists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $logTable ) ) );
+			$count404    = $tableExists ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM $logTable" ) : 0;
+			if ( $count404 > 20 ) {
+				++$issues;
+				$details['404_count'] = $count404; } elseif ( $count404 > 5 ) {
+						++$warnings;
+						$details['404_count'] = $count404; } else {
+					++$passed; }
 
-        // 5. SSL
-        if (strpos(site_url(), 'https://') !== 0) { $issues++; $details['no_ssl'] = true; }
-        else { $passed++; }
+						// 4. Noindex on front page
+						$frontPageId  = (int) get_option( 'page_on_front' );
+						$frontNoindex = $frontPageId > 0 ? get_post_meta( $frontPageId, '_ameverywhere_noindex', true ) : '';
+						if ( $frontNoindex === 'yes' ) {
+							++$issues;
+							$details['front_page_noindex'] = true; } else {
+							++$passed; }
 
-        $results = [
-            'timestamp' => current_time('mysql'),
-            'summary'   => ['issues' => $issues, 'warnings' => $warnings, 'passed' => $passed],
-            'details'   => $details,
-        ];
+							// 5. SSL
+							if ( strpos( site_url(), 'https://' ) !== 0 ) {
+								++$issues;
+								$details['no_ssl'] = true; } else {
+								++$passed; }
 
-        update_option(self::RESULTS_OPTION, $results);
+								$results = array(
+									'timestamp' => current_time( 'mysql' ),
+									'summary'   => array(
+										'issues'   => $issues,
+										'warnings' => $warnings,
+										'passed'   => $passed,
+									),
+									'details'   => $details,
+								);
 
-        // Append to history (keep last 12)
-        $history   = (array) get_option(self::HISTORY_OPTION, []);
-        $history[] = ['timestamp' => $results['timestamp'], 'summary' => $results['summary']];
-        update_option(self::HISTORY_OPTION, array_slice($history, -self::HISTORY_MAX));
+								update_option( self::RESULTS_OPTION, $results );
 
-        // Email if enabled
-        $config = $this->getConfig();
-        if ($config['email_enabled']) {
-            wp_mail(
-                $config['email_address'],
-                '[AmEveryWhere] Scheduled SEO Audit Results',
-                $this->formatEmailBody($results),
-                ['Content-Type: text/html; charset=UTF-8']
-            );
-        }
-    }
+								// Append to history (keep last 12)
+								$history   = (array) get_option( self::HISTORY_OPTION, array() );
+								$history[] = array(
+									'timestamp' => $results['timestamp'],
+									'summary'   => $results['summary'],
+								);
+								update_option( self::HISTORY_OPTION, array_slice( $history, -self::HISTORY_MAX ) );
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+								// Email if enabled
+								$config = $this->getConfig();
+								if ( $config['email_enabled'] ) {
+									wp_mail(
+										$config['email_address'],
+										'[AmEveryWhere] Scheduled SEO Audit Results',
+										$this->formatEmailBody( $results ),
+										array( 'Content-Type: text/html; charset=UTF-8' )
+									);
+								}
+	}
 
-    public function setupSchedule(string $frequency): void
-    {
-        // Clear existing
-        $ts = wp_next_scheduled(self::CRON_HOOK);
-        if ($ts) {
-            wp_unschedule_event($ts, self::CRON_HOOK);
-        }
+	// ── Helpers ───────────────────────────────────────────────────────────────
 
-        $recurrence = ($frequency === 'monthly') ? 'ameverywhere_monthly' : 'weekly';
-        wp_schedule_event(time() + 60, $recurrence, self::CRON_HOOK);
-    }
+	public function setupSchedule( string $frequency ): void {
+		// Clear existing
+		$ts = wp_next_scheduled( self::CRON_HOOK );
+		if ( $ts ) {
+			wp_unschedule_event( $ts, self::CRON_HOOK );
+		}
 
-    public function formatEmailBody(array $results): string
-    {
-        $s = $results['summary'];
-        $body  = '<h2>AmEveryWhere SEO Audit Results</h2>';
-        $body .= "<p>Run at: <strong>{$results['timestamp']}</strong></p>";
-        $body .= '<table border="1" cellpadding="6" style="border-collapse:collapse">';
-        $body .= '<tr><th>Metric</th><th>Count</th></tr>';
-        $body .= '<tr><td>🔴 Critical Issues</td><td>' . $s['issues']   . '</td></tr>';
-        $body .= '<tr><td>⚠️ Warnings</td><td>'        . $s['warnings'] . '</td></tr>';
-        $body .= '<tr><td>✅ Passed</td><td>'           . $s['passed']   . '</td></tr>';
-        $body .= '</table>';
+		$recurrence = ( $frequency === 'monthly' ) ? 'ameverywhere_monthly' : 'weekly';
+		wp_schedule_event( time() + 60, $recurrence, self::CRON_HOOK );
+	}
 
-        if (!empty($results['details'])) {
-            $body .= '<h3>Details</h3><ul>';
-            foreach ($results['details'] as $k => $v) {
-                $body .= '<li>' . esc_html(str_replace('_', ' ', $k)) . ': <strong>' . esc_html((string) $v) . '</strong></li>';
-            }
-            $body .= '</ul>';
-        }
+	public function formatEmailBody( array $results ): string {
+		$s     = $results['summary'];
+		$body  = '<h2>AmEveryWhere SEO Audit Results</h2>';
+		$body .= "<p>Run at: <strong>{$results['timestamp']}</strong></p>";
+		$body .= '<table border="1" cellpadding="6" style="border-collapse:collapse">';
+		$body .= '<tr><th>Metric</th><th>Count</th></tr>';
+		$body .= '<tr><td>🔴 Critical Issues</td><td>' . $s['issues'] . '</td></tr>';
+		$body .= '<tr><td>⚠️ Warnings</td><td>' . $s['warnings'] . '</td></tr>';
+		$body .= '<tr><td>✅ Passed</td><td>' . $s['passed'] . '</td></tr>';
+		$body .= '</table>';
 
-        $body .= '<p><a href="' . esc_url(admin_url('admin.php?page=ameverywhere')) . '">View full audit in AmEveryWhere →</a></p>';
-        return $body;
-    }
+		if ( ! empty( $results['details'] ) ) {
+			$body .= '<h3>Details</h3><ul>';
+			foreach ( $results['details'] as $k => $v ) {
+				$body .= '<li>' . esc_html( str_replace( '_', ' ', $k ) ) . ': <strong>' . esc_html( (string) $v ) . '</strong></li>';
+			}
+			$body .= '</ul>';
+		}
 
-    private function getConfig(): array
-    {
-        return array_merge(
-            ['frequency' => 'weekly', 'email_enabled' => true, 'email_address' => get_option('admin_email')],
-            (array) get_option(self::SCHEDULE_OPTION, [])
-        );
-    }
+		$body .= '<p><a href="' . esc_url( admin_url( 'admin.php?page=ameverywhere' ) ) . '">View full audit in AmEveryWhere →</a></p>';
+		return $body;
+	}
+
+	private function getConfig(): array {
+		return array_merge(
+			array(
+				'frequency'     => 'weekly',
+				'email_enabled' => true,
+				'email_address' => get_option( 'admin_email' ),
+			),
+			(array) get_option( self::SCHEDULE_OPTION, array() )
+		);
+	}
 }

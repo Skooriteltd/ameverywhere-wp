@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -15,200 +15,209 @@ if (!defined('ABSPATH')) {
  *
  * BL-017
  */
-class IndexStatusChecker
-{
-    private const CACHE_TTL        = HOUR_IN_SECONDS;
-    private const GSC_TOKEN_OPTION = 'ameverywhere_gsc_access_token';
-    private const MAX_BULK         = 10;
+class IndexStatusChecker {
 
-    private const INSPECT_ENDPOINT = 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect';
+	private const CACHE_TTL        = HOUR_IN_SECONDS;
+	private const GSC_TOKEN_OPTION = 'ameverywhere_gsc_access_token';
+	private const MAX_BULK         = 10;
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	private const INSPECT_ENDPOINT = 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect';
 
-    // ── REST routes ───────────────────────────────────────────────────────────
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-    public function registerRoutes(): void
-    {
-        $editorCap = fn() => current_user_can('edit_posts');
+	// ── REST routes ───────────────────────────────────────────────────────────
 
-        register_rest_route('ameverywhere/v1', '/indexing/check-status', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'checkStatus'],
-            'permission_callback' => $editorCap,
-        ]);
+	public function registerRoutes(): void {
+		$editorCap = fn() => current_user_can( 'edit_posts' );
 
-        register_rest_route('ameverywhere/v1', '/indexing/check-status-bulk', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'checkStatusBulk'],
-            'permission_callback' => $editorCap,
-        ]);
-    }
+		register_rest_route(
+			'ameverywhere/v1',
+			'/indexing/check-status',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'checkStatus' ),
+				'permission_callback' => $editorCap,
+			)
+		);
 
-    // ── REST callbacks ────────────────────────────────────────────────────────
+		register_rest_route(
+			'ameverywhere/v1',
+			'/indexing/check-status-bulk',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'checkStatusBulk' ),
+				'permission_callback' => $editorCap,
+			)
+		);
+	}
 
-    public function checkStatus(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
-    {
-        $params = $request->get_json_params();
-        $postId = absint($params['post_id'] ?? 0);
+	// ── REST callbacks ────────────────────────────────────────────────────────
 
-        if ($postId < 1) {
-            return new \WP_Error('missing_post_id', 'A post ID is required.', ['status' => 400]);
-        }
+	public function checkStatus( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$params = $request->get_json_params();
+		$postId = absint( $params['post_id'] ?? 0 );
 
-        if (!current_user_can('edit_post', $postId)) {
-            return new \WP_Error('forbidden_post', 'You cannot inspect this post.', ['status' => 403]);
-        }
+		if ( $postId < 1 ) {
+			return new \WP_Error( 'missing_post_id', 'A post ID is required.', array( 'status' => 400 ) );
+		}
 
-        $url = get_permalink($postId);
+		if ( ! current_user_can( 'edit_post', $postId ) ) {
+			return new \WP_Error( 'forbidden_post', 'You cannot inspect this post.', array( 'status' => 403 ) );
+		}
 
-        return rest_ensure_response($this->inspect($url));
-    }
+		$url = get_permalink( $postId );
 
-    public function checkStatusBulk(\WP_REST_Request $request): \WP_REST_Response|\WP_Error
-    {
-        $params   = $request->get_json_params();
-        $postIds  = array_slice(array_map('absint', $params['post_ids'] ?? []), 0, self::MAX_BULK);
+		return rest_ensure_response( $this->inspect( $url ) );
+	}
 
-        if (empty($postIds)) {
-            return new \WP_Error('missing_ids', 'Provide post_ids array (max ' . self::MAX_BULK . ').', ['status' => 400]);
-        }
+	public function checkStatusBulk( \WP_REST_Request $request ): \WP_REST_Response|\WP_Error {
+		$params  = $request->get_json_params();
+		$postIds = array_slice( array_map( 'absint', $params['post_ids'] ?? array() ), 0, self::MAX_BULK );
 
-        $results = [];
-        foreach ($postIds as $id) {
-            if (!current_user_can('edit_post', $id)) {
-                $results[$id] = ['status' => 'forbidden', 'message' => 'You cannot inspect this post.'];
-                continue;
-            }
+		if ( empty( $postIds ) ) {
+			return new \WP_Error( 'missing_ids', 'Provide post_ids array (max ' . self::MAX_BULK . ').', array( 'status' => 400 ) );
+		}
 
-            $url = get_permalink($id);
-            if ($url) {
-                $results[$id] = $this->inspect($url);
-            }
-        }
+		$results = array();
+		foreach ( $postIds as $id ) {
+			if ( ! current_user_can( 'edit_post', $id ) ) {
+				$results[ $id ] = array(
+					'status'  => 'forbidden',
+					'message' => 'You cannot inspect this post.',
+				);
+				continue;
+			}
 
-        return rest_ensure_response(['results' => $results]);
-    }
+			$url = get_permalink( $id );
+			if ( $url ) {
+				$results[ $id ] = $this->inspect( $url );
+			}
+		}
 
-    // ── Core inspection ───────────────────────────────────────────────────────
+		return rest_ensure_response( array( 'results' => $results ) );
+	}
 
-    private function inspect(string $url): array
-    {
-        $cacheKey = 'ameverywhere_index_status_' . md5($url);
-        $cached   = get_transient($cacheKey);
-        if ($cached !== false) {
-            return array_merge($cached, ['cached' => true]);
-        }
+	// ── Core inspection ───────────────────────────────────────────────────────
 
-        $token = get_option(self::GSC_TOKEN_OPTION, '');
-        if (empty($token)) {
-            return [
-                'url'                => $url,
-                'status'             => 'unconfigured',
-                'message'            => 'Google Search Console is not connected. Go to AmEveryWhere → Settings → Integrations to connect.',
-                'cached'             => false,
-                'troubleshooting_tips' => [],
-            ];
-        }
+	private function inspect( string $url ): array {
+		$cacheKey = 'ameverywhere_index_status_' . md5( $url );
+		$cached   = get_transient( $cacheKey );
+		if ( $cached !== false ) {
+			return array_merge( $cached, array( 'cached' => true ) );
+		}
 
-        $siteUrl = site_url('/');
+		$token = get_option( self::GSC_TOKEN_OPTION, '' );
+		if ( empty( $token ) ) {
+			return array(
+				'url'                  => $url,
+				'status'               => 'unconfigured',
+				'message'              => 'Google Search Console is not connected. Go to AmEveryWhere → Settings → Integrations to connect.',
+				'cached'               => false,
+				'troubleshooting_tips' => array(),
+			);
+		}
 
-        $response = wp_remote_post(self::INSPECT_ENDPOINT, [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type'  => 'application/json',
-            ],
-            'body'    => wp_json_encode([
-                'inspectionUrl' => $url,
-                'siteUrl'       => $siteUrl,
-            ]),
-            'timeout' => 15,
-        ]);
+		$siteUrl = site_url( '/' );
 
-        if (is_wp_error($response)) {
-            return [
-                'url'    => $url,
-                'status' => 'error',
-                'message' => $response->get_error_message(),
-                'cached' => false,
-                'troubleshooting_tips' => [],
-            ];
-        }
+		$response = wp_safe_remote_post(
+			self::INSPECT_ENDPOINT,
+			array(
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $token,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode(
+					array(
+						'inspectionUrl' => $url,
+						'siteUrl'       => $siteUrl,
+					)
+				),
+				'timeout' => 15,
+			)
+		);
 
-        $code = wp_remote_retrieve_response_code($response);
-        if ($code !== 200) {
-            return [
-                'url'    => $url,
-                'status' => 'api_error',
-                'message' => 'GSC API returned HTTP ' . $code . '. Your access token may have expired.',
-                'cached' => false,
-                'troubleshooting_tips' => ['Re-authorise your Google Search Console connection in AmEveryWhere → Settings → Integrations.'],
-            ];
-        }
+		if ( is_wp_error( $response ) ) {
+			return array(
+				'url'                  => $url,
+				'status'               => 'error',
+				'message'              => $response->get_error_message(),
+				'cached'               => false,
+				'troubleshooting_tips' => array(),
+			);
+		}
 
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        $result = $this->parseInspectionResult($url, $body);
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code !== 200 ) {
+			return array(
+				'url'                  => $url,
+				'status'               => 'api_error',
+				'message'              => 'GSC API returned HTTP ' . $code . '. Your access token may have expired.',
+				'cached'               => false,
+				'troubleshooting_tips' => array( 'Re-authorise your Google Search Console connection in AmEveryWhere → Settings → Integrations.' ),
+			);
+		}
 
-        set_transient($cacheKey, $result, self::CACHE_TTL);
+		$body   = json_decode( wp_remote_retrieve_body( $response ), true );
+		$result = $this->parseInspectionResult( $url, $body );
 
-        return array_merge($result, ['cached' => false]);
-    }
+		set_transient( $cacheKey, $result, self::CACHE_TTL );
 
-    private function parseInspectionResult(string $url, array $body): array
-    {
-        $ir      = $body['inspectionResult'] ?? [];
-        $index   = $ir['indexStatusResult'] ?? [];
-        $verdict = $index['verdict'] ?? 'UNKNOWN';
-        $coverage = $index['coverageState'] ?? '';
+		return array_merge( $result, array( 'cached' => false ) );
+	}
 
-        $tips = $this->buildTroubleshootingTips($verdict, $coverage, $index);
+	private function parseInspectionResult( string $url, array $body ): array {
+		$ir       = $body['inspectionResult'] ?? array();
+		$index    = $ir['indexStatusResult'] ?? array();
+		$verdict  = $index['verdict'] ?? 'UNKNOWN';
+		$coverage = $index['coverageState'] ?? '';
 
-        return [
-            'url'               => $url,
-            'verdict'           => $verdict,
-            'coverage_state'    => $coverage,
-            'robots_txt_state'  => $index['robotsTxtState']  ?? '',
-            'indexing_state'    => $index['indexingState']   ?? '',
-            'page_fetch_state'  => $index['pageFetchState']  ?? '',
-            'last_crawl_time'   => $index['lastCrawlTime']   ?? null,
-            'troubleshooting_tips' => $tips,
-        ];
-    }
+		$tips = $this->buildTroubleshootingTips( $verdict, $coverage, $index );
 
-    private function buildTroubleshootingTips(string $verdict, string $coverage, array $index): array
-    {
-        $tips = [];
+		return array(
+			'url'                  => $url,
+			'verdict'              => $verdict,
+			'coverage_state'       => $coverage,
+			'robots_txt_state'     => $index['robotsTxtState'] ?? '',
+			'indexing_state'       => $index['indexingState'] ?? '',
+			'page_fetch_state'     => $index['pageFetchState'] ?? '',
+			'last_crawl_time'      => $index['lastCrawlTime'] ?? null,
+			'troubleshooting_tips' => $tips,
+		);
+	}
 
-        if ($verdict === 'PASS') {
-            return ['Page is indexed and appears in Google Search. 🎉'];
-        }
+	private function buildTroubleshootingTips( string $verdict, string $coverage, array $index ): array {
+		$tips = array();
 
-        if (($index['robotsTxtState'] ?? '') === 'DISALLOWED') {
-            $tips[] = 'This URL is blocked by your robots.txt. Go to AmEveryWhere → Technical SEO → Robots.txt to review.';
-        }
+		if ( $verdict === 'PASS' ) {
+			return array( 'Page is indexed and appears in Google Search. 🎉' );
+		}
 
-        if (($index['indexingState'] ?? '') === 'INDEXING_NOT_ALLOWED') {
-            $tips[] = 'A noindex directive is preventing indexing. Check the Meta Robots field in the AmEveryWhere SEO panel for this post.';
-        }
+		if ( ( $index['robotsTxtState'] ?? '' ) === 'DISALLOWED' ) {
+			$tips[] = 'This URL is blocked by your robots.txt. Go to AmEveryWhere → Technical SEO → Robots.txt to review.';
+		}
 
-        if (stripos($coverage, 'Crawled - currently not indexed') !== false) {
-            $tips[] = 'Google has crawled this page but chosen not to index it. Consider improving content quality, canonical tags, and internal links.';
-        }
+		if ( ( $index['indexingState'] ?? '' ) === 'INDEXING_NOT_ALLOWED' ) {
+			$tips[] = 'A noindex directive is preventing indexing. Check the Meta Robots field in the AmEveryWhere SEO panel for this post.';
+		}
 
-        if (stripos($coverage, 'Discovered - currently not indexed') !== false) {
-            $tips[] = 'Google discovered this URL but hasn\'t crawled it yet. Improve internal links to this page and resubmit via sitemap.';
-        }
+		if ( stripos( $coverage, 'Crawled - currently not indexed' ) !== false ) {
+			$tips[] = 'Google has crawled this page but chosen not to index it. Consider improving content quality, canonical tags, and internal links.';
+		}
 
-        if (stripos($coverage, 'Duplicate') !== false) {
-            $tips[] = 'Google considers this a duplicate of another URL. Check that the canonical tag points to the correct primary URL.';
-        }
+		if ( stripos( $coverage, 'Discovered - currently not indexed' ) !== false ) {
+			$tips[] = 'Google discovered this URL but hasn\'t crawled it yet. Improve internal links to this page and resubmit via sitemap.';
+		}
 
-        if (empty($tips)) {
-            $tips[] = 'Review the URL in Google Search Console for full details: https://search.google.com/search-console';
-        }
+		if ( stripos( $coverage, 'Duplicate' ) !== false ) {
+			$tips[] = 'Google considers this a duplicate of another URL. Check that the canonical tag points to the correct primary URL.';
+		}
 
-        return $tips;
-    }
+		if ( empty( $tips ) ) {
+			$tips[] = 'Review the URL in Google Search Console for full details: https://search.google.com/search-console';
+		}
+
+		return $tips;
+	}
 }

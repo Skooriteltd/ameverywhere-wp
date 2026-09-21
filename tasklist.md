@@ -15,8 +15,7 @@
 
 ## 🚦 WordPress.org Production-Readiness Release Tracker
 
-> **Authoritative backlog:** `engineering-production-readiness-backlog.md`
-> **Evidence log:** `18-execution-log.md`
+> **Authoritative backlog:** `production-readiness-backlog.md`
 > **Release status:** **Not ready for WordPress.org submission.** “Implemented” means source changes exist and local lint/unit/build validation passed; it does **not** mean the acceptance criteria are complete. No item below may be changed to complete until its stated integration, browser, package, and policy evidence is attached.
 
 | ID | Status | Current state / next release gate |

@@ -2,66 +2,67 @@
 
 namespace AmEveryWhere\Modules\Sitemap;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * Handles database operations for AmEveryWhere sitemap settings using the custom table.
  * Fallbacks to options and handles transparent on-demand migrations.
  */
-class SitemapSettings
-{
-    private static string $table = 'ameverywhere_sitemap_settings';
+class SitemapSettings {
 
-    /**
-     * Retrieve a sitemap configuration setting.
-     */
-    public static function get(string $key, $default = null)
-    {
-        global $wpdb;
-        $tableName = $wpdb->prefix . self::$table;
+	private static string $table = 'ameverywhere_sitemap_settings';
 
-        // Check if custom table exists; if not, fallback to options
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($tableName))) !== $tableName) {
-            return get_option('ameverywhere_' . $key, $default);
-        }
+	/**
+	 * Retrieve a sitemap configuration setting.
+	 */
+	public static function get( string $key, $default = null ) {
+		global $wpdb;
+		$tableName = $wpdb->prefix . self::$table;
 
-        $row = $wpdb->get_row($wpdb->prepare("SELECT setting_value FROM $tableName WHERE setting_key = %s", $key));
-        if ($row !== null) {
-            return maybe_unserialize($row->setting_value);
-        }
+		// Check if custom table exists; if not, fallback to options
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $tableName ) ) ) !== $tableName ) {
+			return get_option( 'ameverywhere_' . $key, $default );
+		}
 
-        // Check fallback to option table for backwards compatibility
-        $optVal = get_option('ameverywhere_' . $key, null);
-        if ($optVal !== null) {
-            // One-time self-healing migration
-            self::set($key, $optVal);
-            delete_option('ameverywhere_' . $key);
-            return $optVal;
-        }
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT setting_value FROM $tableName WHERE setting_key = %s", $key ) );
+		if ( $row !== null ) {
+			return maybe_unserialize( $row->setting_value );
+		}
 
-        return $default;
-    }
+		// Check fallback to option table for backwards compatibility
+		$optVal = get_option( 'ameverywhere_' . $key, null );
+		if ( $optVal !== null ) {
+			// One-time self-healing migration
+			self::set( $key, $optVal );
+			delete_option( 'ameverywhere_' . $key );
+			return $optVal;
+		}
 
-    /**
-     * Save a sitemap configuration setting.
-     */
-    public static function set(string $key, $value): void
-    {
-        global $wpdb;
-        $tableName = $wpdb->prefix . self::$table;
+		return $default;
+	}
 
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($tableName))) !== $tableName) {
-            update_option('ameverywhere_' . $key, $value);
-            return;
-        }
+	/**
+	 * Save a sitemap configuration setting.
+	 */
+	public static function set( string $key, $value ): void {
+		global $wpdb;
+		$tableName = $wpdb->prefix . self::$table;
 
-        $serializedValue = maybe_serialize($value);
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $tableName ) ) ) !== $tableName ) {
+			update_option( 'ameverywhere_' . $key, $value );
+			return;
+		}
 
-        $wpdb->replace($tableName, [
-            'setting_key'   => $key,
-            'setting_value' => $serializedValue
-        ]);
-    }
+		$serializedValue = maybe_serialize( $value );
+
+		$wpdb->replace(
+			$tableName,
+			array(
+				'setting_key'   => $key,
+				'setting_value' => $serializedValue,
+			)
+		);
+	}
 }

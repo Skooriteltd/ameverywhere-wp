@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Ai;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -20,243 +20,290 @@ if (!defined('ABSPATH')) {
  *
  * @see https://llmstxt.org/
  */
-class LlmsTxtGenerator
-{
-    private const CACHE_TRANSIENT    = 'ameverywhere_llms_txt_content';
-    private const CONFIG_OPTION      = 'ameverywhere_llms_txt_config';
-    private const OVERRIDE_OPTION    = 'ameverywhere_llms_txt_manual_override';
-    private const OVERRIDE_CONTENT   = 'ameverywhere_llms_txt_manual_content';
+class LlmsTxtGenerator {
 
-    public function boot(): void
-    {
-        add_action('init', [$this, 'registerRewriteRule']);
-        add_action('template_redirect', [$this, 'serveFile']);
-        add_filter('query_vars', [$this, 'registerQueryVar']);
+	private const CACHE_TRANSIENT  = 'ameverywhere_llms_txt_content';
+	private const CONFIG_OPTION    = 'ameverywhere_llms_txt_config';
+	private const OVERRIDE_OPTION  = 'ameverywhere_llms_txt_manual_override';
+	private const OVERRIDE_CONTENT = 'ameverywhere_llms_txt_manual_content';
 
-        // BL-033: Cache invalidation hooks
-        add_action('save_post', [$this, 'invalidateCache']);
-        add_action('update_option_ameverywhere_llms_txt_config', [$this, 'invalidateCache']);
-    }
+	public function boot(): void {
+		add_action( 'init', array( $this, 'registerRewriteRule' ) );
+		add_action( 'template_redirect', array( $this, 'serveFile' ) );
+		add_filter( 'query_vars', array( $this, 'registerQueryVar' ) );
 
-    public function invalidateCache(): void
-    {
-        delete_transient(self::CACHE_TRANSIENT);
-    }
+		// BL-033: Cache invalidation hooks
+		add_action( 'save_post', array( $this, 'invalidateCache' ) );
+		add_action( 'update_option_ameverywhere_llms_txt_config', array( $this, 'invalidateCache' ) );
+	}
 
-    public function registerRewriteRule(): void
-    {
-        add_rewrite_rule('^llms\\.txt$', 'index.php?ameverywhere_llms_txt=1', 'top');
-    }
+	public function invalidateCache(): void {
+		delete_transient( self::CACHE_TRANSIENT );
+	}
 
-    public function registerQueryVar(array $vars): array
-    {
-        $vars[] = 'ameverywhere_llms_txt';
-        return $vars;
-    }
+	public function registerRewriteRule(): void {
+		add_rewrite_rule( '^llms\\.txt$', 'index.php?ameverywhere_llms_txt=1', 'top' );
+	}
 
-    public function serveFile(): void
-    {
-        if (!get_query_var('ameverywhere_llms_txt')) {
-            return;
-        }
+	public function registerQueryVar( array $vars ): array {
+		$vars[] = 'ameverywhere_llms_txt';
+		return $vars;
+	}
 
-        header('Content-Type: text/plain; charset=utf-8');
-        header('X-Robots-Tag: noindex');
+	public function serveFile(): void {
+		if ( ! get_query_var( 'ameverywhere_llms_txt' ) ) {
+			return;
+		}
 
-        // BL-033: manual override mode
-        if (get_option(self::OVERRIDE_OPTION, false)) {
-            echo (string) get_option(self::OVERRIDE_CONTENT, '');
-            exit;
-        }
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		header( 'X-Robots-Tag: noindex' );
 
-        // Try cache
-        $cached = get_transient(self::CACHE_TRANSIENT);
-        if ($cached !== false) {
-            echo $cached;
-            exit;
-        }
+		// BL-033: manual override mode
+		if ( get_option( self::OVERRIDE_OPTION, false ) ) {
+			echo (string) get_option( self::OVERRIDE_CONTENT, '' );
+			exit;
+		}
 
-        $config  = get_option(self::CONFIG_OPTION, []);
-        $content = $this->buildContent($config);
+		// Try cache
+		$cached = get_transient( self::CACHE_TRANSIENT );
+		if ( $cached !== false ) {
+			echo $cached;
+			exit;
+		}
 
-        set_transient(self::CACHE_TRANSIENT, $content, 12 * HOUR_IN_SECONDS);
-        echo $content;
-        exit;
-    }
+		$config  = get_option( self::CONFIG_OPTION, array() );
+		$content = $this->buildContent( $config );
 
-    public function buildContent(array $config): string
-    {
-        $siteName    = get_bloginfo('name');
-        $siteUrl     = get_site_url();
-        $description = $config['description'] ?? get_bloginfo('description');
-        $allowIndex  = $config['allow_index'] ?? true;
-        $allowTrain  = $config['allow_training'] ?? false;
-        $extraNotes  = $config['extra_notes'] ?? '';
+		set_transient( self::CACHE_TRANSIENT, $content, 12 * HOUR_IN_SECONDS );
+		echo $content;
+		exit;
+	}
 
-        // BL-033: find contact page automatically
-        $contactPage = get_pages(['meta_key' => '_wp_page_template', 'number' => 1]);
-        $contactUrl  = $config['contact_url'] ?? '';
-        if (empty($contactUrl)) {
-            $pages = get_posts(['post_type' => 'page', 'post_status' => 'publish', 'name' => 'contact', 'posts_per_page' => 1]);
-            $contactUrl = !empty($pages) ? get_permalink($pages[0]->ID) : get_option('admin_email');
-        }
+	public function buildContent( array $config ): string {
+		$siteName    = get_bloginfo( 'name' );
+		$siteUrl     = get_site_url();
+		$description = $config['description'] ?? get_bloginfo( 'description' );
+		$allowIndex  = $config['allow_index'] ?? true;
+		$allowTrain  = $config['allow_training'] ?? false;
+		$extraNotes  = $config['extra_notes'] ?? '';
 
-        $output  = "# {$siteName}\n\n";
-        $output .= "> {$description}\n\n";
-        $output .= "## Site\n\n";
-        $output .= "- URL: {$siteUrl}\n";
-        $output .= "- Contact: {$contactUrl}\n\n";
+		// BL-033: find contact page automatically
+		$contactPage = get_pages(
+			array(
+				'meta_key' => '_wp_page_template',
+				'number'   => 1,
+			)
+		);
+		$contactUrl  = $config['contact_url'] ?? '';
+		if ( empty( $contactUrl ) ) {
+			$pages      = get_posts(
+				array(
+					'post_type'      => 'page',
+					'post_status'    => 'publish',
+					'name'           => 'contact',
+					'posts_per_page' => 1,
+				)
+			);
+			$contactUrl = ! empty( $pages ) ? get_permalink( $pages[0]->ID ) : get_option( 'admin_email' );
+		}
 
-        $output .= "## Permissions\n\n";
-        $output .= '- Indexing: ' . ($allowIndex ? 'Allowed' : 'Not Allowed') . "\n";
-        $output .= '- Training data use: ' . ($allowTrain ? 'Allowed' : 'Not Allowed') . "\n\n";
+		$output  = "# {$siteName}\n\n";
+		$output .= "> {$description}\n\n";
+		$output .= "## Site\n\n";
+		$output .= "- URL: {$siteUrl}\n";
+		$output .= "- Contact: {$contactUrl}\n\n";
 
-        // Structured data link
-        $output .= "## Structured Data\n\n";
-        $output .= "- Schema Map: {$siteUrl}/wp-json/ameverywhere/v1/schemamap\n\n";
+		$output .= "## Permissions\n\n";
+		$output .= '- Indexing: ' . ( $allowIndex ? 'Allowed' : 'Not Allowed' ) . "\n";
+		$output .= '- Training data use: ' . ( $allowTrain ? 'Allowed' : 'Not Allowed' ) . "\n\n";
 
-        // BL-033: Cornerstone content (auto-populated)
-        $output .= "## Cornerstone Content\n\n";
-        $cornerstones = get_posts([
-            'post_type'      => get_post_types(['public' => true]),
-            'post_status'    => 'publish',
-            'posts_per_page' => 20,
-            'orderby'        => 'modified',
-            'order'          => 'DESC',
-            'meta_query'     => [['key' => '_ameverywhere_is_cornerstone', 'value' => 'yes']],
-        ]);
+		// Structured data link
+		$output .= "## Structured Data\n\n";
+		$output .= "- Schema Map: {$siteUrl}/wp-json/ameverywhere/v1/schemamap\n\n";
 
-        if (!empty($cornerstones)) {
-            foreach ($cornerstones as $post) {
-                $output .= "- [{$post->post_title}](" . get_permalink($post->ID) . ")\n";
-            }
-        } else {
-            // Fall back to recent posts if no cornerstone content set
-            $recent = get_posts(['post_type' => ['post', 'page'], 'post_status' => 'publish', 'posts_per_page' => 10, 'orderby' => 'modified', 'order' => 'DESC']);
-            foreach ($recent as $post) {
-                $output .= "- [{$post->post_title}](" . get_permalink($post->ID) . ")\n";
-            }
-        }
-        $output .= "\n";
+		// BL-033: Cornerstone content (auto-populated)
+		$output      .= "## Cornerstone Content\n\n";
+		$cornerstones = get_posts(
+			array(
+				'post_type'      => get_post_types( array( 'public' => true ) ),
+				'post_status'    => 'publish',
+				'posts_per_page' => 20,
+				'orderby'        => 'modified',
+				'order'          => 'DESC',
+				'meta_query'     => array(
+					array(
+						'key'   => '_ameverywhere_is_cornerstone',
+						'value' => 'yes',
+					),
+				),
+			)
+		);
 
-        // BL-033: Disallow section (posts explicitly opting out of AI training)
-        $disallowed = get_posts([
-            'post_type'      => get_post_types(['public' => true]),
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'meta_query'     => [['key' => '_ameverywhere_ai_training_allow', 'value' => 'no']],
-            'fields'         => 'ids',
-        ]);
+		if ( ! empty( $cornerstones ) ) {
+			foreach ( $cornerstones as $post ) {
+				$output .= "- [{$post->post_title}](" . get_permalink( $post->ID ) . ")\n";
+			}
+		} else {
+			// Fall back to recent posts if no cornerstone content set
+			$recent = get_posts(
+				array(
+					'post_type'      => array( 'post', 'page' ),
+					'post_status'    => 'publish',
+					'posts_per_page' => 10,
+					'orderby'        => 'modified',
+					'order'          => 'DESC',
+				)
+			);
+			foreach ( $recent as $post ) {
+				$output .= "- [{$post->post_title}](" . get_permalink( $post->ID ) . ")\n";
+			}
+		}
+		$output .= "\n";
 
-        if (!empty($disallowed)) {
-            $output .= "## Disallow\n\n";
-            foreach ($disallowed as $id) {
-                $output .= "- " . get_permalink($id) . "\n";
-            }
-            $output .= "\n";
-        }
+		// BL-033: Disallow section (posts explicitly opting out of AI training)
+		$disallowed = get_posts(
+			array(
+				'post_type'      => get_post_types( array( 'public' => true ) ),
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'   => '_ameverywhere_ai_training_allow',
+						'value' => 'no',
+					),
+				),
+				'fields'         => 'ids',
+			)
+		);
 
-        // BL-033: Allow section (posts explicitly opting into AI training)
-        $allowed = get_posts([
-            'post_type'      => get_post_types(['public' => true]),
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'meta_query'     => [['key' => '_ameverywhere_ai_training_allow', 'value' => 'yes']],
-            'fields'         => 'ids',
-        ]);
+		if ( ! empty( $disallowed ) ) {
+			$output .= "## Disallow\n\n";
+			foreach ( $disallowed as $id ) {
+				$output .= '- ' . get_permalink( $id ) . "\n";
+			}
+			$output .= "\n";
+		}
 
-        if (!empty($allowed)) {
-            $output .= "## Allow\n\n";
-            foreach ($allowed as $id) {
-                $output .= "- " . get_permalink($id) . "\n";
-            }
-            $output .= "\n";
-        }
+		// BL-033: Allow section (posts explicitly opting into AI training)
+		$allowed = get_posts(
+			array(
+				'post_type'      => get_post_types( array( 'public' => true ) ),
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'   => '_ameverywhere_ai_training_allow',
+						'value' => 'yes',
+					),
+				),
+				'fields'         => 'ids',
+			)
+		);
 
-        if (!empty($extraNotes)) {
-            $output .= "## Notes\n\n";
-            $output .= $extraNotes . "\n";
-        }
+		if ( ! empty( $allowed ) ) {
+			$output .= "## Allow\n\n";
+			foreach ( $allowed as $id ) {
+				$output .= '- ' . get_permalink( $id ) . "\n";
+			}
+			$output .= "\n";
+		}
 
-        return $output;
-    }
+		if ( ! empty( $extraNotes ) ) {
+			$output .= "## Notes\n\n";
+			$output .= $extraNotes . "\n";
+		}
 
-    public function registerRestRoutes(): void
-    {
-        $adminCap = fn() => current_user_can('manage_options');
+		return $output;
+	}
 
-        register_rest_route('ameverywhere/v1', '/llms-txt/config', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getConfig'],
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveConfig'],
-                'permission_callback' => $adminCap,
-            ],
-        ]);
+	public function registerRestRoutes(): void {
+		$adminCap = fn() => current_user_can( 'manage_options' );
 
-        // BL-033: preview endpoint
-        register_rest_route('ameverywhere/v1', '/ai/llms-preview', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'previewContent'],
-            'permission_callback' => $adminCap,
-        ]);
-    }
+		register_rest_route(
+			'ameverywhere/v1',
+			'/llms-txt/config',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getConfig' ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveConfig' ),
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
 
-    public function getConfig(): \WP_REST_Response
-    {
-        $config = get_option(self::CONFIG_OPTION, [
-            'description'       => get_bloginfo('description'),
-            'allow_index'       => true,
-            'allow_training'    => false,
-            'contact_url'       => get_option('admin_email'),
-            'extra_notes'       => '',
-        ]);
+		// BL-033: preview endpoint
+		register_rest_route(
+			'ameverywhere/v1',
+			'/ai/llms-preview',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'previewContent' ),
+				'permission_callback' => $adminCap,
+			)
+		);
+	}
 
-        $config['manual_override']  = (bool) get_option(self::OVERRIDE_OPTION, false);
-        $config['manual_content']   = (string) get_option(self::OVERRIDE_CONTENT, '');
-        $config['preview']          = $this->buildContent($config);
+	public function getConfig(): \WP_REST_Response {
+		$config = get_option(
+			self::CONFIG_OPTION,
+			array(
+				'description'    => get_bloginfo( 'description' ),
+				'allow_index'    => true,
+				'allow_training' => false,
+				'contact_url'    => get_option( 'admin_email' ),
+				'extra_notes'    => '',
+			)
+		);
 
-        return rest_ensure_response($config);
-    }
+		$config['manual_override'] = (bool) get_option( self::OVERRIDE_OPTION, false );
+		$config['manual_content']  = (string) get_option( self::OVERRIDE_CONTENT, '' );
+		$config['preview']         = $this->buildContent( $config );
 
-    public function saveConfig(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
+		return rest_ensure_response( $config );
+	}
 
-        $config = [
-            'description'    => sanitize_text_field($params['description'] ?? ''),
-            'allow_index'    => (bool) ($params['allow_index'] ?? true),
-            'allow_training' => (bool) ($params['allow_training'] ?? false),
-            'contact_url'    => sanitize_text_field($params['contact_url'] ?? ''),
-            'extra_notes'    => sanitize_textarea_field($params['extra_notes'] ?? ''),
-        ];
+	public function saveConfig( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
 
-        update_option(self::CONFIG_OPTION, $config);
+		$config = array(
+			'description'    => sanitize_text_field( $params['description'] ?? '' ),
+			'allow_index'    => (bool) ( $params['allow_index'] ?? true ),
+			'allow_training' => (bool) ( $params['allow_training'] ?? false ),
+			'contact_url'    => sanitize_text_field( $params['contact_url'] ?? '' ),
+			'extra_notes'    => sanitize_textarea_field( $params['extra_notes'] ?? '' ),
+		);
 
-        // BL-033: manual override
-        if (isset($params['manual_override'])) {
-            update_option(self::OVERRIDE_OPTION, (bool) $params['manual_override']);
-        }
-        if (isset($params['manual_content'])) {
-            update_option(self::OVERRIDE_CONTENT, sanitize_textarea_field($params['manual_content']));
-        }
+		update_option( self::CONFIG_OPTION, $config );
 
-        $this->invalidateCache();
-        flush_rewrite_rules();
+		// BL-033: manual override
+		if ( isset( $params['manual_override'] ) ) {
+			update_option( self::OVERRIDE_OPTION, (bool) $params['manual_override'] );
+		}
+		if ( isset( $params['manual_content'] ) ) {
+			update_option( self::OVERRIDE_CONTENT, sanitize_textarea_field( $params['manual_content'] ) );
+		}
 
-        $config['preview'] = $this->buildContent($config);
-        return rest_ensure_response(['success' => true, 'config' => $config]);
-    }
+		$this->invalidateCache();
+		flush_rewrite_rules();
 
-    // BL-033: Preview without saving
-    public function previewContent(\WP_REST_Response $request): \WP_REST_Response
-    {
-        $config  = get_option(self::CONFIG_OPTION, []);
-        $content = $this->buildContent($config);
-        return rest_ensure_response(['content' => $content]);
-    }
+		$config['preview'] = $this->buildContent( $config );
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'config'  => $config,
+			)
+		);
+	}
+
+	// BL-033: Preview without saving
+	public function previewContent( \WP_REST_Response $request ): \WP_REST_Response {
+		$config  = get_option( self::CONFIG_OPTION, array() );
+		$content = $this->buildContent( $config );
+		return rest_ensure_response( array( 'content' => $content ) );
+	}
 }

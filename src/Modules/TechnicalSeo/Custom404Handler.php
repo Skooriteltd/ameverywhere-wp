@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\TechnicalSeo;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -12,98 +12,112 @@ if (!defined('ABSPATH')) {
  * Intercepts template_include when is_404() is true, loads the selected page content,
  * and ensures the HTTP status header remains 404 for correct SEO behaviour.
  */
-class Custom404Handler
-{
-    private const OPTION_PAGE_ID = 'ameverywhere_custom_404_page_id';
+class Custom404Handler {
 
-    public function register(): void
-    {
-        add_filter('template_include', [$this, 'maybeServeCustom404'], 99);
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	private const OPTION_PAGE_ID = 'ameverywhere_custom_404_page_id';
 
-    /**
-     * Replace the template with the custom 404 page template when configured.
-     */
-    public function maybeServeCustom404(string $template): string
-    {
-        if (!is_404()) {
-            return $template;
-        }
+	public function register(): void {
+		add_filter( 'template_include', array( $this, 'maybeServeCustom404' ), 99 );
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-        $pageId = (int) get_option(self::OPTION_PAGE_ID, 0);
-        if ($pageId <= 0) {
-            return $template;
-        }
+	/**
+	 * Replace the template with the custom 404 page template when configured.
+	 */
+	public function maybeServeCustom404( string $template ): string {
+		if ( ! is_404() ) {
+			return $template;
+		}
 
-        $page = get_post($pageId);
-        if (!$page || $page->post_status !== 'publish') {
-            return $template;
-        }
+		$pageId = (int) get_option( self::OPTION_PAGE_ID, 0 );
+		if ( $pageId <= 0 ) {
+			return $template;
+		}
 
-        // Make the custom page available in The Loop
-        global $wp_query;
-        $wp_query->queried_object    = $page;
-        $wp_query->queried_object_id = $pageId;
+		$page = get_post( $pageId );
+		if ( ! $page || $page->post_status !== 'publish' ) {
+			return $template;
+		}
 
-        // Preserve HTTP 404 status — required for correct SEO signals
-        status_header(404);
-        nocache_headers();
+		// Make the custom page available in The Loop
+		global $wp_query;
+		$wp_query->queried_object    = $page;
+		$wp_query->queried_object_id = $pageId;
 
-        // Resolve the page template from the theme
-        $pageTemplate = get_page_template_slug($pageId);
-        if ($pageTemplate && locate_template($pageTemplate)) {
-            return locate_template($pageTemplate);
-        }
+		// Preserve HTTP 404 status — required for correct SEO signals
+		status_header( 404 );
+		nocache_headers();
 
-        $located = locate_template(['page.php', 'singular.php', 'index.php']);
-        return !empty($located) ? $located : $template;
-    }
+		// Resolve the page template from the theme
+		$pageTemplate = get_page_template_slug( $pageId );
+		if ( $pageTemplate && locate_template( $pageTemplate ) ) {
+			return locate_template( $pageTemplate );
+		}
 
-    // ── REST API ─────────────────────────────────────────────────────────────
+		$located = locate_template( array( 'page.php', 'singular.php', 'index.php' ) );
+		return ! empty( $located ) ? $located : $template;
+	}
 
-    public function registerRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/settings/404-page', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getSettings'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'saveSettings'],
-                'permission_callback' => fn() => current_user_can('manage_options'),
-            ],
-        ]);
-    }
+	// ── REST API ─────────────────────────────────────────────────────────────
 
-    public function getSettings(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $pageId = (int) get_option(self::OPTION_PAGE_ID, 0);
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/settings/404-page',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getSettings' ),
+					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'saveSettings' ),
+					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				),
+			)
+		);
+	}
 
-        $pages = get_posts([
-            'post_type'      => 'page',
-            'post_status'    => 'publish',
-            'posts_per_page' => 200,
-            'orderby'        => 'title',
-            'order'          => 'ASC',
-        ]);
+	public function getSettings( \WP_REST_Request $request ): \WP_REST_Response {
+		$pageId = (int) get_option( self::OPTION_PAGE_ID, 0 );
 
-        $pageList = array_map(fn($p) => [
-            'id'    => $p->ID,
-            'title' => $p->post_title,
-            'url'   => get_permalink($p->ID),
-        ], $pages);
+		$pages = get_posts(
+			array(
+				'post_type'      => 'page',
+				'post_status'    => 'publish',
+				'posts_per_page' => 200,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
 
-        return rest_ensure_response(['page_id' => $pageId, 'pages' => $pageList]);
-    }
+		$pageList = array_map(
+			fn( $p ) => array(
+				'id'    => $p->ID,
+				'title' => $p->post_title,
+				'url'   => get_permalink( $p->ID ),
+			),
+			$pages
+		);
 
-    public function saveSettings(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $pageId = isset($params['page_id']) ? absint($params['page_id']) : 0;
-        update_option(self::OPTION_PAGE_ID, $pageId);
-        return rest_ensure_response(['success' => true, 'page_id' => $pageId]);
-    }
+		return rest_ensure_response(
+			array(
+				'page_id' => $pageId,
+				'pages'   => $pageList,
+			)
+		);
+	}
+
+	public function saveSettings( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$pageId = isset( $params['page_id'] ) ? absint( $params['page_id'] ) : 0;
+		update_option( self::OPTION_PAGE_ID, $pageId );
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'page_id' => $pageId,
+			)
+		);
+	}
 }

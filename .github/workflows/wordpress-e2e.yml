@@ -1,0 +1,77 @@
+name: WordPress E2E Lifecycle
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.2', '8.3']
+        wp-version: ['latest']
+        multisite: [false, true]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        coverage: none
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        npm run build
+        composer install --no-dev --prefer-dist --optimize-autoloader
+
+    - name: Setup wp-env
+      run: |
+        npm -g install @wordpress/env
+        echo "{\"core\": \"WordPress/WordPress#${{ matrix.wp-version }}\", \"plugins\": [\".\"]}" > .wp-env.json
+        wp-env start
+
+    - name: Convert to Multisite if matrix demands
+      if: matrix.multisite == true
+      run: |
+        wp-env run cli wp core multisite-convert --title="AmEverywhere Network" --base="/" --subdomains=false
+
+    - name: Test Plugin Activation
+      run: |
+        if [ "${{ matrix.multisite }}" = "true" ]; then
+          wp-env run cli wp plugin activate ameverywhere-wp --network
+        else
+          wp-env run cli wp plugin activate ameverywhere-wp
+        fi
+
+    - name: Verify Tables Created
+      run: |
+        wp-env run cli wp db query "SHOW TABLES LIKE '%ameverywhere%';" | grep ameverywhere
+
+    - name: Run Privacy & Retention E2E Tests
+      run: |
+        wp-env run cli wp eval-file tests/e2e-privacy.php
+
+    - name: Run Image Optimization E2E Tests
+      run: |
+        wp-env run cli wp eval-file tests/e2e-image-optimization.php
+
+    - name: Test Plugin Deactivation
+      run: |
+        if [ "${{ matrix.multisite }}" = "true" ]; then
+          wp-env run cli wp plugin deactivate ameverywhere-wp --network
+        else
+          wp-env run cli wp plugin deactivate ameverywhere-wp
+        fi
+
+    - name: Test Plugin Uninstall
+      run: |
+        wp-env run cli wp plugin uninstall ameverywhere-wp
+
+    - name: Stop wp-env
+      run: wp-env stop

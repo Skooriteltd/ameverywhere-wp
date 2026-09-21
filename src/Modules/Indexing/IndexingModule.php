@@ -2,62 +2,62 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Event\EventManager;
 use AmEveryWhere\Core\Queue\QueueManager;
 
-class IndexingModule
-{
-    private EventManager $eventManager;
-    private QueueManager $queueManager;
+class IndexingModule {
 
-    public function __construct(EventManager $eventManager, QueueManager $queueManager)
-    {
-        $this->eventManager = $eventManager;
-        $this->queueManager = $queueManager;
-    }
+	private EventManager $eventManager;
+	private QueueManager $queueManager;
 
-    public function boot(): void
-    {
-        // Hook into post publication/update
-        $this->eventManager->addAction('transition_post_status', [$this, 'handlePostTransition'], 10, 3);
-    }
+	public function __construct( EventManager $eventManager, QueueManager $queueManager ) {
+		$this->eventManager = $eventManager;
+		$this->queueManager = $queueManager;
+	}
 
-    public function handlePostTransition(string $newStatus, string $oldStatus, \WP_Post $post): void
-    {
-        if ($newStatus !== 'publish') {
-            return;
-        }
+	public function boot(): void {
+		// Hook into post publication/update
+		$this->eventManager->addAction( 'transition_post_status', array( $this, 'handlePostTransition' ), 10, 3 );
+	}
 
-        // IndexNow is off until an administrator explicitly enables it. It is
-        // the only generic publication notification supported by this module.
-        $autoIndex = get_option('ameverywhere_auto_index', 'no');
-        if ($autoIndex !== 'yes') {
-            return; // Skip automatic indexing if disabled in settings
-        }
+	public function handlePostTransition( string $newStatus, string $oldStatus, \WP_Post $post ): void {
+		if ( $newStatus !== 'publish' ) {
+			return;
+		}
 
-        // Check if the post is set to noindex
-        $noindex = get_post_meta($post->ID, '_ameverywhere_noindex', true);
-        if ($noindex === 'yes') {
-            return;
-        }
+		// IndexNow is off until an administrator explicitly enables it. It is
+		// the only generic publication notification supported by this module.
+		$autoIndex = get_option( 'ameverywhere_auto_index', 'no' );
+		if ( $autoIndex !== 'yes' ) {
+			return; // Skip automatic indexing if disabled in settings
+		}
 
-        $url = get_permalink($post->ID);
-        if (!$url) {
-            return;
-        }
+		// Check if the post is set to noindex
+		$noindex = get_post_meta( $post->ID, '_ameverywhere_noindex', true );
+		if ( $noindex === 'yes' ) {
+			return;
+		}
 
-        // Dispatch a bounded background notification without blocking the save
-        // request. Google is considered only for content that meets the API's
-        // narrow JobPosting/BroadcastEvent eligibility rules.
-        $this->queueManager->push(IndexingJob::class, [
-            'post_id'       => $post->ID,
-            'url'           => $url,
-            'action'        => 'URL_UPDATED',
-            'submit_google' => GoogleIndexingApi::isEligiblePost($post),
-        ]);
-    }
+		$url = get_permalink( $post->ID );
+		if ( ! $url ) {
+			return;
+		}
+
+		// Dispatch a bounded background notification without blocking the save
+		// request. Google is considered only for content that meets the API's
+		// narrow JobPosting/BroadcastEvent eligibility rules.
+		$this->queueManager->push(
+			IndexingJob::class,
+			array(
+				'post_id'       => $post->ID,
+				'url'           => $url,
+				'action'        => 'URL_UPDATED',
+				'submit_google' => GoogleIndexingApi::isEligiblePost( $post ),
+			)
+		);
+	}
 }

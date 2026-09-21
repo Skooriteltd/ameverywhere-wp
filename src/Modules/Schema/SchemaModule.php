@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Schema;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Event\EventManager;
@@ -11,226 +11,237 @@ use AmEveryWhere\Core\Event\EventManager;
 /**
  * Boots the Schema module and registers REST API endpoints.
  */
-class SchemaModule
-{
-    private EventManager $eventManager;
-    private SchemaGenerator $schemaGenerator;
+class SchemaModule {
 
-    public function __construct(EventManager $eventManager, SchemaGenerator $schemaGenerator)
-    {
-        $this->eventManager = $eventManager;
-        $this->schemaGenerator = $schemaGenerator;
-    }
+	private EventManager $eventManager;
+	private SchemaGenerator $schemaGenerator;
 
-    public function boot(): void
-    {
-        $this->eventManager->addAction('wp_footer', [$this->schemaGenerator, 'outputSchema'], 10);
-        $this->eventManager->addAction('rest_api_init', [$this, 'registerRoutes']);
-    }
+	public function __construct( EventManager $eventManager, SchemaGenerator $schemaGenerator ) {
+		$this->eventManager    = $eventManager;
+		$this->schemaGenerator = $schemaGenerator;
+	}
 
-    /**
-     * Register REST API routes.
-     */
-    public function registerRoutes(): void
-    {
-        // Public machine-readable endpoint for LLM system ingestion
-        register_rest_route('ameverywhere/v1', '/schemamap', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'handleSchemaMap'],
-            'permission_callback' => '__return_true', // Publicly accessible
-        ]);
+	public function boot(): void {
+		$this->eventManager->addAction( 'wp_footer', array( $this->schemaGenerator, 'outputSchema' ), 10 );
+		$this->eventManager->addAction( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-        // Competitor URL scraper proxy (Authenticated)
-        register_rest_route('ameverywhere/v1', '/schema/scrape', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'handleScrapeCompetitor'],
-            'permission_callback' => [$this, 'checkEditorPermission'],
-        ]);
+	/**
+	 * Register REST API routes.
+	 */
+	public function registerRoutes(): void {
+		// Public machine-readable endpoint for LLM system ingestion
+		register_rest_route(
+			'ameverywhere/v1',
+			'/schemamap',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'handleSchemaMap' ),
+				'permission_callback' => '__return_true', // Publicly accessible
+			)
+		);
 
-        // Read/Write global conditional schema display rules (Admin only)
-        register_rest_route('ameverywhere/v1', '/schema/global-rules', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => [$this, 'getGlobalRules'],
-                'permission_callback' => [$this, 'checkAdminPermission'],
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => [$this, 'updateGlobalRules'],
-                'permission_callback' => [$this, 'checkAdminPermission'],
-            ]
-        ]);
-    }
+		// Competitor URL scraper proxy (Authenticated)
+		register_rest_route(
+			'ameverywhere/v1',
+			'/schema/scrape',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'handleScrapeCompetitor' ),
+				'permission_callback' => array( $this, 'checkEditorPermission' ),
+			)
+		);
 
-    public function checkEditorPermission(): bool
-    {
-        return current_user_can('edit_posts');
-    }
+		// Read/Write global conditional schema display rules (Admin only)
+		register_rest_route(
+			'ameverywhere/v1',
+			'/schema/global-rules',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'getGlobalRules' ),
+					'permission_callback' => array( $this, 'checkAdminPermission' ),
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'updateGlobalRules' ),
+					'permission_callback' => array( $this, 'checkAdminPermission' ),
+				),
+			)
+		);
+	}
 
-    public function checkAdminPermission(): bool
-    {
-        return current_user_can('manage_options');
-    }
+	public function checkEditorPermission(): bool {
+		return current_user_can( 'edit_posts' );
+	}
 
-    /**
-     * Handles /wp-json/ameverywhere/v1/schemamap
-     */
-    public function handleSchemaMap(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $postIdParam = $request->get_param('post_id');
-        $urlParam = $request->get_param('url');
+	public function checkAdminPermission(): bool {
+		return current_user_can( 'manage_options' );
+	}
 
-        $postId = 0;
-        if (!empty($postIdParam)) {
-            $postId = intval($postIdParam);
-        } elseif (!empty($urlParam)) {
-            $postId = url_to_postid(esc_url_raw($urlParam));
-        }
+	/**
+	 * Handles /wp-json/ameverywhere/v1/schemamap
+	 */
+	public function handleSchemaMap( \WP_REST_Request $request ): \WP_REST_Response {
+		$postIdParam = $request->get_param( 'post_id' );
+		$urlParam    = $request->get_param( 'url' );
 
-        if ($postId > 0) {
-            $post = get_post($postId);
-            if (!$post || !in_array($post->post_status, ['publish', 'inherit'], true)) {
-                return new \WP_Error('post_not_found', __('Specified post was not found or is not published.', 'ameverywhere'), ['status' => 404]);
-            }
-            
-            $schema = $this->schemaGenerator->getSchemaForPost($postId);
-            return rest_ensure_response($schema);
-        }
+		$postId = 0;
+		if ( ! empty( $postIdParam ) ) {
+			$postId = intval( $postIdParam );
+		} elseif ( ! empty( $urlParam ) ) {
+			$postId = url_to_postid( esc_url_raw( $urlParam ) );
+		}
 
-        // Return a site-wide mapping list for LLMs
-        $postTypes = get_post_types(['public' => true]);
-        $query = new \WP_Query([
-            'post_type'      => array_values($postTypes),
-            'post_status'    => 'publish',
-            'posts_per_page' => 100, // Capped to protect performance
-            'orderby'        => 'modified',
-            'order'          => 'DESC'
-        ]);
+		if ( $postId > 0 ) {
+			$post = get_post( $postId );
+			if ( ! $post || ! in_array( $post->post_status, array( 'publish', 'inherit' ), true ) ) {
+				return new \WP_Error( 'post_not_found', __( 'Specified post was not found or is not published.', 'ameverywhere' ), array( 'status' => 404 ) );
+			}
 
-        $posts = [];
-        if ($query->have_posts()) {
-            while ($query->have_posts()) {
-                $query->the_post();
-                $id = get_the_ID();
-                $effectiveSchema = SchemaGenerator::getEffectivePrimarySchema($id);
-                $schemas = ['BreadcrumbList']; // Default
-                $isNews = get_post_meta($id, '_ameverywhere_is_news', true);
-                $schemas[] = ($isNews === 'yes') ? 'NewsArticle' : 'Article';
+			$schema = $this->schemaGenerator->getSchemaForPost( $postId );
+			return rest_ensure_response( $schema );
+		}
 
-                if ($effectiveSchema !== 'none') {
-                    // map slug to actual schema name
-                    $schemas[] = ucfirst($effectiveSchema);
-                }
+		// Return a site-wide mapping list for LLMs
+		$postTypes = get_post_types( array( 'public' => true ) );
+		$query     = new \WP_Query(
+			array(
+				'post_type'      => array_values( $postTypes ),
+				'post_status'    => 'publish',
+				'posts_per_page' => 100, // Capped to protect performance
+				'orderby'        => 'modified',
+				'order'          => 'DESC',
+			)
+		);
 
-                // Check video Objects
-                $videoObjects = VideoExtractor::extractVideoObjects($id);
-                if (!empty($videoObjects)) {
-                    $schemas[] = 'VideoObject';
-                }
+		$posts = array();
+		if ( $query->have_posts() ) {
+			while ( $query->have_posts() ) {
+				$query->the_post();
+				$id              = get_the_ID();
+				$effectiveSchema = SchemaGenerator::getEffectivePrimarySchema( $id );
+				$schemas         = array( 'BreadcrumbList' ); // Default
+				$isNews          = get_post_meta( $id, '_ameverywhere_is_news', true );
+				$schemas[]       = ( $isNews === 'yes' ) ? 'NewsArticle' : 'Article';
 
-                $posts[] = [
-                    'id'      => $id,
-                    'title'   => get_the_title(),
-                    'url'     => get_permalink(),
-                    'schemas' => array_unique($schemas),
-                    'schemamap_url' => rest_url("ameverywhere/v1/schemamap?post_id={$id}")
-                ];
-            }
-            wp_reset_postdata();
-        }
+				if ( $effectiveSchema !== 'none' ) {
+					// map slug to actual schema name
+					$schemas[] = ucfirst( $effectiveSchema );
+				}
 
-        return rest_ensure_response([
-            'posts' => $posts,
-        ]);
-    }
+				// Check video Objects
+				$videoObjects = VideoExtractor::extractVideoObjects( $id );
+				if ( ! empty( $videoObjects ) ) {
+					$schemas[] = 'VideoObject';
+				}
 
-    /**
-     * Handles /wp-json/ameverywhere/v1/schema/scrape
-     */
-    public function handleScrapeCompetitor(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $url = isset($params['url']) ? sanitize_text_field($params['url']) : '';
+				$posts[] = array(
+					'id'            => $id,
+					'title'         => get_the_title(),
+					'url'           => get_permalink(),
+					'schemas'       => array_unique( $schemas ),
+					'schemamap_url' => rest_url( "ameverywhere/v1/schemamap?post_id={$id}" ),
+				);
+			}
+			wp_reset_postdata();
+		}
 
-        if (empty($url)) {
-            return new \WP_Error('missing_url', __('URL parameter is required.', 'ameverywhere'), ['status' => 400]);
-        }
+		return rest_ensure_response(
+			array(
+				'posts' => $posts,
+			)
+		);
+	}
 
-        $result = CompetitorScraper::scrapeUrl($url);
-        if (!$result['success']) {
-            return new \WP_Error('scrape_failed', $result['message'], ['status' => 400]);
-        }
+	/**
+	 * Handles /wp-json/ameverywhere/v1/schema/scrape
+	 */
+	public function handleScrapeCompetitor( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$url    = isset( $params['url'] ) ? sanitize_text_field( $params['url'] ) : '';
 
-        return rest_ensure_response($result);
-    }
+		if ( empty( $url ) ) {
+			return new \WP_Error( 'missing_url', __( 'URL parameter is required.', 'ameverywhere' ), array( 'status' => 400 ) );
+		}
 
-    /**
-     * Handles GET /wp-json/ameverywhere/v1/schema/global-rules
-     */
-    public function getGlobalRules(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $rulesJson = get_option('ameverywhere_global_schema_rules', '[]');
-        $rules = json_decode($rulesJson, true);
-        if (!is_array($rules)) {
-            $rules = [];
-        }
+		$result = CompetitorScraper::scrapeUrl( $url );
+		if ( ! $result['success'] ) {
+			return new \WP_Error( 'scrape_failed', $result['message'], array( 'status' => 400 ) );
+		}
 
-        // Get post types and categories for the UI selectors
-        $allPublicTypes = get_post_types(['public' => true], 'objects');
-        $typesList = [];
-        foreach ($allPublicTypes as $type) {
-            $typesList[] = [
-                'name'  => $type->name,
-                'label' => $type->label ?: $type->name,
-            ];
-        }
+		return rest_ensure_response( $result );
+	}
 
-        $categories = get_categories(['hide_empty' => false]);
-        $catsList = [];
-        foreach ($categories as $cat) {
-            $catsList[] = [
-                'id'   => $cat->term_id,
-                'name' => $cat->name,
-            ];
-        }
+	/**
+	 * Handles GET /wp-json/ameverywhere/v1/schema/global-rules
+	 */
+	public function getGlobalRules( \WP_REST_Request $request ): \WP_REST_Response {
+		$rulesJson = get_option( 'ameverywhere_global_schema_rules', '[]' );
+		$rules     = json_decode( $rulesJson, true );
+		if ( ! is_array( $rules ) ) {
+			$rules = array();
+		}
 
-        return rest_ensure_response([
-            'rules'      => $rules,
-            'post_types' => $typesList,
-            'categories' => $catsList,
-        ]);
-    }
+		// Get post types and categories for the UI selectors
+		$allPublicTypes = get_post_types( array( 'public' => true ), 'objects' );
+		$typesList      = array();
+		foreach ( $allPublicTypes as $type ) {
+			$typesList[] = array(
+				'name'  => $type->name,
+				'label' => $type->label ?: $type->name,
+			);
+		}
 
-    /**
-     * Handles POST /wp-json/ameverywhere/v1/schema/global-rules
-     */
-    public function updateGlobalRules(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $rules = isset($params['rules']) ? $params['rules'] : [];
+		$categories = get_categories( array( 'hide_empty' => false ) );
+		$catsList   = array();
+		foreach ( $categories as $cat ) {
+			$catsList[] = array(
+				'id'   => $cat->term_id,
+				'name' => $cat->name,
+			);
+		}
 
-        if (!is_array($rules)) {
-            return new \WP_Error('invalid_format', __('Rules must be a valid array.', 'ameverywhere'), ['status' => 400]);
-        }
+		return rest_ensure_response(
+			array(
+				'rules'      => $rules,
+				'post_types' => $typesList,
+				'categories' => $catsList,
+			)
+		);
+	}
 
-        // Sanitize
-        $sanitized = [];
-        foreach ($rules as $rule) {
-            if (empty($rule['post_type']) || empty($rule['schema_type'])) {
-                continue;
-            }
-            $sanitized[] = [
-                'post_type'   => sanitize_text_field($rule['post_type']),
-                'category'    => sanitize_text_field($rule['category']), // e.g. "all" or term ID
-                'schema_type' => sanitize_text_field($rule['schema_type']),
-            ];
-        }
+	/**
+	 * Handles POST /wp-json/ameverywhere/v1/schema/global-rules
+	 */
+	public function updateGlobalRules( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$rules  = isset( $params['rules'] ) ? $params['rules'] : array();
 
-        update_option('ameverywhere_global_schema_rules', wp_json_encode($sanitized));
+		if ( ! is_array( $rules ) ) {
+			return new \WP_Error( 'invalid_format', __( 'Rules must be a valid array.', 'ameverywhere' ), array( 'status' => 400 ) );
+		}
 
-        return rest_ensure_response([
-            'success' => true,
-            'rules'   => $sanitized,
-        ]);
-    }
+		// Sanitize
+		$sanitized = array();
+		foreach ( $rules as $rule ) {
+			if ( empty( $rule['post_type'] ) || empty( $rule['schema_type'] ) ) {
+				continue;
+			}
+			$sanitized[] = array(
+				'post_type'   => sanitize_text_field( $rule['post_type'] ),
+				'category'    => sanitize_text_field( $rule['category'] ), // e.g. "all" or term ID
+				'schema_type' => sanitize_text_field( $rule['schema_type'] ),
+			);
+		}
+
+		update_option( 'ameverywhere_global_schema_rules', wp_json_encode( $sanitized ) );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'rules'   => $sanitized,
+			)
+		);
+	}
 }

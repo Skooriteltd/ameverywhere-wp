@@ -2,209 +2,219 @@
 
 namespace AmEveryWhere\Modules\Onboarding;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
  * Minimal setup wizard with zero-configuration philosophy.
- * 
+ *
  * Design Principles:
  * - Everything works out of the box with sensible defaults.
  * - The wizard asks only 1-2 questions, not 10.
  * - Auto-detects site type, social profiles, and existing SEO plugins.
  * - Completes in under 30 seconds.
  */
-class SetupWizard
-{
-    private const COMPLETED_OPTION = 'ameverywhere_setup_complete';
+class SetupWizard {
 
-    /**
-     * Register hooks.
-     */
-    public function register(): void
-    {
-        // Show welcome notice if setup hasn't been completed
-        if (!get_option(self::COMPLETED_OPTION)) {
-            add_action('admin_notices', [$this, 'showWelcomeNotice']);
-        }
+	private const COMPLETED_OPTION = 'ameverywhere_setup_complete';
 
-        // Register REST routes for the wizard
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	/**
+	 * Register hooks.
+	 */
+	public function register(): void {
+		// Show welcome notice if setup hasn't been completed
+		if ( ! get_option( self::COMPLETED_OPTION ) ) {
+			add_action( 'admin_notices', array( $this, 'showWelcomeNotice' ) );
+		}
 
-    /**
-     * Show a dismissible welcome notice that links to the setup wizard.
-     */
-    public function showWelcomeNotice(): void
-    {
-        $screen = get_current_screen();
-        
-        // Don't show on the AmEveryWhere page itself
-        if ($screen && $screen->id === 'toplevel_page_ameverywhere') {
-            return;
-        }
+		// Register REST routes for the wizard
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-        $setupUrl = admin_url('admin.php?page=ameverywhere#setup');
-        
-        echo '<div class="notice notice-info is-dismissible" style="border-left-color: #3b82f6; padding: 16px 20px;">';
-        echo '<div style="display:flex; align-items:center; gap:12px;">';
-        echo '<span style="font-size:24px;">🚀</span>';
-        echo '<div>';
-        echo '<p style="margin:0; font-size:15px; font-weight:600; color:#0f172a;">Welcome to AmEveryWhere!</p>';
-        echo '<p style="margin:4px 0 0; color:#475569;">Your SEO is already working with smart defaults. ';
-        echo '<a href="' . esc_url($setupUrl) . '" style="color:#3b82f6; font-weight:500;">Complete the 30-second setup</a>';
-        echo ' to customize site type and import existing SEO data.</p>';
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
-    }
+	/**
+	 * Show a dismissible welcome notice that links to the setup wizard.
+	 */
+	public function showWelcomeNotice(): void {
+		$screen = get_current_screen();
 
-    /**
-     * Register REST routes for the wizard.
-     */
-    public function registerRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/setup/auto-detect', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'autoDetect'],
-            'permission_callback' => function () { return current_user_can('manage_options'); },
-        ]);
+		// Don't show on the AmEveryWhere page itself
+		if ( $screen && $screen->id === 'toplevel_page_ameverywhere' ) {
+			return;
+		}
 
-        register_rest_route('ameverywhere/v1', '/setup/complete', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'completeSetup'],
-            'permission_callback' => function () { return current_user_can('manage_options'); },
-        ]);
-    }
+		$setupUrl = admin_url( 'admin.php?page=ameverywhere#setup' );
 
-    /**
-     * Auto-detect site configuration to pre-fill the wizard.
-     * This eliminates most manual configuration entirely.
-     */
-    public function autoDetect(\WP_REST_Request $request): \WP_REST_Response
-    {
-        // Detect site type from content
-        $siteType = $this->detectSiteType();
+		echo '<div class="notice notice-info is-dismissible" style="border-left-color: #3b82f6; padding: 16px 20px;">';
+		echo '<div style="display:flex; align-items:center; gap:12px;">';
+		echo '<span style="font-size:24px;">🚀</span>';
+		echo '<div>';
+		echo '<p style="margin:0; font-size:15px; font-weight:600; color:#0f172a;">Welcome to AmEveryWhere!</p>';
+		echo '<p style="margin:4px 0 0; color:#475569;">Your SEO is already working with smart defaults. ';
+		echo '<a href="' . esc_url( $setupUrl ) . '" style="color:#3b82f6; font-weight:500;">Complete the 30-second setup</a>';
+		echo ' to customize site type and import existing SEO data.</p>';
+		echo '</div>';
+		echo '</div>';
+		echo '</div>';
+	}
 
-        // Detect existing social profiles from other plugins or theme settings
-        $socialProfiles = $this->detectSocialProfiles();
+	/**
+	 * Register REST routes for the wizard.
+	 */
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/setup/auto-detect',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'autoDetect' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' ); },
+			)
+		);
 
-        // Detect if other SEO plugins have data to import
-        $migrationManager = new \AmEveryWhere\Modules\Migration\MigrationManager();
-        $detectedPlugins = $migrationManager->detectPlugins();
+		register_rest_route(
+			'ameverywhere/v1',
+			'/setup/complete',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'completeSetup' ),
+				'permission_callback' => function () {
+					return current_user_can( 'manage_options' ); },
+			)
+		);
+	}
 
-        // Check what's already configured
-        $hasGoogleKey = !empty(get_option('ameverywhere_google_indexing_key', ''));
-        $hasBingKey = !empty(get_option('ameverywhere_indexnow_key', ''));
+	/**
+	 * Auto-detect site configuration to pre-fill the wizard.
+	 * This eliminates most manual configuration entirely.
+	 */
+	public function autoDetect( \WP_REST_Request $request ): \WP_REST_Response {
+		// Detect site type from content
+		$siteType = $this->detectSiteType();
 
-        return rest_ensure_response([
-            'site_type'        => $siteType,
-            'site_name'        => get_bloginfo('name'),
-            'site_tagline'     => get_bloginfo('description'),
-            'social'           => $socialProfiles,
-            'detected_plugins' => $detectedPlugins,
-            'indexing_configured' => $hasGoogleKey || $hasBingKey,
-            'setup_complete'   => (bool) get_option(self::COMPLETED_OPTION),
-        ]);
-    }
+		// Detect existing social profiles from other plugins or theme settings
+		$socialProfiles = $this->detectSocialProfiles();
 
-    /**
-     * Complete the setup wizard and save preferences.
-     */
-    public function completeSetup(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
+		// Detect if other SEO plugins have data to import
+		$migrationManager = new \AmEveryWhere\Modules\Migration\MigrationManager();
+		$detectedPlugins  = $migrationManager->detectPlugins();
 
-        // Save site type (affects schema output)
-        if (!empty($params['site_type'])) {
-            update_option('ameverywhere_site_type', sanitize_text_field($params['site_type']));
-        }
+		// Check what's already configured
+		$hasGoogleKey = ! empty( get_option( 'ameverywhere_google_indexing_key', '' ) );
+		$hasBingKey   = ! empty( get_option( 'ameverywhere_indexnow_key', '' ) );
 
-        // Save social profiles
-        $socialFields = ['facebook', 'twitter', 'instagram', 'linkedin', 'youtube'];
-        foreach ($socialFields as $field) {
-            if (isset($params['social'][$field])) {
-                update_option('ameverywhere_social_' . $field, esc_url_raw($params['social'][$field]));
-            }
-        }
+		return rest_ensure_response(
+			array(
+				'site_type'           => $siteType,
+				'site_name'           => get_bloginfo( 'name' ),
+				'site_tagline'        => get_bloginfo( 'description' ),
+				'social'              => $socialProfiles,
+				'detected_plugins'    => $detectedPlugins,
+				'indexing_configured' => $hasGoogleKey || $hasBingKey,
+				'setup_complete'      => (bool) get_option( self::COMPLETED_OPTION ),
+			)
+		);
+	}
 
-        // Mark setup as complete — never show the notice again
-        update_option(self::COMPLETED_OPTION, true);
+	/**
+	 * Complete the setup wizard and save preferences.
+	 */
+	public function completeSetup( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
 
-        // Flush rewrite rules to ensure sitemaps work
-        flush_rewrite_rules(false);
+		// Save site type (affects schema output)
+		if ( ! empty( $params['site_type'] ) ) {
+			update_option( 'ameverywhere_site_type', sanitize_text_field( $params['site_type'] ) );
+		}
 
-        return rest_ensure_response(['success' => true, 'message' => 'Setup complete! AmEveryWhere is fully configured.']);
-    }
+		// Save social profiles
+		$socialFields = array( 'facebook', 'twitter', 'instagram', 'linkedin', 'youtube' );
+		foreach ( $socialFields as $field ) {
+			if ( isset( $params['social'][ $field ] ) ) {
+				update_option( 'ameverywhere_social_' . $field, esc_url_raw( $params['social'][ $field ] ) );
+			}
+		}
 
-    /**
-     * Detect site type from installed plugins and content patterns.
-     */
-    private function detectSiteType(): string
-    {
-        // WooCommerce = eCommerce
-        if (class_exists('WooCommerce')) {
-            return 'ecommerce';
-        }
+		// Mark setup as complete — never show the notice again
+		update_option( self::COMPLETED_OPTION, true );
 
-        // Check for news-like publishing patterns (high post frequency)
-        $recentPosts = wp_count_posts();
-        $totalPosts = $recentPosts->publish ?? 0;
+		// Flush rewrite rules to ensure sitemaps work
+		flush_rewrite_rules( false );
 
-        if ($totalPosts > 100) {
-            return 'news';
-        }
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'message' => 'Setup complete! AmEveryWhere is fully configured.',
+			)
+		);
+	}
 
-        // Check for portfolio-like content
-        $pages = wp_count_posts('page');
-        $totalPages = $pages->publish ?? 0;
+	/**
+	 * Detect site type from installed plugins and content patterns.
+	 */
+	private function detectSiteType(): string {
+		// WooCommerce = eCommerce
+		if ( class_exists( 'WooCommerce' ) ) {
+			return 'ecommerce';
+		}
 
-        if ($totalPages > $totalPosts && $totalPages > 5) {
-            return 'business';
-        }
+		// Check for news-like publishing patterns (high post frequency)
+		$recentPosts = wp_count_posts();
+		$totalPosts  = $recentPosts->publish ?? 0;
 
-        return 'blog';
-    }
+		if ( $totalPosts > 100 ) {
+			return 'news';
+		}
 
-    /**
-     * Try to detect social profiles from existing plugin data or theme mods.
-     */
-    private function detectSocialProfiles(): array
-    {
-        $profiles = [
-            'facebook'  => '',
-            'twitter'   => '',
-            'instagram' => '',
-            'linkedin'  => '',
-            'youtube'   => '',
-        ];
+		// Check for portfolio-like content
+		$pages      = wp_count_posts( 'page' );
+		$totalPages = $pages->publish ?? 0;
 
-        // Try Yoast social profiles
-        $yoastSocial = get_option('wpseo_social', []);
-        if (!empty($yoastSocial)) {
-            $profiles['facebook']  = $yoastSocial['facebook_site'] ?? '';
-            $profiles['twitter']   = $yoastSocial['twitter_site'] ?? '';
-            $profiles['instagram'] = $yoastSocial['instagram_url'] ?? '';
-            $profiles['linkedin']  = $yoastSocial['linkedin_url'] ?? '';
-            $profiles['youtube']   = $yoastSocial['youtube_url'] ?? '';
-        }
+		if ( $totalPages > $totalPosts && $totalPages > 5 ) {
+			return 'business';
+		}
 
-        // Try RankMath social
-        $rmOptions = get_option('rank-math-options-titles', []);
-        if (!empty($rmOptions)) {
-            $profiles['facebook']  = $profiles['facebook']  ?: ($rmOptions['social_url_facebook'] ?? '');
-            $profiles['twitter']   = $profiles['twitter']   ?: ($rmOptions['twitter_author_names'] ?? '');
-        }
+		return 'blog';
+	}
 
-        // Check already-saved AmEveryWhere values
-        foreach ($profiles as $key => &$val) {
-            $existing = get_option('ameverywhere_social_' . $key, '');
-            if (!empty($existing)) {
-                $val = $existing;
-            }
-        }
+	/**
+	 * Try to detect social profiles from existing plugin data or theme mods.
+	 */
+	private function detectSocialProfiles(): array {
+		$profiles = array(
+			'facebook'  => '',
+			'twitter'   => '',
+			'instagram' => '',
+			'linkedin'  => '',
+			'youtube'   => '',
+		);
 
-        return $profiles;
-    }
+		// Try Yoast social profiles
+		$yoastSocial = get_option( 'wpseo_social', array() );
+		if ( ! empty( $yoastSocial ) ) {
+			$profiles['facebook']  = $yoastSocial['facebook_site'] ?? '';
+			$profiles['twitter']   = $yoastSocial['twitter_site'] ?? '';
+			$profiles['instagram'] = $yoastSocial['instagram_url'] ?? '';
+			$profiles['linkedin']  = $yoastSocial['linkedin_url'] ?? '';
+			$profiles['youtube']   = $yoastSocial['youtube_url'] ?? '';
+		}
+
+		// Try RankMath social
+		$rmOptions = get_option( 'rank-math-options-titles', array() );
+		if ( ! empty( $rmOptions ) ) {
+			$profiles['facebook'] = $profiles['facebook'] ?: ( $rmOptions['social_url_facebook'] ?? '' );
+			$profiles['twitter']  = $profiles['twitter'] ?: ( $rmOptions['twitter_author_names'] ?? '' );
+		}
+
+		// Check already-saved AmEveryWhere values
+		foreach ( $profiles as $key => &$val ) {
+			$existing = get_option( 'ameverywhere_social_' . $key, '' );
+			if ( ! empty( $existing ) ) {
+				$val = $existing;
+			}
+		}
+
+		return $profiles;
+	}
 }

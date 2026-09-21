@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Indexing;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -18,161 +18,171 @@ if (!defined('ABSPATH')) {
  * - Auto-submits on post publish/update (transition_post_status)
  * - REST endpoint for viewing submission log
  */
-class BingIndexNowApi
-{
-    private const LOG_OPTION  = 'ameverywhere_indexnow_log';
-    private const LOG_MAX     = 100;
-    private const KEY_OPTION  = 'ameverywhere_indexnow_key';
-    private const ENDPOINT    = 'https://api.indexnow.org/indexnow';
+class BingIndexNowApi {
 
-    public function register(): void
-    {
-        add_action('init', [$this, 'serveKeyFile']);
-        add_action('transition_post_status', [$this, 'autoSubmitOnPublish'], 10, 3);
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	private const LOG_OPTION = 'ameverywhere_indexnow_log';
+	private const LOG_MAX    = 100;
+	private const KEY_OPTION = 'ameverywhere_indexnow_key';
+	private const ENDPOINT   = 'https://api.indexnow.org/indexnow';
 
-    // ── Key file virtual serving ──────────────────────────────────────────────
+	public function register(): void {
+		add_action( 'init', array( $this, 'serveKeyFile' ) );
+		add_action( 'transition_post_status', array( $this, 'autoSubmitOnPublish' ), 10, 3 );
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-    /**
-     * Serve the IndexNow key verification file: GET /{key}.txt
-     */
-    public function serveKeyFile(): void
-    {
-        $apiKey = get_option(self::KEY_OPTION, '');
-        if (empty($apiKey)) {
-            return;
-        }
+	// ── Key file virtual serving ──────────────────────────────────────────────
 
-        $requestUri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '';
-        $keyFile    = '/' . $apiKey . '.txt';
+	/**
+	 * Serve the IndexNow key verification file: GET /{key}.txt
+	 */
+	public function serveKeyFile(): void {
+		$apiKey = get_option( self::KEY_OPTION, '' );
+		if ( empty( $apiKey ) ) {
+			return;
+		}
 
-        if ($requestUri !== $keyFile) {
-            return;
-        }
+		$requestUri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+		$keyFile    = '/' . $apiKey . '.txt';
 
-        header('Content-Type: text/plain; charset=utf-8');
-        header('X-Robots-Tag: noindex');
-        echo esc_html($apiKey);
-        exit;
-    }
+		if ( $requestUri !== $keyFile ) {
+			return;
+		}
 
-    // ── Auto-submit on publish ────────────────────────────────────────────────
+		header( 'Content-Type: text/plain; charset=utf-8' );
+		header( 'X-Robots-Tag: noindex' );
+		echo esc_html( $apiKey );
+		exit;
+	}
 
-    /**
-     * Automatically ping IndexNow when a post is published or re-published.
-     */
-    public function autoSubmitOnPublish(string $newStatus, string $oldStatus, \WP_Post $post): void
-    {
-        if ($newStatus !== 'publish') {
-            return;
-        }
+	// ── Auto-submit on publish ────────────────────────────────────────────────
 
-        // Only for public post types
-        $postTypeObj = get_post_type_object($post->post_type);
-        if (!$postTypeObj || !$postTypeObj->public) {
-            return;
-        }
+	/**
+	 * Automatically ping IndexNow when a post is published or re-published.
+	 */
+	public function autoSubmitOnPublish( string $newStatus, string $oldStatus, \WP_Post $post ): void {
+		if ( $newStatus !== 'publish' ) {
+			return;
+		}
 
-        $url = get_permalink($post->ID);
-        if ($url) {
-            $this->ping($url);
-        }
-    }
+		// Only for public post types
+		$postTypeObj = get_post_type_object( $post->post_type );
+		if ( ! $postTypeObj || ! $postTypeObj->public ) {
+			return;
+		}
 
-    // ── Core ping ─────────────────────────────────────────────────────────────
+		$url = get_permalink( $post->ID );
+		if ( $url ) {
+			$this->ping( $url );
+		}
+	}
 
-    public function ping(string $url): bool
-    {
-        $apiKey = get_option(self::KEY_OPTION, '');
-        $host   = parse_url(home_url(), PHP_URL_HOST);
+	// ── Core ping ─────────────────────────────────────────────────────────────
 
-        if (empty($apiKey) || empty($host)) {
-            return false;
-        }
+	public function ping( string $url ): bool {
+		$apiKey = get_option( self::KEY_OPTION, '' );
+		$host   = parse_url( home_url(), PHP_URL_HOST );
 
-        $body = wp_json_encode([
-            'host'        => $host,
-            'key'         => $apiKey,
-            'keyLocation' => home_url("/{$apiKey}.txt"),
-            'urlList'     => [$url],
-        ]);
+		if ( empty( $apiKey ) || empty( $host ) ) {
+			return false;
+		}
 
-        $response = wp_remote_post(self::ENDPOINT, [
-            'headers' => ['Content-Type' => 'application/json; charset=utf-8'],
-            'body'    => $body,
-            'timeout' => 10,
-        ]);
+		$body = wp_json_encode(
+			array(
+				'host'        => $host,
+				'key'         => $apiKey,
+				'keyLocation' => home_url( "/{$apiKey}.txt" ),
+				'urlList'     => array( $url ),
+			)
+		);
 
-        if (is_wp_error($response)) {
-            $this->logSubmission($url, 0);
-            return false;
-        }
+		$response = wp_safe_remote_post(
+			self::ENDPOINT,
+			array(
+				'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
+				'body'    => $body,
+				'timeout' => 10,
+			)
+		);
 
-        $code = (int) wp_remote_retrieve_response_code($response);
-        $this->logSubmission($url, $code);
+		if ( is_wp_error( $response ) ) {
+			$this->logSubmission( $url, 0 );
+			return false;
+		}
 
-        return $code === 200 || $code === 202;
-    }
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$this->logSubmission( $url, $code );
 
-    // ── Submission log ────────────────────────────────────────────────────────
+		return $code === 200 || $code === 202;
+	}
 
-    public function logSubmission(string $url, int $statusCode): void
-    {
-        $log = $this->getSubmissionLog();
+	// ── Submission log ────────────────────────────────────────────────────────
 
-        array_unshift($log, [
-            'url'          => $url,
-            'submitted_at' => current_time('mysql'),
-            'status_code'  => $statusCode,
-        ]);
+	public function logSubmission( string $url, int $statusCode ): void {
+		$log = $this->getSubmissionLog();
 
-        $log = array_slice($log, 0, self::LOG_MAX);
-        update_option(self::LOG_OPTION, $log, false);
-    }
+		array_unshift(
+			$log,
+			array(
+				'url'          => $url,
+				'submitted_at' => current_time( 'mysql' ),
+				'status_code'  => $statusCode,
+			)
+		);
 
-    public function getSubmissionLog(): array
-    {
-        return (array) get_option(self::LOG_OPTION, []);
-    }
+		$log = array_slice( $log, 0, self::LOG_MAX );
+		update_option( self::LOG_OPTION, $log, false );
+	}
 
-    // ── REST routes ───────────────────────────────────────────────────────────
+	public function getSubmissionLog(): array {
+		return (array) get_option( self::LOG_OPTION, array() );
+	}
 
-    public function registerRoutes(): void
-    {
-        register_rest_route('ameverywhere/v1', '/indexing/indexnow-log', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => fn() => rest_ensure_response($this->getSubmissionLog()),
-            'permission_callback' => fn() => current_user_can('manage_options'),
-        ]);
+	// ── REST routes ───────────────────────────────────────────────────────────
 
-        register_rest_route('ameverywhere/v1', '/indexing/indexnow-submit', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'manualSubmit'],
-            'permission_callback' => fn() => current_user_can('manage_options'),
-        ]);
-    }
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/indexing/indexnow-log',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => fn() => rest_ensure_response( $this->getSubmissionLog() ),
+				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+			)
+		);
 
-    public function manualSubmit(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $url    = sanitize_url($params['url'] ?? '');
-        $postId = absint($params['post_id'] ?? 0);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/indexing/indexnow-submit',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'manualSubmit' ),
+				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+			)
+		);
+	}
 
-        if ($postId > 0) {
-            $url = get_permalink($postId);
-        }
+	public function manualSubmit( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$url    = sanitize_url( $params['url'] ?? '' );
+		$postId = absint( $params['post_id'] ?? 0 );
 
-        if (empty($url)) {
-            return new \WP_Error('missing_url', 'Provide url or post_id.', ['status' => 400]);
-        }
+		if ( $postId > 0 ) {
+			$url = get_permalink( $postId );
+		}
 
-        $success = $this->ping($url);
+		if ( empty( $url ) ) {
+			return new \WP_Error( 'missing_url', 'Provide url or post_id.', array( 'status' => 400 ) );
+		}
 
-        return rest_ensure_response([
-            'success' => $success,
-            'url'     => $url,
-            'log'     => array_slice($this->getSubmissionLog(), 0, 5),
-        ]);
-    }
+		$success = $this->ping( $url );
+
+		return rest_ensure_response(
+			array(
+				'success' => $success,
+				'url'     => $url,
+				'log'     => array_slice( $this->getSubmissionLog(), 0, 5 ),
+			)
+		);
+	}
 }

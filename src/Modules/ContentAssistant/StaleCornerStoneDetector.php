@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\ContentAssistant;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -15,103 +15,104 @@ if (!defined('ABSPATH')) {
  *
  * BL-022
  */
-class StaleCornerStoneDetector
-{
-    private const STALE_IDS_OPTION     = 'ameverywhere_stale_cornerstone_ids';
-    private const THRESHOLD_OPTION     = 'ameverywhere_cornerstone_stale_days';
-    private const DISMISSED_OPTION     = 'ameverywhere_cornerstone_notice_dismissed';
-    private const CRON_HOOK            = 'ameverywhere_cornerstone_staleness_check';
-    private const CORNERSTONE_META_KEY = '_ameverywhere_is_cornerstone';
+class StaleCornerStoneDetector {
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-        add_action('admin_notices', [$this, 'showAdminNotice']);
-        add_action(self::CRON_HOOK, [$this, 'checkStaleness']);
-        add_action('wp_ajax_ameverywhere_dismiss_cornerstone_notice', [$this, 'dismissNotice']);
+	private const STALE_IDS_OPTION     = 'ameverywhere_stale_cornerstone_ids';
+	private const THRESHOLD_OPTION     = 'ameverywhere_cornerstone_stale_days';
+	private const DISMISSED_OPTION     = 'ameverywhere_cornerstone_notice_dismissed';
+	private const CRON_HOOK            = 'ameverywhere_cornerstone_staleness_check';
+	private const CORNERSTONE_META_KEY = '_ameverywhere_is_cornerstone';
 
-        // Schedule weekly check
-        if (!wp_next_scheduled(self::CRON_HOOK)) {
-            wp_schedule_event(time(), 'weekly', self::CRON_HOOK);
-        }
-    }
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+		add_action( 'admin_notices', array( $this, 'showAdminNotice' ) );
+		add_action( self::CRON_HOOK, array( $this, 'checkStaleness' ) );
+		add_action( 'wp_ajax_ameverywhere_dismiss_cornerstone_notice', array( $this, 'dismissNotice' ) );
 
-    // ── Staleness check (cron) ────────────────────────────────────────────────
+		// Schedule weekly check
+		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
+			wp_schedule_event( time(), 'weekly', self::CRON_HOOK );
+		}
+	}
 
-    public function checkStaleness(): void
-    {
-        $thresholdDays = (int) get_option(self::THRESHOLD_OPTION, 180);
-        $threshold     = strtotime("-{$thresholdDays} days");
+	// ── Staleness check (cron) ────────────────────────────────────────────────
 
-        $query = new \WP_Query([
-            'post_type'      => get_post_types(['public' => true]),
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'meta_query'     => [
-                ['key' => self::CORNERSTONE_META_KEY, 'value' => 'yes'],
-            ],
-        ]);
+	public function checkStaleness(): void {
+		$thresholdDays = (int) get_option( self::THRESHOLD_OPTION, 180 );
+		$threshold     = strtotime( "-{$thresholdDays} days" );
 
-        $currentStale    = (array) get_option(self::STALE_IDS_OPTION, []);
-        $newlyStale      = [];
-        $nowStale        = [];
+		$query = new \WP_Query(
+			array(
+				'post_type'      => get_post_types( array( 'public' => true ) ),
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'meta_query'     => array(
+					array(
+						'key'   => self::CORNERSTONE_META_KEY,
+						'value' => 'yes',
+					),
+				),
+			)
+		);
 
-        foreach ($query->posts as $post) {
-            $modified = strtotime($post->post_modified);
-            if ($modified < $threshold) {
-                $nowStale[] = $post->ID;
-                if (!in_array($post->ID, $currentStale, true)) {
-                    $newlyStale[] = $post->ID;
-                }
-            }
-        }
+		$currentStale = (array) get_option( self::STALE_IDS_OPTION, array() );
+		$newlyStale   = array();
+		$nowStale     = array();
 
-        update_option(self::STALE_IDS_OPTION, $nowStale);
+		foreach ( $query->posts as $post ) {
+			$modified = strtotime( $post->post_modified );
+			if ( $modified < $threshold ) {
+				$nowStale[] = $post->ID;
+				if ( ! in_array( $post->ID, $currentStale, true ) ) {
+					$newlyStale[] = $post->ID;
+				}
+			}
+		}
 
-        // Email admin about newly stale posts
-        if (!empty($newlyStale)) {
-            $this->sendStaleEmail($newlyStale);
-        }
-    }
+		update_option( self::STALE_IDS_OPTION, $nowStale );
 
-    private function sendStaleEmail(array $postIds): void
-    {
-        $adminEmail = get_option('admin_email');
-        $subject    = '[AmEveryWhere] Cornerstone Content Needs Refresh';
-        $body       = "<h2>Stale Cornerstone Content Alert</h2><p>The following cornerstone posts haven't been updated recently:</p><ul>";
+		// Email admin about newly stale posts
+		if ( ! empty( $newlyStale ) ) {
+			$this->sendStaleEmail( $newlyStale );
+		}
+	}
 
-        foreach ($postIds as $id) {
-            $body .= '<li><a href="' . esc_url(get_edit_post_link($id)) . '">' . esc_html(get_the_title($id)) . '</a> (last modified: ' . get_the_modified_date('Y-m-d', $id) . ')</li>';
-        }
+	private function sendStaleEmail( array $postIds ): void {
+		$adminEmail = get_option( 'admin_email' );
+		$subject    = '[AmEveryWhere] Cornerstone Content Needs Refresh';
+		$body       = "<h2>Stale Cornerstone Content Alert</h2><p>The following cornerstone posts haven't been updated recently:</p><ul>";
 
-        $body .= '</ul><p><a href="' . esc_url(admin_url('admin.php?page=ameverywhere')) . '">Open AmEveryWhere Dashboard →</a></p>';
+		foreach ( $postIds as $id ) {
+			$body .= '<li><a href="' . esc_url( get_edit_post_link( $id ) ) . '">' . esc_html( get_the_title( $id ) ) . '</a> (last modified: ' . get_the_modified_date( 'Y-m-d', $id ) . ')</li>';
+		}
 
-        wp_mail($adminEmail, $subject, $body, ['Content-Type: text/html; charset=UTF-8']);
-    }
+		$body .= '</ul><p><a href="' . esc_url( admin_url( 'admin.php?page=ameverywhere' ) ) . '">Open AmEveryWhere Dashboard →</a></p>';
 
-    // ── Admin notice ──────────────────────────────────────────────────────────
+		wp_mail( $adminEmail, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+	}
 
-    public function showAdminNotice(): void
-    {
-        $stale = (array) get_option(self::STALE_IDS_OPTION, []);
-        if (empty($stale)) {
-            return;
-        }
+	// ── Admin notice ──────────────────────────────────────────────────────────
 
-        $dismissed = (bool) get_user_meta(get_current_user_id(), self::DISMISSED_OPTION, true);
-        if ($dismissed) {
-            return;
-        }
+	public function showAdminNotice(): void {
+		$stale = (array) get_option( self::STALE_IDS_OPTION, array() );
+		if ( empty( $stale ) ) {
+			return;
+		}
 
-        $count = count($stale);
-        $nonce = wp_create_nonce('ameverywhere_dismiss_cornerstone');
-        echo '<div class="notice notice-warning is-dismissible ameverywhere-cornerstone-notice" data-nonce="' . esc_attr($nonce) . '">';
-        echo '<p><strong>AmEveryWhere:</strong> ' . esc_html(sprintf(_n('%d cornerstone post is stale', '%d cornerstone posts are stale', $count, 'ameverywhere'), $count)) . '. ';
-        echo '<a href="' . esc_url(admin_url('admin.php?page=ameverywhere#cornerstone')) . '">Review and refresh →</a></p>';
-        echo '</div>';
+		$dismissed = (bool) get_user_meta( get_current_user_id(), self::DISMISSED_OPTION, true );
+		if ( $dismissed ) {
+			return;
+		}
 
-        // Inline JS to handle dismissal
-        echo '<script>
+		$count = count( $stale );
+		$nonce = wp_create_nonce( 'ameverywhere_dismiss_cornerstone' );
+		echo '<div class="notice notice-warning is-dismissible ameverywhere-cornerstone-notice" data-nonce="' . esc_attr( $nonce ) . '">';
+		echo '<p><strong>AmEveryWhere:</strong> ' . esc_html( sprintf( _n( '%d cornerstone post is stale', '%d cornerstone posts are stale', $count, 'ameverywhere' ), $count ) ) . '. ';
+		echo '<a href="' . esc_url( admin_url( 'admin.php?page=ameverywhere#cornerstone' ) ) . '">Review and refresh →</a></p>';
+		echo '</div>';
+
+		// Inline JS to handle dismissal
+		echo '<script>
         document.addEventListener("DOMContentLoaded", function() {
             var el = document.querySelector(".ameverywhere-cornerstone-notice");
             if (!el) return;
@@ -123,95 +124,116 @@ class StaleCornerStoneDetector
             });
         });
         </script>';
-    }
+	}
 
-    public function dismissNotice(): void
-    {
-        check_ajax_referer('ameverywhere_dismiss_cornerstone');
-        update_user_meta(get_current_user_id(), self::DISMISSED_OPTION, true);
-        wp_die();
-    }
+	public function dismissNotice(): void {
+		check_ajax_referer( 'ameverywhere_dismiss_cornerstone' );
+		update_user_meta( get_current_user_id(), self::DISMISSED_OPTION, true );
+		wp_die();
+	}
 
-    // ── REST routes ───────────────────────────────────────────────────────────
+	// ── REST routes ───────────────────────────────────────────────────────────
 
-    public function registerRoutes(): void
-    {
-        $editorCap = fn() => current_user_can('edit_posts');
-        $adminCap  = fn() => current_user_can('manage_options');
+	public function registerRoutes(): void {
+		$editorCap = fn() => current_user_can( 'edit_posts' );
+		$adminCap  = fn() => current_user_can( 'manage_options' );
 
-        register_rest_route('ameverywhere/v1', '/content/stale-cornerstone', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'listStale'],
-            'permission_callback' => $editorCap,
-        ]);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/content/stale-cornerstone',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'listStale' ),
+				'permission_callback' => $editorCap,
+			)
+		);
 
-        register_rest_route('ameverywhere/v1', '/content/stale-cornerstone/mark-refreshed', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'markRefreshed'],
-            'permission_callback' => $editorCap,
-        ]);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/content/stale-cornerstone/mark-refreshed',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'markRefreshed' ),
+				'permission_callback' => $editorCap,
+			)
+		);
 
-        register_rest_route('ameverywhere/v1', '/settings/cornerstone-stale-threshold', [
-            [
-                'methods'             => \WP_REST_Server::READABLE,
-                'callback'            => fn() => rest_ensure_response(['threshold_days' => (int) get_option(self::THRESHOLD_OPTION, 180)]),
-                'permission_callback' => $adminCap,
-            ],
-            [
-                'methods'             => \WP_REST_Server::CREATABLE,
-                'callback'            => function (\WP_REST_Request $req) {
-                    $days = max(30, (int) ($req->get_json_params()['threshold_days'] ?? 180));
-                    update_option(self::THRESHOLD_OPTION, $days);
-                    return rest_ensure_response(['success' => true, 'threshold_days' => $days]);
-                },
-                'permission_callback' => $adminCap,
-            ],
-        ]);
-    }
+		register_rest_route(
+			'ameverywhere/v1',
+			'/settings/cornerstone-stale-threshold',
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => fn() => rest_ensure_response( array( 'threshold_days' => (int) get_option( self::THRESHOLD_OPTION, 180 ) ) ),
+					'permission_callback' => $adminCap,
+				),
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => function ( \WP_REST_Request $req ) {
+						$days = max( 30, (int) ( $req->get_json_params()['threshold_days'] ?? 180 ) );
+						update_option( self::THRESHOLD_OPTION, $days );
+						return rest_ensure_response(
+							array(
+								'success'        => true,
+								'threshold_days' => $days,
+							)
+						);
+					},
+					'permission_callback' => $adminCap,
+				),
+			)
+		);
+	}
 
-    public function listStale(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $staleIds = (array) get_option(self::STALE_IDS_OPTION, []);
-        $posts    = [];
+	public function listStale( \WP_REST_Request $request ): \WP_REST_Response {
+		$staleIds = (array) get_option( self::STALE_IDS_OPTION, array() );
+		$posts    = array();
 
-        foreach ($staleIds as $id) {
-            $post = get_post($id);
-            if (!$post) {
-                continue;
-            }
-            $posts[] = [
-                'id'            => $post->ID,
-                'title'         => $post->post_title,
-                'url'           => get_permalink($post->ID),
-                'post_type'     => $post->post_type,
-                'last_modified' => $post->post_modified,
-                'days_stale'    => (int) floor((time() - strtotime($post->post_modified)) / DAY_IN_SECONDS),
-            ];
-        }
+		foreach ( $staleIds as $id ) {
+			$post = get_post( $id );
+			if ( ! $post ) {
+				continue;
+			}
+			$posts[] = array(
+				'id'            => $post->ID,
+				'title'         => $post->post_title,
+				'url'           => get_permalink( $post->ID ),
+				'post_type'     => $post->post_type,
+				'last_modified' => $post->post_modified,
+				'days_stale'    => (int) floor( ( time() - strtotime( $post->post_modified ) ) / DAY_IN_SECONDS ),
+			);
+		}
 
-        return rest_ensure_response([
-            'stale_posts'    => $posts,
-            'threshold_days' => (int) get_option(self::THRESHOLD_OPTION, 180),
-            'last_check'     => wp_next_scheduled(self::CRON_HOOK),
-        ]);
-    }
+		return rest_ensure_response(
+			array(
+				'stale_posts'    => $posts,
+				'threshold_days' => (int) get_option( self::THRESHOLD_OPTION, 180 ),
+				'last_check'     => wp_next_scheduled( self::CRON_HOOK ),
+			)
+		);
+	}
 
-    public function markRefreshed(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $postId = absint($params['post_id'] ?? 0);
+	public function markRefreshed( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$postId = absint( $params['post_id'] ?? 0 );
 
-        if (!$postId || !get_post($postId)) {
-            return new \WP_Error('not_found', 'Post not found.', ['status' => 404]);
-        }
+		if ( ! $postId || ! get_post( $postId ) ) {
+			return new \WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+		}
 
-        // Touch the post modified date
-        wp_update_post(['ID' => $postId, 'post_modified' => current_time('mysql'), 'post_modified_gmt' => current_time('mysql', 1)]);
+		// Touch the post modified date
+		wp_update_post(
+			array(
+				'ID'                => $postId,
+				'post_modified'     => current_time( 'mysql' ),
+				'post_modified_gmt' => current_time( 'mysql', 1 ),
+			)
+		);
 
-        // Remove from stale list
-        $staleIds = (array) get_option(self::STALE_IDS_OPTION, []);
-        update_option(self::STALE_IDS_OPTION, array_values(array_diff($staleIds, [$postId])));
+		// Remove from stale list
+		$staleIds = (array) get_option( self::STALE_IDS_OPTION, array() );
+		update_option( self::STALE_IDS_OPTION, array_values( array_diff( $staleIds, array( $postId ) ) ) );
 
-        return rest_ensure_response(['success' => true]);
-    }
+		return rest_ensure_response( array( 'success' => true ) );
+	}
 }

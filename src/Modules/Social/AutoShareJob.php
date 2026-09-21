@@ -2,154 +2,155 @@
 
 namespace AmEveryWhere\Modules\Social;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 use AmEveryWhere\Core\Queue\QueueManager;
 
-class AutoShareJob
-{
-    private array $data;
+class AutoShareJob {
 
-    public function __construct(array $data)
-    {
-        $this->data = $data;
-    }
+	private array $data;
 
-    public function handle(): void
-    {
-        $postId = $this->data['post_id'] ?? 0;
-        $retries = $this->data['retries'] ?? 0;
-        $accountId = $this->data['account_id'] ?? null; // Optional: target specific account
+	public function __construct( array $data ) {
+		$this->data = $data;
+	}
 
-        if (!$postId) {
-            return;
-        }
+	public function handle(): void {
+		$postId    = $this->data['post_id'] ?? 0;
+		$retries   = $this->data['retries'] ?? 0;
+		$accountId = $this->data['account_id'] ?? null; // Optional: target specific account
 
-        // Check if the post is actually published
-        if (get_post_status($postId) !== 'publish') {
-            return;
-        }
+		if ( ! $postId ) {
+			return;
+		}
 
-        // Check if social sharing is explicitly disabled for this post
-        $disableShare = get_post_meta($postId, '_ameverywhere_disable_social_share', true);
-        if ($disableShare === '1') {
-            return;
-        }
+		// Check if the post is actually published
+		if ( get_post_status( $postId ) !== 'publish' ) {
+			return;
+		}
 
-        // Ensure we haven't already shared this post automatically to avoid spam loops
-        // Unless it's a manual trigger (manual trigger can bypass this by setting 'manual' => true)
-        $isManual = $this->data['manual'] ?? false;
-        if (!$isManual) {
-            $alreadyShared = get_post_meta($postId, '_ameverywhere_auto_shared', true);
-            if ($alreadyShared === '1') {
-                return;
-            }
-        }
+		// Check if social sharing is explicitly disabled for this post
+		$disableShare = get_post_meta( $postId, '_ameverywhere_disable_social_share', true );
+		if ( $disableShare === '1' ) {
+			return;
+		}
 
-        $accountManager = new SocialAccountManager();
-        $apiGateway = new SocialApiGateway();
-        
-        $accounts = $accountManager->getAccounts();
-        if (empty($accounts)) {
-            return; // No accounts connected
-        }
+		// Ensure we haven't already shared this post automatically to avoid spam loops
+		// Unless it's a manual trigger (manual trigger can bypass this by setting 'manual' => true)
+		$isManual = $this->data['manual'] ?? false;
+		if ( ! $isManual ) {
+			$alreadyShared = get_post_meta( $postId, '_ameverywhere_auto_shared', true );
+			if ( $alreadyShared === '1' ) {
+				return;
+			}
+		}
 
-        // Prepare payload
-        $url = get_permalink($postId);
-        $title = get_the_title($postId);
-        
-        // Custom OG Title
-        $ogTitle = get_post_meta($postId, '_ameverywhere_og_title', true);
-        if (!empty($ogTitle)) {
-            $title = $ogTitle;
-        }
+		$accountManager = new SocialAccountManager();
+		$apiGateway     = new SocialApiGateway();
 
-        // Excerpt / OG Desc
-        $description = get_post_meta($postId, '_ameverywhere_og_description', true);
-        if (empty($description)) {
-            $description = wp_trim_words(get_post_field('post_excerpt', $postId), 25);
-        }
+		$accounts = $accountManager->getAccounts();
+		if ( empty( $accounts ) ) {
+			return; // No accounts connected
+		}
 
-        // OG Image
-        $image = get_post_meta($postId, '_ameverywhere_og_image', true);
-        if (empty($image) && has_post_thumbnail($postId)) {
-            $image = get_the_post_thumbnail_url($postId, 'full');
-        }
-        if (empty($image)) {
-            $image = get_option('ameverywhere_default_share_image', '');
-        }
+		// Prepare payload
+		$url   = get_permalink( $postId );
+		$title = get_the_title( $postId );
 
-        $payload = [
-            'url'         => $url,
-            'title'       => $title,
-            'description' => $description,
-            'image'       => $image
-        ];
+		// Custom OG Title
+		$ogTitle = get_post_meta( $postId, '_ameverywhere_og_title', true );
+		if ( ! empty( $ogTitle ) ) {
+			$title = $ogTitle;
+		}
 
-        $hasFailures = false;
-        
-        // Fetch categories attached to the post for matching
-        $postCategories = wp_get_post_categories($postId);
+		// Excerpt / OG Desc
+		$description = get_post_meta( $postId, '_ameverywhere_og_description', true );
+		if ( empty( $description ) ) {
+			$description = wp_trim_words( get_post_field( 'post_excerpt', $postId ), 25 );
+		}
 
-        foreach ($accounts as $account) {
-            // If target account ID is specified, skip others
-            if ($accountId && $account['id'] !== $accountId) {
-                continue;
-            }
+		// OG Image
+		$image = get_post_meta( $postId, '_ameverywhere_og_image', true );
+		if ( empty( $image ) && has_post_thumbnail( $postId ) ) {
+			$image = get_the_post_thumbnail_url( $postId, 'full' );
+		}
+		if ( empty( $image ) ) {
+			$image = get_option( 'ameverywhere_default_share_image', '' );
+		}
 
-            // Only share to enabled accounts
-            $enabled = $account['auto_share'] ?? true;
-            if (!$enabled && !$isManual) {
-                continue;
-            }
+		$payload = array(
+			'url'         => $url,
+			'title'       => $title,
+			'description' => $description,
+			'image'       => $image,
+		);
 
-            // Category Binding Rules
-            $boundCategories = $account['bound_categories'] ?? [];
-            if (!empty($boundCategories)) {
-                // If the account has bound categories, the post MUST belong to at least one of them
-                $intersection = array_intersect($postCategories, $boundCategories);
-                if (empty($intersection)) {
-                    // No matching category, skip this account
-                    continue;
-                }
-            }
+		$hasFailures = false;
 
-            $response = $apiGateway->share($account, $payload);
+		// Fetch categories attached to the post for matching
+		$postCategories = wp_get_post_categories( $postId );
 
-            if (!$response['success']) {
-                // If it's a rate limit error (429) and we haven't exhausted retries
-                if ($response['code'] === 429 && $retries < 3) {
-                    $hasFailures = true;
-                    // Log failure for this account so we can retry just this account
-                    $queueManager = new QueueManager();
-                    $queueManager->push(self::class, [
-                        'post_id'    => $postId,
-                        'account_id' => $account['id'],
-                        'retries'    => $retries + 1,
-                        'manual'     => $isManual
-                    ]);
-                }
-            } else {
-                // Successfully shared to this network
-                // We could log this to post meta to show on the dashboard
-                $shareLogs = get_post_meta($postId, '_ameverywhere_share_logs', true);
-                if (!is_array($shareLogs)) {
-                    $shareLogs = [];
-                }
-                $shareLogs[] = [
-                    'account_id' => $account['id'],
-                    'network'    => $account['network'],
-                    'timestamp'  => time()
-                ];
-                update_post_meta($postId, '_ameverywhere_share_logs', $shareLogs);
-            }
-        }
+		foreach ( $accounts as $account ) {
+			// If target account ID is specified, skip others
+			if ( $accountId && $account['id'] !== $accountId ) {
+				continue;
+			}
 
-        if (!$hasFailures && !$isManual) {
-            // Mark as fully auto-shared
-            update_post_meta($postId, '_ameverywhere_auto_shared', '1');
-        }
-    }
+			// Only share to enabled accounts
+			$enabled = $account['auto_share'] ?? true;
+			if ( ! $enabled && ! $isManual ) {
+				continue;
+			}
+
+			// Category Binding Rules
+			$boundCategories = $account['bound_categories'] ?? array();
+			if ( ! empty( $boundCategories ) ) {
+				// If the account has bound categories, the post MUST belong to at least one of them
+				$intersection = array_intersect( $postCategories, $boundCategories );
+				if ( empty( $intersection ) ) {
+					// No matching category, skip this account
+					continue;
+				}
+			}
+
+			$response = $apiGateway->share( $account, $payload );
+
+			if ( ! $response['success'] ) {
+				// If it's a rate limit error (429) and we haven't exhausted retries
+				if ( $response['code'] === 429 && $retries < 3 ) {
+					$hasFailures = true;
+					// Log failure for this account so we can retry just this account
+					$queueManager = new QueueManager();
+					$queueManager->push(
+						self::class,
+						array(
+							'post_id'    => $postId,
+							'account_id' => $account['id'],
+							'retries'    => $retries + 1,
+							'manual'     => $isManual,
+						)
+					);
+				}
+			} else {
+				// Successfully shared to this network
+				// We could log this to post meta to show on the dashboard
+				$shareLogs = get_post_meta( $postId, '_ameverywhere_share_logs', true );
+				if ( ! is_array( $shareLogs ) ) {
+					$shareLogs = array();
+				}
+				$shareLogs[] = array(
+					'account_id' => $account['id'],
+					'network'    => $account['network'],
+					'timestamp'  => time(),
+				);
+				update_post_meta( $postId, '_ameverywhere_share_logs', $shareLogs );
+			}
+		}
+
+		if ( ! $hasFailures && ! $isManual ) {
+			// Mark as fully auto-shared
+			update_post_meta( $postId, '_ameverywhere_auto_shared', '1' );
+		}
+	}
 }

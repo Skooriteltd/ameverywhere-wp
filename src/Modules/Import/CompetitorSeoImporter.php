@@ -2,8 +2,8 @@
 
 namespace AmEveryWhere\Modules\Import;
 
-if (!defined('ABSPATH')) {
-    exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
 /**
@@ -12,195 +12,228 @@ if (!defined('ABSPATH')) {
  * BL-044: Imports SEO settings from Yoast SEO and All-in-One SEO Pack
  * into AmEveryWhere meta keys. One-time migration with dry-run support.
  */
-class CompetitorSeoImporter
-{
-    private const YOAST_TITLE  = '_yoast_wpseo_title';
-    private const YOAST_DESC   = '_yoast_wpseo_metadesc';
-    private const YOAST_KW     = '_yoast_wpseo_focuskw';
-    private const YOAST_NOINDEX = '_yoast_wpseo_meta-robots-noindex';
-    private const YOAST_CANONICAL = '_yoast_wpseo_canonical';
+class CompetitorSeoImporter {
 
-    private const AIOSEO_TITLE   = '_aioseo_title';
-    private const AIOSEO_DESC    = '_aioseo_description';
-    private const AIOSEO_KW      = '_aioseo_keywords';
-    private const AIOSEO_ROBOTS  = '_aioseo_robots_default';
+	private const YOAST_TITLE     = '_yoast_wpseo_title';
+	private const YOAST_DESC      = '_yoast_wpseo_metadesc';
+	private const YOAST_KW        = '_yoast_wpseo_focuskw';
+	private const YOAST_NOINDEX   = '_yoast_wpseo_meta-robots-noindex';
+	private const YOAST_CANONICAL = '_yoast_wpseo_canonical';
 
-    public function register(): void
-    {
-        add_action('rest_api_init', [$this, 'registerRoutes']);
-    }
+	private const AIOSEO_TITLE  = '_aioseo_title';
+	private const AIOSEO_DESC   = '_aioseo_description';
+	private const AIOSEO_KW     = '_aioseo_keywords';
+	private const AIOSEO_ROBOTS = '_aioseo_robots_default';
 
-    public function registerRoutes(): void
-    {
-        $adminCap = fn() => current_user_can('manage_options');
+	public function register(): void {
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
 
-        register_rest_route('ameverywhere/v1', '/import/detect', [
-            'methods'             => \WP_REST_Server::READABLE,
-            'callback'            => [$this, 'detectInstalledPlugins'],
-            'permission_callback' => $adminCap,
-        ]);
+	public function registerRoutes(): void {
+		$adminCap = fn() => current_user_can( 'manage_options' );
 
-        register_rest_route('ameverywhere/v1', '/import/preview', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'previewImport'],
-            'permission_callback' => $adminCap,
-        ]);
+		register_rest_route(
+			'ameverywhere/v1',
+			'/import/detect',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'detectInstalledPlugins' ),
+				'permission_callback' => $adminCap,
+			)
+		);
 
-        register_rest_route('ameverywhere/v1', '/import/run', [
-            'methods'             => \WP_REST_Server::CREATABLE,
-            'callback'            => [$this, 'runImport'],
-            'permission_callback' => $adminCap,
-        ]);
-    }
+		register_rest_route(
+			'ameverywhere/v1',
+			'/import/preview',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'previewImport' ),
+				'permission_callback' => $adminCap,
+			)
+		);
 
-    public function detectInstalledPlugins(\WP_REST_Request $request): \WP_REST_Response
-    {
-        global $wpdb;
+		register_rest_route(
+			'ameverywhere/v1',
+			'/import/run',
+			array(
+				'methods'             => \WP_REST_Server::CREATABLE,
+				'callback'            => array( $this, 'runImport' ),
+				'permission_callback' => $adminCap,
+			)
+		);
+	}
 
-        $yoastData = (int) $wpdb->get_var(
-            $wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1", self::YOAST_TITLE)
-        );
-        $aioseoData = (int) $wpdb->get_var(
-            $wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1", self::AIOSEO_TITLE)
-        );
+	public function detectInstalledPlugins( \WP_REST_Request $request ): \WP_REST_Response {
+		global $wpdb;
 
-        return rest_ensure_response([
-            'yoast_seo'  => ['detected' => $yoastData > 0, 'post_count' => $yoastData],
-            'all_in_one_seo' => ['detected' => $aioseoData > 0, 'post_count' => $aioseoData],
-        ]);
-    }
+		$yoastData  = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1", self::YOAST_TITLE )
+		);
+		$aioseoData = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key = %s LIMIT 1", self::AIOSEO_TITLE )
+		);
 
-    public function previewImport(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params = $request->get_json_params();
-        $source = sanitize_key($params['source'] ?? 'yoast');
-        $limit  = min(50, max(1, (int) ($params['limit'] ?? 10)));
+		return rest_ensure_response(
+			array(
+				'yoast_seo'      => array(
+					'detected'   => $yoastData > 0,
+					'post_count' => $yoastData,
+				),
+				'all_in_one_seo' => array(
+					'detected'   => $aioseoData > 0,
+					'post_count' => $aioseoData,
+				),
+			)
+		);
+	}
 
-        $results = $this->doImport($source, $limit, true);
-        return rest_ensure_response(['source' => $source, 'preview' => $results]);
-    }
+	public function previewImport( \WP_REST_Request $request ): \WP_REST_Response {
+		$params = $request->get_json_params();
+		$source = sanitize_key( $params['source'] ?? 'yoast' );
+		$limit  = min( 50, max( 1, (int) ( $params['limit'] ?? 10 ) ) );
 
-    public function runImport(\WP_REST_Request $request): \WP_REST_Response
-    {
-        $params  = $request->get_json_params();
-        $source  = sanitize_key($params['source'] ?? 'yoast');
-        $overwrite = (bool) ($params['overwrite'] ?? false);
+		$results = $this->doImport( $source, $limit, true );
+		return rest_ensure_response(
+			array(
+				'source'  => $source,
+				'preview' => $results,
+			)
+		);
+	}
 
-        $results = $this->doImport($source, 5000, false, $overwrite);
+	public function runImport( \WP_REST_Request $request ): \WP_REST_Response {
+		$params    = $request->get_json_params();
+		$source    = sanitize_key( $params['source'] ?? 'yoast' );
+		$overwrite = (bool) ( $params['overwrite'] ?? false );
 
-        return rest_ensure_response([
-            'success'   => true,
-            'source'    => $source,
-            'imported'  => $results['imported'],
-            'skipped'   => $results['skipped'],
-            'details'   => array_slice($results['details'], 0, 20),
-        ]);
-    }
+		$results = $this->doImport( $source, 5000, false, $overwrite );
 
-    private function doImport(string $source, int $limit, bool $dryRun = false, bool $overwrite = false): array
-    {
-        global $wpdb;
-        $imported = 0;
-        $skipped  = 0;
-        $details  = [];
+		return rest_ensure_response(
+			array(
+				'success'  => true,
+				'source'   => $source,
+				'imported' => $results['imported'],
+				'skipped'  => $results['skipped'],
+				'details'  => array_slice( $results['details'], 0, 20 ),
+			)
+		);
+	}
 
-        if ($source === 'yoast') {
-            $rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta}
+	private function doImport( string $source, int $limit, bool $dryRun = false, bool $overwrite = false ): array {
+		global $wpdb;
+		$imported = 0;
+		$skipped  = 0;
+		$details  = array();
+
+		if ( $source === 'yoast' ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta}
                      WHERE meta_key IN (%s, %s, %s, %s, %s)
                      ORDER BY post_id LIMIT %d",
-                    self::YOAST_TITLE, self::YOAST_DESC, self::YOAST_KW, self::YOAST_NOINDEX, self::YOAST_CANONICAL,
-                    $limit * 5
-                )
-            );
+					self::YOAST_TITLE,
+					self::YOAST_DESC,
+					self::YOAST_KW,
+					self::YOAST_NOINDEX,
+					self::YOAST_CANONICAL,
+					$limit * 5
+				)
+			);
 
-            $byPost = [];
-            foreach ($rows as $row) {
-                $byPost[(int) $row->post_id][$row->meta_key] = $row->meta_value;
-            }
+			$byPost = array();
+			foreach ( $rows as $row ) {
+				$byPost[ (int) $row->post_id ][ $row->meta_key ] = $row->meta_value;
+			}
 
-            foreach (array_slice($byPost, 0, $limit, true) as $postId => $meta) {
-                $detail = ['post_id' => $postId, 'fields' => []];
+			foreach ( array_slice( $byPost, 0, $limit, true ) as $postId => $meta ) {
+				$detail = array(
+					'post_id' => $postId,
+					'fields'  => array(),
+				);
 
-                $map = [
-                    self::YOAST_TITLE    => '_ameverywhere_meta_title',
-                    self::YOAST_DESC     => '_ameverywhere_meta_description',
-                    self::YOAST_KW       => '_ameverywhere_focus_keyword',
-                    self::YOAST_CANONICAL => '_ameverywhere_canonical_url',
-                ];
+				$map = array(
+					self::YOAST_TITLE     => '_ameverywhere_meta_title',
+					self::YOAST_DESC      => '_ameverywhere_meta_description',
+					self::YOAST_KW        => '_ameverywhere_focus_keyword',
+					self::YOAST_CANONICAL => '_ameverywhere_canonical_url',
+				);
 
-                foreach ($map as $fromKey => $toKey) {
-                    if (!isset($meta[$fromKey]) || empty($meta[$fromKey])) {
-                        continue;
-                    }
-                    $existing = get_post_meta($postId, $toKey, true);
-                    if (!empty($existing) && !$overwrite) {
-                        $skipped++;
-                        continue;
-                    }
-                    if (!$dryRun) {
-                        update_post_meta($postId, $toKey, $meta[$fromKey]);
-                    }
-                    $detail['fields'][] = $toKey;
-                    $imported++;
-                }
+				foreach ( $map as $fromKey => $toKey ) {
+					if ( ! isset( $meta[ $fromKey ] ) || empty( $meta[ $fromKey ] ) ) {
+						continue;
+					}
+					$existing = get_post_meta( $postId, $toKey, true );
+					if ( ! empty( $existing ) && ! $overwrite ) {
+						++$skipped;
+						continue;
+					}
+					if ( ! $dryRun ) {
+						update_post_meta( $postId, $toKey, $meta[ $fromKey ] );
+					}
+					$detail['fields'][] = $toKey;
+					++$imported;
+				}
 
-                // noindex
-                if (isset($meta[self::YOAST_NOINDEX]) && $meta[self::YOAST_NOINDEX] === '1') {
-                    if (!$dryRun) {
-                        update_post_meta($postId, '_ameverywhere_noindex', 'yes');
-                    }
-                    $detail['fields'][] = '_ameverywhere_noindex';
-                }
+				// noindex
+				if ( isset( $meta[ self::YOAST_NOINDEX ] ) && $meta[ self::YOAST_NOINDEX ] === '1' ) {
+					if ( ! $dryRun ) {
+						update_post_meta( $postId, '_ameverywhere_noindex', 'yes' );
+					}
+					$detail['fields'][] = '_ameverywhere_noindex';
+				}
 
-                $details[] = $detail;
-            }
-        } elseif ($source === 'aioseo') {
-            $rows = $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta}
+				$details[] = $detail;
+			}
+		} elseif ( $source === 'aioseo' ) {
+			$rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta}
                      WHERE meta_key IN (%s, %s, %s)
                      ORDER BY post_id LIMIT %d",
-                    self::AIOSEO_TITLE, self::AIOSEO_DESC, self::AIOSEO_KW,
-                    $limit * 3
-                )
-            );
+					self::AIOSEO_TITLE,
+					self::AIOSEO_DESC,
+					self::AIOSEO_KW,
+					$limit * 3
+				)
+			);
 
-            $byPost = [];
-            foreach ($rows as $row) {
-                $byPost[(int) $row->post_id][$row->meta_key] = $row->meta_value;
-            }
+			$byPost = array();
+			foreach ( $rows as $row ) {
+				$byPost[ (int) $row->post_id ][ $row->meta_key ] = $row->meta_value;
+			}
 
-            $map = [
-                self::AIOSEO_TITLE => '_ameverywhere_meta_title',
-                self::AIOSEO_DESC  => '_ameverywhere_meta_description',
-                self::AIOSEO_KW    => '_ameverywhere_focus_keyword',
-            ];
+			$map = array(
+				self::AIOSEO_TITLE => '_ameverywhere_meta_title',
+				self::AIOSEO_DESC  => '_ameverywhere_meta_description',
+				self::AIOSEO_KW    => '_ameverywhere_focus_keyword',
+			);
 
-            foreach (array_slice($byPost, 0, $limit, true) as $postId => $meta) {
-                $detail = ['post_id' => $postId, 'fields' => []];
+			foreach ( array_slice( $byPost, 0, $limit, true ) as $postId => $meta ) {
+				$detail = array(
+					'post_id' => $postId,
+					'fields'  => array(),
+				);
 
-                foreach ($map as $fromKey => $toKey) {
-                    if (empty($meta[$fromKey])) {
-                        continue;
-                    }
-                    $existing = get_post_meta($postId, $toKey, true);
-                    if (!empty($existing) && !$overwrite) {
-                        $skipped++;
-                        continue;
-                    }
-                    if (!$dryRun) {
-                        update_post_meta($postId, $toKey, $meta[$fromKey]);
-                    }
-                    $detail['fields'][] = $toKey;
-                    $imported++;
-                }
+				foreach ( $map as $fromKey => $toKey ) {
+					if ( empty( $meta[ $fromKey ] ) ) {
+						continue;
+					}
+					$existing = get_post_meta( $postId, $toKey, true );
+					if ( ! empty( $existing ) && ! $overwrite ) {
+						++$skipped;
+						continue;
+					}
+					if ( ! $dryRun ) {
+						update_post_meta( $postId, $toKey, $meta[ $fromKey ] );
+					}
+					$detail['fields'][] = $toKey;
+					++$imported;
+				}
 
-                $details[] = $detail;
-            }
-        }
+				$details[] = $detail;
+			}
+		}
 
-        return compact('imported', 'skipped', 'details');
-    }
+		return compact( 'imported', 'skipped', 'details' );
+	}
 }

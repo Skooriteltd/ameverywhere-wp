@@ -1,444 +1,436 @@
-# AmEveryWhere — Production Packaging Readiness Backlog
+# AmEveryWhere — Consolidated Production-Readiness Backlog
 
-> **Document Version:** 1.0.0  
-> **Target Release:** AmEveryWhere v1.0.0 Production Packaging & WordPress.org Release  
-> **Status:** Active Implementation Backlog  
-> **Generated:** September 2026  
+> **Release target:** First public WordPress.org release
+> **Status:** Not release-ready
+> **Source:** Senior engineering review & execution logs (September 2026)
+> **Authority:** This is the single, authoritative source of truth for v1.0 production readiness.
 
----
 
-## 📊 Executive Summary & Priority Matrix
+## Release decision
 
-This backlog documents all concrete defects, security vulnerabilities, packaging automation bugs, asset deficiencies, and documentation inconsistencies identified during the production readiness audit of `ameverywhere-wp`. All 18 items have been fully implemented, verified, and resolved for the v1.0.0 production release.
+**Do not submit the plugin to WordPress.org or distribute the current ZIP.** The working tree contains an activation blocker; the ZIP in `dist/` does not match the working tree; sensitive data is exposed by a public REST endpoint; and privacy, lifecycle, performance, and feature-claim defects remain.
 
-| Priority | Definition | Items | Resolved | Status |
-|:---|:---|:---:|:---:|:---:|
-| 🔴 **P0 (Blocker)** | Must fix before any release or package creation (crashes, fatal errors, broken actions, review rejections) | 8 | 8 / 8 | ✅ All Resolved |
-| 🟡 **P1 (High)** | Must complete before public distribution or directory submission (assets, deployment script, docs) | 7 | 7 / 7 | ✅ All Resolved |
-| 🟢 **P2 (Medium)** | Code health, test coverage expansion, and roadmap synchronization | 3 | 3 / 3 | ✅ All Resolved |
+### Scope decision: page builders
 
----
+Elementor, Divi, WPBakery, and other page-builder integrations are **out of scope for v1.0**. Do not ship placeholder integrations.
 
-## 📋 Backlog Overview
+- Remove the `PageBuilderSeoWrappers` registration and implementation from the v1.0 code path.
+- Remove page-builder compatibility claims from `readme.txt`, screenshots, feature lists, and product copy.
+- Reconsider the feature only when a supported-builder matrix, an owner, automated integration tests, and a maintained UX design are approved.
 
-| ID | Priority | Category | Task Title | Affected Files | Status |
-|:---|:---:|:---|:---|:---|:---:|
-| [PRB-001](#prb-001--fix-broken-admin-notice-dismissal-action-stale-cornerstone) | 🔴 P0 | Bug Fix | Fix Broken Admin Notice Dismissal Action (Stale Cornerstone) | `src/Modules/ContentAssistant/StaleCornerStoneDetector.php` | ✅ Completed |
-| [PRB-002](#prb-002--fix-duplicated-hook-execution-in-activation--deactivation) | 🔴 P0 | Bug Fix | Fix Duplicated Hook Execution in Activation & Deactivation | `src/Plugin.php` | ✅ Completed |
-| [PRB-003](#prb-003--clean-up-legacy-fallbacks-and-shims) | 🔴 P0 | Cleanup | Clean Up Legacy Fallbacks and Shims | `KeyVault.php`, `QueueManager.php`, `BackendApiClient.php` | ✅ Completed |
-| [PRB-004](#prb-004--add-defensive-php-version-guard-in-main-plugin-entry) | 🔴 P0 | Safety | Add Defensive PHP Version Guard in Main Plugin Entry | `ameverywhere.php` | ✅ Completed |
-| [PRB-005](#prb-005--add-load_plugin_textdomain-bootstrap-call) | 🔴 P0 | I18n | Add `load_plugin_textdomain` Bootstrap Call | `ameverywhere.php`, `src/Plugin.php` | ✅ Completed |
-| [PRB-006](#prb-006--prevent-direct-file-execution-across-all-src-php-files) | 🔴 P0 | Security | Prevent Direct File Execution Across All `src/` PHP Files | 87 files across `src/` | ✅ Completed |
-| [PRB-007](#prb-007--harden-social-oauth-callback-against-csrf--unauthorized-access) | 🔴 P0 | Security | Harden Social OAuth Callback Against CSRF & Unauthorized Access | `src/Modules/Social/SocialModule.php` | ✅ Completed |
-| [PRB-008](#prb-008--sanitize-and-prepare-raw-wpdb-sql-queries) | 🔴 P0 | Security | Sanitize and Prepare Raw `$wpdb` SQL Queries | `SeoAuditHistoryLog.php`, `CcpaPrivacyTools.php`, etc. | ✅ Completed |
-| [PRB-009](#prb-009--integrate-frontend-asset-compilation-into-deployment-pipeline) | 🟡 P1 | Pipeline | Integrate Frontend Asset Compilation into Deployment Pipeline | `deploy-to-wporg.sh`, `package.json` | ✅ Completed |
-| [PRB-010](#prb-010--fix-svn-assets-staging-and-commit-in-deployment-script) | 🟡 P1 | Pipeline | Fix SVN Assets Staging and Commit in Deployment Script | `deploy-to-wporg.sh` | ✅ Completed |
-| [PRB-011](#prb-011--create-clean-standalone-production-zip-packaging-script) | 🟡 P1 | Pipeline | Create Clean Standalone Production ZIP Packaging Script | `package-zip.sh` (new) | ✅ Completed |
-| [PRB-012](#prb-012--reconcile-source-assets-vs-distribution-bundle-strategy) | 🟡 P1 | Standards | Reconcile Source Assets vs Distribution Bundle Strategy | `deploy-to-wporg.sh`, `package-zip.sh`, `readme.txt` | ✅ Completed |
-| [PRB-013](#prb-013--standardize-wordpressorg-banners-and-icons-assets) | 🟡 P1 | Assets | Standardize WordPress.org Banners and Icons Assets | `assets/wporg/` | ✅ Completed |
-| [PRB-014](#prb-014--generate-and-package-8-missing-plugin-screenshots) | 🟡 P1 | Assets | Generate and Package 8 Missing Plugin Screenshots | `assets/screenshots/`, `assets/wporg/` | ✅ Completed |
-| [PRB-015](#prb-015--fix-readmetxt-tags-limit-for-wordpressorg-compliance) | 🟡 P1 | Metadata | Fix `readme.txt` Tags Limit for WordPress.org Compliance | `readme.txt` | ✅ Completed |
-| [PRB-016](#prb-016--cleanse-competitor-aioseo-copy-paste-artifacts) | 🟢 P2 | Docs | Cleanse Competitor (AIOSEO) Copy-Paste Artifacts | `features.md` | ✅ Completed |
-| [PRB-017](#prb-017--synchronize-and-reconcile-master-tasklist--roadmap) | 🟢 P2 | Docs | Synchronize and Reconcile Master Tasklist & Roadmap | `tasklist.md` | ✅ Completed |
-| [PRB-018](#prb-018--expand-automated-unit-and-integration-test-suite) | 🟢 P2 | QA | Expand Automated Unit and Integration Test Suite | `tests/Unit/` | ✅ Completed |
+## Definition of done for release
+
+All P0 and P1 items must be complete. A release candidate must:
+
+1. Activate, deactivate, uninstall, and upgrade successfully on clean single-site and multisite installations.
+2. Pass Plugin Check, the defined WPCS baseline, PHP lint, unit tests, WordPress integration tests, and browser smoke tests.
+3. Have no public REST response containing credentials, personal data, or administrative configuration.
+4. Produce a reproducible ZIP from a clean commit; every packaged file must correspond to that commit.
+5. Make no destructive content, media, SEO, crawl, or network change without explicit administrator opt-in and a reversible path.
+6. Match all public claims, screenshots, readme content, and external-service disclosures.
+
+## Priority and ownership
+
+| Priority | Meaning | Release gate |
+| --- | --- | --- |
+| P0 | Security exposure, crash, data loss, invalid release artifact, or policy blocker | Must complete before any RC |
+| P1 | Reliability, privacy, functionality, scale, or documentation issue likely to cause harm or review rejection | Must complete before submission |
+| P2 | Hardening, maintainability, or deferred product work | Schedule after v1.0 unless noted |
+
+Suggested owners: **Platform** (bootstrap, release, storage), **Security** (authorization and secrets), **SEO** (sitemaps/indexing), **Privacy** (consent/data rights), **UX** (admin flows/docs), and **QA** (test gates).
 
 ---
 
-## 🔴 Priority 0: Critical Release Blockers
+## P0 — release blockers
+
+### PR-001 — Repair activation fatal and test plugin lifecycle
+
+- **Owner:** Platform
+- **Affected:** `src/Plugin.php`, `src/Modules/Admin/TechnicalSeoAuditEngine.php`, lifecycle tests
+- **Problem:** `Plugin::activate()` calls `TechnicalSeoAuditEngine::createTable()`, but the class has no such method. Activation of the current working tree fatals.
+- **Work:** Remove the call if results are option-backed, or implement the intended idempotent schema migration. Audit every lifecycle call for missing methods/classes.
+- **Acceptance criteria:**
+  - [ ] Fresh activation succeeds with `WP_DEBUG` enabled and no PHP notices, warnings, or fatals.
+  - [ ] Re-activation is idempotent.
+  - [ ] Automated tests cover activation, deactivation, uninstall, and upgrade on a real WordPress database.
+
+### PR-002 — Remove public disclosure of secrets and personal data
+
+- **Owner:** Security
+- **Affected:** `src/Modules/Api/HeadlessSeoEndpoints.php`
+- **Problem:** The public `/seo/global` endpoint returns `admin_email` and the raw `indexnow_key`.
+- **Work:** Define a minimal public schema. Remove credential, email, internal configuration, and operational-flag fields; add a separate authenticated admin endpoint only where necessary.
+- **Acceptance criteria:**
+  - [ ] Unauthenticated requests contain only deliberately public SEO data.
+  - [ ] IndexNow, OAuth, AI, social, and backend credentials never appear in REST, HTML, logs, exports, or error messages.
+  - [ ] Add regression tests for anonymous requests and authenticated role boundaries.
+
+### PR-003 — Create a clean, reproducible release artifact
+
+- **Owner:** Platform / QA
+- **Affected:** `package-zip.sh`, `deploy-to-wporg.sh`, `dist/`, CI
+- **Problem:** The current `dist/ameverywhere-1.0.0.zip` differs from source and contains legacy Ranksavvy code absent from the working tree.
+- **Work:** Build only from a clean, tagged commit in CI. Generate a manifest of file hashes, test the ZIP in a temporary WordPress install, and fail when tracked changes are present.
+- **Acceptance criteria:**
+  - [ ] ZIP hash manifest maps to the release commit.
+  - [ ] ZIP excludes development caches, tests, source screenshots, local tooling, and unrelated files.
+  - [ ] ZIP includes required runtime dependencies, generated assets, licenses, and source/disclosure material required by WordPress.org.
+  - [ ] CI installs the ZIP in an empty WordPress instance and exercises activation.
+
+### PR-004 — Make media optimization safe, opt-in, and reversible
+
+- **Owner:** Platform / UX
+- **Affected:** `src/Modules/ImageSeo/ImageCompressor.php`, `src/Modules/ImageSeo/ImageSeoModule.php`, settings UI, docs
+- **Problem:** Compression is enabled by default, modifies uploads in place, strips metadata, and ignores the `preserve` setting during upload. It can irreversibly change user originals.
+- **Work:** Disable by default; add an explicit consent screen and per-operation confirmation. Preserve originals for every mode or use WordPress-generated derivative files. Track generated files and provide restore/delete actions.
+- **Acceptance criteria:**
+  - [ ] No upload is changed until an administrator opts in.
+  - [ ] Original bytes and metadata can be restored after both upload-time and bulk processing.
+  - [ ] WebP delivery is implemented safely or generation is removed; orphaned `.webp` files are not left behind.
+  - [ ] Test JPEG, PNG transparency, GIF, WebP, EXIF orientation, failed writes, and unavailable Imagick/GD.
+
+### PR-005 — Repair privacy erasure and retention behavior
+
+- **Owner:** Privacy / Platform
+- **Affected:** `src/Modules/Compliance/CcpaPrivacyTools.php`, `src/Core/Database/Installer.php`, tests
+- **Problem:** The WordPress privacy eraser calls the REST handler with an empty request, reports removal without deleting a user’s records, and retention queries a nonexistent `created_at` column on 404 logs.
+- **Work:** Implement direct private data access methods used by both REST and WordPress privacy callbacks. Use `last_hit` for 404 retention or add a valid creation timestamp through a migration. Paginate exporter/eraser results correctly.
+- **Acceptance criteria:**
+  - [ ] WordPress’s privacy tools export and erase data for the requested email only.
+  - [ ] Erasure responses accurately report removed and retained records.
+  - [ ] Retention jobs execute without SQL errors and are covered by integration tests.
+  - [ ] Add privacy-policy suggested text covering logs, AI requests, API credentials, and external services.
+
+### PR-006 — Remove invalid automatic Google Indexing API usage
+
+- **Owner:** SEO
+- **Affected:** `src/Modules/Indexing/IndexingModule.php`, `IndexingJob.php`, `GoogleIndexingApi.php`, admin UI, readme
+- **Problem:** Every published URL is sent to Google’s Indexing API. That API is restricted to JobPosting and eligible livestream pages, not ordinary posts/pages.
+- **Work:** Remove generic Google indexing submission. If retained for eligible content, enforce the documented schema/type conditions, explicit administrator enablement, quota observability, and user-facing eligibility messaging.
+- **Acceptance criteria:**
+  - [ ] Generic WordPress content is never submitted to the Google Indexing API.
+  - [ ] Eligible submissions are validated before dispatch and logged without secrets.
+  - [ ] Documentation accurately describes supported use and does not promise immediate indexing.
+
+### PR-007 — Secure REST object authorization and mutation endpoints
+
+- **Owner:** Security
+- **Affected:** all `src/Modules/**` REST routes, especially `ImageAltAudit.php`, `HeadlessSeoEndpoints.php`, `PageBuilderSeoWrappers.php`, schema/import endpoints
+- **Problem:** Several routes use broad capabilities such as `edit_posts` or `upload_files` before mutating a specific post/media object. This permits users to alter objects they may not own.
+- **Work:** Build a route inventory. Require `current_user_can( 'edit_post', $object_id )` for every object mutation and least-privilege capabilities for site-wide data. Define REST argument schemas, validation, and standard errors.
+- **Acceptance criteria:**
+  - [ ] Every route has a documented authorization model and automated anonymous/subscriber/author/editor/admin test.
+  - [ ] Media bulk updates perform per-attachment capability checks.
+  - [ ] State-changing cookie-authenticated routes require standard REST nonce handling.
+  - [ ] Public routes have a documented data-classification review.
+
+### PR-008 — Make uninstall and deactivation complete, safe, and multisite-correct
+
+- **Owner:** Platform / Privacy
+- **Affected:** `uninstall.php`, `src/Plugin.php`, queue/cron modules
+- **Problem:** Uninstall deletes all SEO data without a retention choice, misses tables and cron hooks, and reuses main-site table names after `switch_to_blog()`. Deactivation does not clear many scheduled jobs or rewrite rules.
+- **Work:** Offer an explicit “remove data on uninstall” setting defaulting to retain data. Recompute table names inside each blog context. Centralize scheduled-hook registration and cleanup; clear Action Scheduler jobs and fallback cron events. Flush rewrites on lifecycle transitions.
+- **Acceptance criteria:**
+  - [ ] Deactivation stops all plugin work and restores Core sitemap/rewrite behavior.
+  - [ ] Uninstall removes all and only plugin data when deletion is opted in.
+  - [ ] Multisite tests verify every site’s options, tables, transients, roles, and schedules.
+  - [ ] Documentation accurately states behavior; no nonexistent “confirmation” is claimed.
 
 ---
 
-### PRB-001 · Fix Broken Admin Notice Dismissal Action (Stale Cornerstone)
-- **Component:** `Modules/ContentAssistant`
-- **File:** `src/Modules/ContentAssistant/StaleCornerStoneDetector.php`
-- **Type:** Bug Fix
-- **Impact:** Notice dismissal fails with a 400 error in WP admin; warning banner cannot be dismissed by users.
+## P1 — required before WordPress.org submission
 
-#### Problem
-In `StaleCornerStoneDetector.php`, the AJAX action was registered as `ameverywhere_dismiss_cornerstone_notice`, but the inline JavaScript payload rendered in the admin notice called an outdated action name.
-When clicked, WordPress halted with `0`, and the notice reappeared on every page load.
+### PR-009 — Remove page-builder integrations from v1.0
 
-#### Acceptance Criteria
-- [x] Update inline JS in `StaleCornerStoneDetector.php` to send `action=ameverywhere_dismiss_cornerstone_notice`.
-- [x] Verify notice dismisses smoothly via AJAX without console errors or page reload.
+- **Owner:** Product / Platform
+- **Affected:** `src/Modules/Admin/PageBuilderSeoWrappers.php`, `src/Plugin.php`, readme/features/tasklist/screenshots
+- **Decision:** Out of scope for v1.0.
+- **Work:** Remove registration and placeholder methods rather than implying support. Remove Elementor, Divi, and WPBakery claims and screens.
+- **Acceptance criteria:**
+  - [ ] No page-builder code, settings, API endpoints, or public compatibility claim ships in v1.0.
+  - [ ] A future feature proposal defines supported versions and end-to-end tests before reintroduction.
 
----
+### PR-010 — Fix cookie banner assets and re-scope compliance claims
 
-### PRB-002 · Fix Duplicated Hook Execution in Activation & Deactivation
-- **Component:** `Core/Plugin`
-- **File:** `src/Plugin.php`
-- **Type:** Bug Fix
-- **Impact:** Dynamic activation/deactivation hooks run twice.
+- **Owner:** Privacy / UX
+- **Affected:** `CookieBannerModule.php`, `src/assets/js/cookie-banner.js`, `build/`, readme
+- **Problem:** Asset URLs point under `/src/build/`; “GDPR mode” merely displays a banner and does not block third-party tracking or retain proof of consent.
+- **Work:** Use `AMEVERYWHERE_PLUGIN_URL` and asset metadata/versioning. Either implement a genuine consent-management integration with script categorization and withdrawal, or label the feature as a lightweight notice and remove GDPR/CCPA compliance claims.
+- **Acceptance criteria:**
+  - [ ] Browser tests confirm CSS/JS load from the production ZIP.
+  - [ ] Consent behavior and limitations are explicit in UI and docs.
+  - [ ] No legal/compliance guarantee is made without the technical controls to support it.
 
-#### Problem
-In `Plugin.php`, the methods `activate()` and `deactivate()` contained duplicate hook calls to `do_action('ameverywhere_activation');` and `do_action('ameverywhere_deactivation');`.
+### PR-011 — Replace deprecated sitemap pings and safely coexist with SEO plugins
 
-#### Acceptance Criteria
-- [x] Remove duplicate activation and deactivation hook calls.
-- [x] Confirm `ameverywhere_activation` fires exactly once and `ameverywhere_deactivation` fires exactly once upon plugin lifecycle events.
+- **Owner:** SEO
+- **Affected:** `SitemapModule.php`, `SitemapRouteManager.php`, settings/migration UI
+- **Problem:** The plugin pings Google’s retired sitemap endpoint and unconditionally disables WordPress Core sitemaps, creating conflicts with established SEO plugins.
+- **Work:** Remove Google pinging. Preserve sitemap discovery through `robots.txt` and provide optional Search Console guidance. Detect active sitemap/SEO providers; default to non-invasive mode and require an explicit migration/disable decision.
+- **Acceptance criteria:**
+  - [ ] No call is made to deprecated Google sitemap ping URLs.
+  - [ ] Sitemap activation/deactivation does not leave stale rewrite rules.
+  - [ ] Coexistence tests cover Core sitemaps and leading installed SEO-plugin states.
 
----
+### PR-012 — Harden redirects and outbound fetches
 
-### PRB-003 · Clean Up Legacy Fallbacks and Shims
-- **Component:** `Core/Security`, `Core/Queue`, `Core/Api`
-- **Files:**
-  - `src/Core/Security/KeyVault.php`
-  - `src/Core/Queue/QueueManager.php`
-  - `src/Core/Api/BackendApiClient.php`
-- **Type:** Cleanup
-- **Impact:** Removes dead backward-compatibility code, shims, and legacy constant fallbacks since no previous version was ever released.
+- **Owner:** Security / Platform
+- **Affected:** `RedirectManager.php`, `BrokenLinkChecker.php`, `CompetitorScraper.php`, `SchemaOutputValidator.php`, `PageSpeedDashboard.php`
+- **Problem:** Redirect targets are not constrained to safe destinations; the link checker uses non-safe remote requests; remote scans can produce queue floods and SSRF-style internal network requests.
+- **Work:** Validate redirect targets and use `wp_safe_redirect` where appropriate. Use safe HTTP APIs, protocol/host/IP allow/deny rules, response-size limits, request budgets, and administrator-visible rate limits.
+- **Acceptance criteria:**
+  - [ ] Tests reject loopback, link-local, private-network, unsupported-scheme, and redirect-chain fetch targets.
+  - [ ] External redirect behavior is intentional, documented, and protected against open redirects.
+  - [ ] Fetch jobs have cancellation, locking, bounded concurrency, retries/backoff, and observability.
 
-#### Problem
-The codebase contained unused legacy fallback code and backward-compatibility shims for salt options, queue action hooks, and API keys. Because no earlier version of the plugin was ever released to users, these shims were redundant and dead code.
+### PR-013 — Make scans, queues, and cron scalable and observable
 
-#### Acceptance Criteria
-- [x] Remove legacy salt options and prefixes from `KeyVault.php`.
-- [x] Remove unused legacy action hooks from `QueueManager.php`.
-- [x] Clean up `BackendApiClient::getApiKey()` to read directly from `ameverywhere_api_key`.
-- [x] Ensure all unit tests pass cleanly with modern encryption and storage.
+- **Owner:** Platform
+- **Affected:** `QueueManager.php`, `BrokenLinkChecker.php`, `AuditScheduler.php`, rank/staleness/usage/privacy schedulers
+- **Problem:** The link scan loads all IDs and schedules many events without a lock. Queue fallback ignores requested recurring intervals, failed jobs are rethrown without recovery, and monthly auditing uses an unregistered recurrence.
+- **Work:** Standardize on Action Scheduler when available with a robust native fallback. Add locks, batch cursors, resumability, cancellation, retention, failure reporting, and a registered monthly schedule or an explicit alternative.
+- **Acceptance criteria:**
+  - [ ] A 10,000-post site scan has bounded memory, no duplicate concurrent run, and predictable request limits.
+  - [ ] Cron failure/retry paths are tested.
+  - [ ] All schedules are visible in a diagnostics screen and cleared on deactivation/uninstall.
 
----
+### PR-014 — Preserve editorial and accessibility intent
 
-### PRB-004 · Add Defensive PHP Version Guard in Main Plugin Entry
-- **Component:** `Bootstrap`
-- **File:** `ameverywhere.php`
-- **Type:** Safety / Error Handling
-- **Impact:** Activating on PHP < 8.2 causes a fatal White Screen of Death (WSOD) due to modern language features.
+- **Owner:** UX / SEO
+- **Affected:** `ImageSeoModule.php`, `ImageAltAudit.php`, editor UI
+- **Problem:** Empty alt attributes for decorative images are overwritten, and titles/alt text can change automatically on upload/save.
+- **Work:** Stop mutating existing content automatically. Provide suggestions in the editor and bulk tools with preview, selection, undo, and an explicit “decorative” state.
+- **Acceptance criteria:**
+  - [ ] `alt=""` is preserved unless an authorized editor explicitly changes it.
+  - [ ] Automatic filename-based alt generation is disabled by default or clearly consented to.
+  - [ ] Accessibility tests cover decorative, informative, linked, and Gutenberg image cases.
 
-#### Problem
-`ameverywhere.php` declares `Requires PHP: 8.2` in headers, but immediately proceeds to require `vendor/autoload.php` and boot without validating `PHP_VERSION`. If a user activates on PHP 8.0 or 7.4, the site triggers a fatal error on activation.
+### PR-015 — Repair WPCS/database findings and establish a static-analysis gate
 
-#### Acceptance Criteria
-- [x] Add a PHP version guard at the top of `ameverywhere.php` before autoloader execution:
-  ```php
-  if (version_compare(PHP_VERSION, '8.2', '<')) {
-      add_action('admin_notices', function () {
-          printf(
-              '<div class="notice notice-error"><p><strong>%s:</strong> %s</p></div>',
-              esc_html__('AmEveryWhere', 'ameverywhere'),
-              sprintf(
-                  /* translators: 1: Required PHP version, 2: Current PHP version */
-                  esc_html__('AmEveryWhere requires PHP version %1$s or higher. Your server is running PHP %2$s. Please upgrade your PHP version.', 'ameverywhere'),
-                  '8.2',
-                  esc_html(PHP_VERSION)
-              )
-          );
-      });
-      return;
-  }
-  ```
-- [x] Ensure plugin does not boot or throw syntax errors when run on an unsupported PHP version.
+- **Owner:** Platform / Security
+- **Affected:** PHP sources, `phpcs.xml.dist` or equivalent, CI
+- **Problem:** Focused WPCS security/database analysis reports 69 errors and 218 warnings. Some table-name diagnostics may be false positives, but they need safe construction and narrow documented suppressions.
+- **Work:** Fix input handling, output escaping, nonce verification, safe redirects, queries, and direct DB access. Add a project ruleset and baseline only for reviewed unavoidable exceptions.
+- **Acceptance criteria:**
+  - [ ] CI runs WPCS with zero unreviewed errors.
+  - [ ] Any suppression identifies why table identifiers are trusted and scoped.
+  - [ ] Static analysis results are attached to every release candidate.
 
----
+### PR-016 — Complete external-service governance and readme disclosure
 
-### PRB-005 · Add `load_plugin_textdomain` Bootstrap Call
-- **Component:** `Bootstrap / I18n`
-- **Files:** `ameverywhere.php` or `src/Plugin.php`
-- **Type:** Internationalization
-- **Impact:** Shipped translation catalogs (`.mo` / `.po`) in `/languages` are never loaded for standalone or non-WP.org installs.
+- **Owner:** Privacy / Product
+- **Affected:** `readme.txt`, privacy-policy text, all API clients and settings UI
+- **Problem:** The readme omits services the code can call, including the AmEveryWhere backend, Anthropic, Ollama/custom hosts, Meta/Facebook, X, LinkedIn, Pinterest, and Google Trends. A fake Google Trends cookie is also shipped.
+- **Work:** Remove unsupported/scraped services or replace them with official APIs and valid user configuration. Document each service, endpoint/domain, purpose, data transferred, trigger, account/key requirement, and privacy policy. Add consent where needed.
+- **Acceptance criteria:**
+  - [ ] No fake cookies, undocumented scraping, or undisclosed external requests remain.
+  - [ ] External Services readme section exactly matches code and defaults.
+  - [ ] Features requiring a paid or third-party account clearly say so before configuration.
 
-#### Problem
-`languages/ameverywhere.pot` is provided with 359 strings, and the main plugin header declares `Domain Path: /languages`, but `load_plugin_textdomain` is never hooked.
+### PR-017 — Reconcile product claims with implemented behavior
 
-#### Acceptance Criteria
-- [x] Hook `load_plugin_textdomain` to `init` in `Plugin.php`:
-  ```php
-  add_action('init', function () {
-      load_plugin_textdomain(
-          'ameverywhere',
-          false,
-          dirname(plugin_basename(AMEVERYWHERE_PLUGIN_FILE)) . '/languages'
-      );
-  });
-  ```
-- [x] Verify strings in admin and frontend render according to the active WordPress site locale.
+- **Owner:** Product / UX
+- **Affected:** `readme.txt`, `README.md`, `features.md`, `about.md`, `tasklist.md`, `roadmap.md`, screenshots
+- **Problem:** Documentation claims missing classes/features as “fully executed,” promises unimplemented builder support and compliance behavior, and mixes optional SaaS features with local behavior.
+- **Work:** Build a feature inventory from executable code and tests. Remove unsupported claims; label beta/deferred functionality; document limits and compatibility.
+- **Acceptance criteria:**
+  - [ ] Every readme feature has a testable implementation and owner.
+  - [ ] Absent classes such as `ProductTaxonomySeo`, `MultiLocationSchema`, `NapShortcodes`, `GoogleBusinessProfileOptimization`, `ChatbotCitationTracker`, `OrphanContentRemediationWorkflow`, and `TaxonomyBaseRemover` are removed from “complete” claims.
+  - [ ] Screenshots show current shipped behavior only.
 
----
+### PR-018 — Make admin experience safe and conflict-aware
 
-### PRB-006 · Prevent Direct File Execution Across All `src/` PHP Files
-- **Component:** `Core & Modules`
-- **Files:** 87 PHP files across `src/` (including `src/Plugin.php`)
-- **Type:** Security / WordPress Coding Standards
-- **Impact:** Mandatory requirement for WordPress.org plugin review; prevents arbitrary file execution if directory listing is enabled.
+- **Owner:** UX / SEO
+- **Affected:** onboarding, admin settings, migration/import, upgrade prompts
+- **Problem:** Core SEO changes are made with broad defaults, while user-facing controls do not adequately warn about conflicts, API costs, data mutation, or what is disabled.
+- **Work:** Add a first-run compatibility scan, reversible migration plan, per-module enablement, clear defaults, change preview, and rollback instructions. Ensure upgrade prompts do not obstruct normal administration.
+- **Acceptance criteria:**
+  - [ ] A site with another SEO plugin receives a clear non-destructive coexistence choice.
+  - [ ] Risky modules are disabled until explicitly enabled.
+  - [ ] Admin notices are contextual, dismissible, accessible, and do not recur after dismissal.
 
-#### Problem
-87 of the 93 PHP classes in `src/` lack the standard WordPress direct execution guard. WordPress plugin review guidelines strictly require preventing direct execution of all executable plugin files.
+### PR-019 — Validate schema and SEO output in real themes and plugins
 
-#### Acceptance Criteria
-- [x] Add direct-access prevention guard at the very top of each PHP class file right after the `<?php` opening tag:
-  ```php
-  if (!defined('ABSPATH')) {
-      exit;
-  }
-  ```
-- [x] Confirm no class fails unit tests or runtime execution after the check is added.
+- **Owner:** SEO / QA
+- **Affected:** `MetaTagsGenerator.php`, `OpenGraphGenerator.php`, `SchemaGenerator.php`, WooCommerce schema, REST SEO endpoint
+- **Problem:** Multiple components emit overlapping metadata/schema, and the REST endpoint invokes `wp_head` to scrape output without establishing the queried post context.
+- **Work:** Generate structured payloads directly rather than scraping hook output. Prevent duplicate canonical, robots, Open Graph, and JSON-LD tags. Validate output with fixtures and supported schema requirements.
+- **Acceptance criteria:**
+  - [ ] Each tested page has one intended canonical and robots policy.
+  - [ ] Schema payload is correct for the requested post, not global query state.
+  - [ ] Tests cover default themes, block themes, WooCommerce products, archives, noindex, and common SEO-plugin coexistence.
 
----
+### PR-020 — Build correct data migrations and import reliability
 
-### PRB-007 · Harden Social OAuth Callback Against CSRF & Unauthorized Access
-- **Component:** `Modules/Social`
-- **File:** `src/Modules/Social/SocialModule.php` (lines 80–84, 200–288)
-- **Type:** Security
-- **Impact:** Unauthenticated, unrestricted REST endpoint allows potential OAuth account overwrite or spoofing.
+- **Owner:** Platform / SEO
+- **Affected:** migration/import modules, onboarding, tests
+- **Problem:** The importer is synchronous and high-volume, migration claims exceed actual source coverage, and conflict/rollback behavior is inadequate for production sites.
+- **Work:** Add capability checks, batching, dry-run summaries, idempotency markers, backup/rollback, and source-specific field mapping tests. Do not enable conflicting output until the import review is accepted.
+- **Acceptance criteria:**
+  - [ ] Imports of 50k posts are resumable and do not time out.
+  - [ ] Preview counts exactly match executed writes.
+  - [ ] Rollback restores pre-import metadata.
 
-#### Problem
-`POST /wp-json/ameverywhere/v1/social/oauth-callback` is registered with `'permission_callback' => '__return_true'`. The handler accepts `network`, `code`, etc., fetches access tokens from Facebook/LinkedIn/Twitter/Pinterest, and immediately persists them using `SocialAccountManager::saveAccount()`. There is no OAuth `state` parameter verification or nonce validation.
+### PR-021 — Correct lifecycle timing and rewrite handling
 
-#### Acceptance Criteria
-- [x] Generate and store a transient `oauth_state` associated with the administrator's session when initiating the OAuth flow in `SocialModule`.
-- [x] In `oauthCallback(\WP_REST_Request $request)`, verify the returned `state` parameter against the saved transient.
-- [x] Ensure only authenticated administrators can bind social accounts to the site.
-
----
-
-### PRB-008 · Sanitize and Prepare Raw `$wpdb` SQL Queries
-- **Component:** `Database / Security`
-- **Files:**
-  - `src/Modules/Admin/SeoAuditHistoryLog.php` (lines 138, 140, 161, 193)
-  - `src/Modules/Admin/TechnicalSeoAuditEngine.php` (lines 160, 164, 172)
-  - `src/Modules/Compliance/CcpaPrivacyTools.php` (lines 177, 210, 264, 276, 315)
-  - `src/Modules/Sitemap/SitemapSettings.php` (lines 22, 51)
-  - `src/Modules/TechnicalSeo/ErrorMonitor.php` (lines 148, 283, 298, 324, 331)
-- **Type:** Security / WordPress Coding Standards
-- **Impact:** Flouted WPCS rules and potential SQL injection warnings during WordPress.org automated sniff review.
-
-#### Problem
-Multiple queries use raw string interpolation for checking table existence:
-```php
-$exists = $wpdb->get_var("SHOW TABLES LIKE '$table'");
-```
-And in `SeoAuditHistoryLog.php`:
-```php
-$total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table} {$where}");
-```
-Where `$where` is concatenated without formal placeholders or suppression comments.
-
-#### Acceptance Criteria
-- [x] Replace all `SHOW TABLES LIKE '$table'` with:
-  ```php
-  $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
-  ```
-- [x] Refactor `$wpdb->prepare` calls in `SeoAuditHistoryLog.php` to strictly separate parameterized inputs from query structure.
-- [x] Run PHPCS and ensure zero SQL preparation warnings (`WordPress.DB.PreparedSQL`).
+- **Owner:** Platform
+- **Affected:** `Plugin.php`, sitemap route manager, activation hooks
+- **Problem:** Dynamic listeners for `ameverywhere_activation` are registered only during normal boot, so they are not reliably present when activation hooks execute. Rewrite flushes therefore depend on later setup activity.
+- **Work:** Invoke required activation work directly from the activation callback, including a controlled rewrite registration/flush. Do not rely on listeners that are not registered in activation context.
+- **Acceptance criteria:**
+  - [ ] Sitemap/IndexNow routes work immediately after activation without visiting setup.
+  - [ ] Deactivation flushes routes once and leaves no plugin routes active.
+  - [ ] Lifecycle tests validate pretty and plain permalink modes.
 
 ---
 
-## 🟡 Priority 1: High Priority (Packaging & Submission Readiness)
+## P2 — post-release hardening and product discipline
+
+### PR-022 — Reduce default frontend and request-path cost
+
+- **Owner:** Platform
+- **Affected:** plugin boot graph, frontend hooks, asset loading
+- **Work:** Measure queries, memory, hooks, and outbound calls on front-end/admin requests. Lazy-load admin-only modules, gate optional features, avoid full-site scans in request paths, and add performance budgets.
+- **Acceptance criteria:**
+  - [ ] Benchmark report compares baseline WordPress with plugin enabled on representative content.
+  - [ ] No network request or expensive scan occurs during ordinary page views without a user-enabled feature.
+  - [ ] Regression budgets run in CI.
+
+### PR-023 — Improve observability without exposing sensitive data
+
+- **Owner:** Platform / Support
+- **Affected:** queue, external clients, diagnostics UI
+- **Work:** Add structured local diagnostics for job state, API response class, retries, migration state, asset checks, and configuration health. Redact API keys, tokens, URLs containing credentials, and personal data.
+- **Acceptance criteria:**
+  - [ ] Administrators can diagnose a failed integration without enabling `WP_DEBUG`.
+  - [ ] Logs have retention controls and privacy documentation.
+
+### PR-024 — Normalize capability architecture
+
+- **Owner:** Security / Product
+- **Affected:** `CustomSeoUserRoles.php`, modules using `manage_options`/`edit_posts`
+- **Work:** Decide whether custom SEO capabilities are needed; if retained, consistently enforce them. Do not reapply role changes on every `init`, and respect custom role configuration.
+- **Acceptance criteria:**
+  - [ ] Capability mapping is documented and tested for all WordPress roles.
+  - [ ] Role changes occur during activation/settings updates only.
+  - [ ] No endpoint bypasses the documented capability model.
+
+### PR-025 — Improve internationalization, accessibility, and copy quality
+
+- **Owner:** UX / QA
+- **Affected:** admin UI, emails, notices, REST errors, POT generation
+- **Work:** Replace untranslated hard-coded strings, test keyboard and screen-reader flows, remove emoji-only meaning, and ensure generated messages are escaped and localized.
+- **Acceptance criteria:**
+  - [ ] POT is regenerated from the release source.
+  - [ ] Key admin flows pass keyboard and screen-reader smoke testing.
+  - [ ] All user-visible operational messages are translatable.
+
+### PR-026 — Formalize support and compatibility policy
+
+- **Owner:** Product / Support
+- **Affected:** readme, support docs, CI matrix
+- **Work:** Publish supported WordPress/PHP/database/browser versions, hosting prerequisites, cron requirements, external service limitations, and conflict policy. Test the declared matrix.
+- **Acceptance criteria:**
+  - [ ] `Tested up to` is verified for the released WordPress version.
+  - [ ] Support boundaries and rollback guidance are present in the readme.
+  - [ ] CI exercises every declared PHP and WordPress version.
 
 ---
 
-### PRB-009 · Integrate Frontend Asset Compilation into Deployment Pipeline
-- **Component:** `Build Pipeline`
-- **Files:** `deploy-to-wporg.sh`, `package.json`
-- **Type:** Automation / Build Safety
-- **Impact:** Deploying without rebuilding React assets leaves outdated or missing JS/CSS bundles in production.
+## Verification plan and required artifacts
 
-#### Problem
-`deploy-to-wporg.sh` currently runs `composer install --no-dev`, but does not run `npm ci && npm run build`.
+| Gate | Required evidence |
+| --- | --- |
+| Lifecycle | Fresh install, activation, reactivation, deactivation, uninstall, and upgrade tests on single-site and multisite |
+| Security | REST route inventory, role matrix, secret-leak regression tests, dependency/license review |
+| Privacy | Export/erase/retention integration tests and finalized privacy-policy text |
+| SEO correctness | Fixture-based HTML/schema assertions, sitemap validation, coexistence matrix, Google API eligibility tests |
+| Performance | 1k/10k-post scan benchmarks, queue limits, cron recovery tests |
+| UX | Browser smoke tests for setup, risky-feature opt-in, restore/rollback, cookie notice, migration, and admin accessibility |
+| Packaging | Clean-commit ZIP manifest, Plugin Check report, WPCS report, PHP lint, tests, asset URL smoke test |
+| Documentation | Feature inventory signed off by engineering/product; external-services and uninstall behavior verified against code |
 
-#### Acceptance Criteria
-- [x] Add explicit build step in `deploy-to-wporg.sh` before file syncing:
-  ```bash
-  echo "==> Building frontend assets..."
-  npm ci --silent
-  npm run build
-  ```
-- [x] Verify `build/index.js`, `build/editor.js`, and `build/cookie-banner.js` are fresh and accounted for.
+## Recommended release sequence
 
----
+1. Complete PR-001 through PR-008; do not create a release candidate before then.
+2. Complete PR-009 through PR-021 and assemble the verification artifacts.
+3. Freeze scope, build from a clean commit, and run all release gates against the generated ZIP.
+4. Submit only the verified ZIP, with WordPress.org assets staged outside plugin trunk as required.
+5. Treat PR-022 through PR-026 as the first post-release hardening milestone.
 
-### PRB-010 · Fix SVN Assets Staging and Commit in Deployment Script
-- **Component:** `Build Pipeline`
-- **File:** `deploy-to-wporg.sh` (lines 75–80)
-- **Type:** Automation / SVN Bug
-- **Impact:** Plugin banners, icons, and screenshots are never committed to WordPress.org SVN `/assets/`.
-
-#### Problem
-Lines 78–79 of `deploy-to-wporg.sh` only run status checks on `trunk`:
-```bash
-svn status trunk | grep "^?" | awk '{print $2}' | xargs -r svn add
-svn status trunk | grep "^!" | awk '{print $2}' | xargs -r svn delete
-```
-Files copied into `${BUILD_DIR}/assets/` remain untracked and are never committed.
-
-#### Acceptance Criteria
-- [x] Add SVN status handling for `assets` directory:
-  ```bash
-  svn status assets | grep "^?" | awk '{print $2}' | xargs -r svn add
-  svn status assets | grep "^!" | awk '{print $2}' | xargs -r svn delete
-  ```
-- [x] Ensure macOS compatibility for `xargs` flags.
 
 ---
 
-### PRB-011 · Create Clean Standalone Production ZIP Packaging Script
-- **Component:** `Build Pipeline`
-- **File:** `package-zip.sh` (new file)
-- **Type:** Packaging Tooling
-- **Impact:** Site owners and administrators need a distributable zip archive for manual plugin installs, client sites, or private distributions.
+# Execution & Evidence Log
 
-#### Problem
-Only an SVN deploy script exists. There is no automated script to create a standalone `ameverywhere-1.0.0.zip` package that cleans development artifacts and packages only runtime-required files.
+## Evidence collected in this workspace
 
-#### Acceptance Criteria
-- [x] Create `package-zip.sh` in the plugin root.
-- [x] The script must:
-  1. Verify PHP >= 8.2, composer, npm, and zip utilities exist.
-  2. Install production Composer dependencies (`--no-dev --optimize-autoloader`).
-  3. Compile frontend production bundles (`npm run build`).
-  4. Package into `dist/ameverywhere-1.0.0.zip` (with top-level folder `ameverywhere/`).
-  5. Exclude: `.git`, `.gitignore`, `node_modules`, `tests`, `phpunit.xml*`, `.phpcs.xml`, `*.md` (except `README.md`), `.DS_Store`, `package*.json`, `tailwind.config.js`, `postcss.config.js`.
-  6. Restore dev composer dependencies upon completion.
+- `find src tests -type f -name '*.php' -print0 | xargs -0 -n1 php -l` — pass.
+- `./vendor/bin/phpunit --testdox` — pass: 51 tests, 151 assertions.
+- `npm run build` — pass. The generated editor asset is 81.6 KiB; the admin asset is 503 KiB and still emits a webpack size warning.
+- `bash -n package-zip.sh` — pass.
+- A release ZIP was deliberately **not** built: the release script correctly refuses the existing dirty worktree and requires an exact release tag.
 
----
+## Backlog status
 
-### PRB-012 · Reconcile Source Assets vs Distribution Bundle Strategy
-- **Component:** `Standards / Architecture`
-- **Files:** `deploy-to-wporg.sh`, `package-zip.sh`, `readme.txt`
-- **Type:** Compliance / Package Hygiene
-- **Impact:** Shipping 27,000+ lines of raw React/JSX in `src/assets/` without `package.json` violates WP.org guidelines.
+| Item | Status | Implementation / remaining evidence |
+| --- | --- | --- |
+| PR-001 | Code complete; integration verification pending | Replaced the invalid activation call and added per-site activation/deactivation paths. Requires a clean WordPress single-site and multisite lifecycle test. |
+| PR-002 | Code complete; broader route audit pending | Public global SEO output excludes admin email and IndexNow key; a regression unit test covers this. |
+| PR-003 | Partially complete | `package-zip.sh` builds only from a clean exact tag, validates the archive, and writes a manifest. GitHub Actions now runs lint/unit/build checks and packages tag builds. A temporary WordPress installation smoke test is still required. |
+| PR-004 | Partially complete | Compression defaults off, requires acknowledgement, retains originals, and supports restore. Real JPEG/PNG/GIF/EXIF and failed-image-engine integration coverage is still required. |
+| PR-005 | Code complete; database verification pending | Privacy callbacks use direct data methods and 404 retention uses `last_hit`. Requires real database privacy-tool tests. |
+| PR-006 | Code complete; provider integration verification pending | Generic Google submission and metadata lookup were removed. Eligible JobPosting/livestream submissions need explicit enablement and are tested for ordinary versus JobPosting content. |
+| PR-007 | Partial | Object checks were added to changed image, headless, manual-index, and Search Console status endpoints. A complete inventory and role-boundary suite across all 135 routes remains. |
+| PR-008 | Code complete; integration verification pending | Deactivation clears known cron/Action Scheduler work; uninstall retains data unless explicitly opted in and iterates sites. Requires actual multisite activation/deactivation/uninstall verification. |
+| PR-009 | Complete | Unsupported page-builder wrapper code and registration were removed; page-builder scope remains deferred. |
+| PR-010 | Partial | Cookie banner is accurately framed as a notice and no longer claims consent-management compliance. Browser and legal review remain. |
+| PR-011 | Code complete; integration verification pending | Plugin sitemap defaults off, coexists with core by default, and deprecated Google sitemap pings were removed. |
+| PR-012 | Partial | Link checking, schema validation, competitor fetches, and redirects have safer request/target handling. The remaining outbound-request inventory needs review. |
+| PR-013 | Partial | Broken-link scans are bounded and batched; monthly scheduling is defined. Queue failure/retry observability and scale tests remain. |
+| PR-014 to PR-021 | Open or partial | See change requests below; these have not met their acceptance evidence. |
+| PR-022 to PR-026 | Open | Admin bundle size, observability, capability matrix, accessibility, and support operations remain release hardening work. |
 
-#### Problem
-In the current deploy configuration, `package.json` is excluded while `src/assets/` is included. Under WordPress.org review guidelines:
-- If source files are included, build instructions / package manifests must be present or easily buildable.
-- If pre-compiled bundles in `build/` are shipped, uncompiled source files can either be included with full build tooling or provided via a public repository link.
+## Release conclusion
 
-#### Acceptance Criteria
-- [x] Add a public repository / source link in `readme.txt` ("Source code available at https://github.com/ameverywhere/...").
-- [x] Decide whether `src/assets/` should be excluded from production zip distributions or retained with build manifests.
+The patched code is safer and passes local lint/unit/build checks, but it is **not ready for WordPress.org submission**. The unverified lifecycle/privacy/browser/package checks, route inventory, coding-standard baseline, and open P1 work are release blockers.
 
----
-
-### PRB-013 · Standardize WordPress.org Banners and Icons Assets
-- **Component:** `Assets / Media`
-- **Directory:** `assets/wporg/`
-- **Type:** Asset Normalization
-- **Impact:** Plugin page in the WordPress.org directory will render with generic grey default graphics.
-
-#### Problem
-`assets/wporg/` currently contains unstructured image files (`app-icon.jpeg`, `banner.jpeg`, `logo-black.jpeg`, etc.). WordPress.org SVN requires strict file dimensions and naming.
-
-#### Acceptance Criteria
-- [x] Produce and commit the following normalized assets in `assets/wporg/`:
-  - `icon-128x128.png` (128x128 px)
-  - `icon-256x256.png` (256x256 px)
-  - `banner-772x250.jpg` (772x250 px)
-  - `banner-1544x500.jpg` (1544x500 px)
-- [x] Remove loose unreferenced image files from `assets/wporg/` or move them to design archives.
 
 ---
 
-### PRB-014 · Generate and Package 8 Missing Plugin Screenshots
-- **Component:** `Assets / Media`
-- **Directory:** `assets/screenshots/`, `assets/wporg/`
-- **Type:** Marketing / Directory Compliance
-- **Impact:** 8 broken image placeholders will be displayed on the WordPress.org plugin directory page.
+# Change Requests
 
-#### Problem
-`readme.txt` defines 8 screenshots under `== Screenshots ==`:
-1. Dashboard overview with SEO health score
-2. Meta tags and focus keyword editor in Gutenberg sidebar
-3. Redirect manager with loop detection
-4. Technical SEO audit results grouped by severity
-5. Image SEO dashboard — filename enforcement and alt text audit
-6. Schema output with live validation
-7. Keyword rank tracker with 180-day trend chart
-8. Content gap analysis with one-click draft creation
+## CR-001 — Establish a real WordPress release test matrix
 
-Currently, `assets/screenshots/` is empty and no screenshot files exist.
+- **Affected backlog items:** PR-001, PR-003, PR-004, PR-005, PR-008, PR-010, PR-011, PR-013, PR-021
+- **Reason:** The repository only provides mocked unit tests. It has no disposable WordPress database harness, multisite test environment, or browser smoke suite.
+- **Requested decision:** Approve CI infrastructure that installs the packaged ZIP in WordPress 6.x/PHP 8.2, exercises lifecycle and privacy callbacks, and runs Playwright browser smoke tests. Include a separate multisite job.
+- **Approval status:** Required before release candidate.
 
-#### Acceptance Criteria
-- [x] Capture 8 high-resolution 1920x1080 (or 1280x720) screenshots matching each description.
-- [x] Save as `screenshot-1.png` through `screenshot-8.png` in `assets/wporg/` (and mirrored in `assets/screenshots/`).
+## CR-002 — Define and enforce the WPCS/Plugin Check baseline
 
----
+- **Affected backlog items:** PR-015
+- **Reason:** Existing source produces a large volume of WordPress coding-standard findings; this is inherited debt, not evidence that the release is compliant.
+- **Requested decision:** Approve a baseline file with only justified, time-bounded exclusions, then enforce zero new violations and remediate high-risk existing violations. Add WordPress Plugin Check to CI.
+- **Approval status:** Required before WordPress.org submission.
 
-### PRB-015 · Fix `readme.txt` Tags Limit for WordPress.org Compliance
-- **Component:** `Documentation / Metadata`
-- **File:** `readme.txt` (line 3)
-- **Type:** WordPress.org Guideline Compliance
-- **Impact:** Directory parser ignores excess tags or rejects submission.
+## CR-003 — Complete REST and outbound-request inventory
 
-#### Problem
-Line 3 of `readme.txt` contains 10 tags:
-```text
-Tags: seo, schema, sitemap, redirects, meta tags, rank tracker, content optimization, ai seo, technical seo, woocommerce seo
-```
-WordPress.org strictly limits tags to a **maximum of 5**.
+- **Affected backlog items:** PR-007, PR-012, PR-016, PR-023
+- **Reason:** The plugin exposes approximately 135 REST routes and multiple third-party request paths. Only the high-risk paths reviewed in this execution have object-level checks and safe-fetch controls.
+- **Requested decision:** Allocate a route/service inventory task that records capability, object authorization, input schema, response sensitivity, service host, data sent, timeout/retry behavior, and test coverage for every route and external request.
+- **Approval status:** Required before release candidate.
 
-#### Acceptance Criteria
-- [x] Select the 5 most valuable discoverability tags:
-  ```text
-  Tags: seo, schema, sitemap, ai seo, technical seo
-  ```
-- [x] Validate `readme.txt` using the official WordPress.org Readme Validator.
+## CR-004 — Preserve the v1.0 page-builder scope decision
 
----
+- **Affected backlog items:** PR-009
+- **Reason:** Elementor, Divi, WPBakery, and other builder integrations have been removed rather than shipped as unmaintained placeholders.
+- **Requested decision:** Keep all builder integrations out of v1.0 unless a supported-builder matrix, owner, UX design, and automated integration tests are approved.
+- **Approval status:** In force for v1.0.
 
-## 🟢 Priority 2: Medium Polish & Maintenance
+## CR-005 — Confirm legal/product wording for privacy and external services
 
----
-
-### PRB-016 · Cleanse Competitor (AIOSEO) Copy-Paste Artifacts
-- **Component:** `Documentation`
-- **File:** `features.md` (line 70)
-- **Type:** Documentation Polish
-- **Impact:** Unprofessional branding artifact.
-
-#### Problem
-In `features.md` line 70, residual text from competitor research remains:
-> *"The Site Title and Tagline are used throughout AIOSEO as default values and fallbacks. We recommend always having these set. Medium 2 minutes ✓"*
-
-#### Acceptance Criteria
-- [x] Replace `"AIOSEO"` with `"AmEveryWhere"`.
-- [x] Audit repository documentation for any unintended competitor references.
-
----
-
-### PRB-017 · Synchronize and Reconcile Master Tasklist & Roadmap
-- **Component:** `Documentation / Roadmap`
-- **File:** `tasklist.md`
-- **Type:** Documentation Alignment
-- **Impact:** Confuses contributors by claiming core features (CCPA, AI disclosure, LLM Writing Assistant) are pending when they are already implemented.
-
-#### Problem
-`tasklist.md` lines 10–15 claim only 23 of 69 requirements are executed, with 40 pending, yet features like `CcpaPrivacyTools`, `LlmWritingAssistant`, `AiDisclosureManager`, and `WooCommerceProductSchema` are fully written and wired into `Plugin.php`.
-
-#### Acceptance Criteria
-- [x] Update `tasklist.md` high-level development metrics to reflect actual implementation state.
-- [x] Mark executed tasks as `[x]` with references to implemented classes.
-
----
-
-### PRB-018 · Expand Automated Unit and Integration Test Suite
-- **Component:** `Testing / QA`
-- **Directory:** `tests/Unit/`
-- **Type:** Test Coverage
-- **Impact:** High regression risk across 88 untested modules during updates.
-
-#### Problem
-Only 5 unit tests exist (`ContainerTest`, `KeyVaultTest`, `MigrationTest`, `RedirectManagerTest`, `BackendApiClientTest`). Critical components have 0 automated coverage.
-
-#### Acceptance Criteria
-- [x] Add unit tests for:
-  - `MetaTagsGeneratorTest`: Canonical URL generation, robots directives, title formatting.
-  - `SchemaGeneratorTest`: Output structure of Article, FAQPage, BreadcrumbList.
-  - `RobotsTxtEditorTest`: Rule validation and bot-blocking directives.
-  - `ImageFilenameEnforcerTest`: Filename sanitization on media upload.
-  - `HtaccessEditorTest`: Detection and blocking of dangerous PHP execution directives.
-- [x] Ensure all new test suites pass with `./vendor/bin/phpunit`.
-
----
-
-## 🚀 Execution Roadmap & Next Steps
-
-```
-[Phase 1: Code & Security Fixes]  -->  [Phase 2: Assets & Docs]  -->  [Phase 3: Pipeline & Packaging]
-(PRB-001 to PRB-008)                  (PRB-013 to PRB-017)           (PRB-009 to PRB-012)
-```
-
-1. **Step 1 (Immediate - P0):** Apply code fixes (Notice dismissal, hook duplication, legacy constants, ABSPATH guards, PHP version guard).
-2. **Step 2 (Immediate - P0):** Harden SQL queries and secure the OAuth callback.
-3. **Step 3 (Next - P1):** Generate icons/banners (`assets/wporg/`) and capture 8 UI screenshots.
-4. **Step 4 (Next - P1):** Update deploy script and create `package-zip.sh`.
-5. **Step 5 (Final - P2):** Cleanse documentation and expand unit test coverage.
+- **Affected backlog items:** PR-005, PR-010, PR-016, PR-017
+- **Reason:** Code can accurately describe its behavior but cannot make legal compliance determinations. The plugin uses optional AI, indexing, analytics, social, and backend services.
+- **Requested decision:** Have counsel/product approve the privacy-policy suggested text, consent notice wording, external-service disclosure, and all public screenshots/readme claims.
+- **Approval status:** Required before public distribution.
