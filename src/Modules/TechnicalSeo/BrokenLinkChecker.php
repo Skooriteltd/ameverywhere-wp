@@ -182,7 +182,7 @@ class BrokenLinkChecker {
 				'success'     => true,
 				'total_posts' => $total,
 				'batches'     => (int) ceil( $total / self::BATCH_SIZE ),
-				'message'     => sprintf( __( 'Scan started — %d posts will be processed in bounded batches.', 'ameverywhere' ), $total ),
+				'message'     => sprintf( /* translators: %d: Number of posts to process */ __( 'Scan started — %d posts will be processed in bounded batches.', 'ameverywhere' ), $total ),
 			)
 		);
 	}

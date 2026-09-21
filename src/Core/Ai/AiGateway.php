@@ -298,7 +298,7 @@ class AiGateway {
 		if ( is_wp_error( $response ) ) {
 			return array(
 				'success' => false,
-				'message' => sprintf( __( 'Ollama Connection Error: %s', 'ameverywhere' ), $response->get_error_message() ),
+				'message' => sprintf( /* translators: %s: Error message */ __( 'Ollama Connection Error: %s', 'ameverywhere' ), $response->get_error_message() ),
 			);
 		}
 

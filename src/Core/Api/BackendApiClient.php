@@ -239,7 +239,7 @@ class BackendApiClient {
 			);
 		}
 
-		$errorMessage = $data['message'] ?? $data['error'] ?? sprintf( __( 'API returned error code %d', 'ameverywhere' ), $code );
+		$errorMessage = $data['message'] ?? $data['error'] ?? sprintf( /* translators: %d: HTTP status code */ __( 'API returned error code %d', 'ameverywhere' ), $code );
 		return array(
 			'success' => false,
 			'message' => $errorMessage,

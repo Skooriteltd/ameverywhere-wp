@@ -107,6 +107,7 @@ class StaleCornerStoneDetector {
 		$count = count( $stale );
 		$nonce = wp_create_nonce( 'ameverywhere_dismiss_cornerstone' );
 		echo '<div class="notice notice-warning is-dismissible ameverywhere-cornerstone-notice" data-nonce="' . esc_attr( $nonce ) . '">';
+		/* translators: %d: number of stale cornerstone posts */
 		echo '<p><strong>AmEveryWhere:</strong> ' . esc_html( sprintf( _n( '%d cornerstone post is stale', '%d cornerstone posts are stale', $count, 'ameverywhere' ), $count ) ) . '. ';
 		echo '<a href="' . esc_url( admin_url( 'admin.php?page=ameverywhere#cornerstone' ) ) . '">Review and refresh →</a></p>';
 		echo '</div>';

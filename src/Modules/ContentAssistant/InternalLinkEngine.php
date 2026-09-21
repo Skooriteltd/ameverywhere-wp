@@ -62,7 +62,7 @@ class InternalLinkEngine {
 					'title'   => $title,
 					'url'     => get_permalink( $p->ID ),
 					'anchor'  => $matchedAnchor,
-					'reason'  => sprintf( __( 'Matches the exact title of "%s"', 'ameverywhere' ), $title ),
+					'reason'  => sprintf( /* translators: %s: Post title */ __( 'Matches the exact title of "%s"', 'ameverywhere' ), $title ),
 				);
 			}
 		}

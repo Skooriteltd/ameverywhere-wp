@@ -40,7 +40,7 @@ class CompetitorScraper {
 		if ( is_wp_error( $response ) ) {
 			return array(
 				'success' => false,
-				'message' => sprintf( __( 'Failed to fetch URL: %s', 'ameverywhere' ), $response->get_error_message() ),
+				'message' => sprintf( /* translators: %s: URL */ __( 'Failed to fetch URL: %s', 'ameverywhere' ), $response->get_error_message() ),
 			);
 		}
 
@@ -48,7 +48,7 @@ class CompetitorScraper {
 		if ( $code !== 200 ) {
 			return array(
 				'success' => false,
-				'message' => sprintf( __( 'Competitor URL returned status code %d.', 'ameverywhere' ), $code ),
+				'message' => sprintf( /* translators: %d: HTTP status code */ __( 'Competitor URL returned status code %d.', 'ameverywhere' ), $code ),
 			);
 		}
 
