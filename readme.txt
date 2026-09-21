@@ -1,5 +1,5 @@
 === AmEverywhere – WordPress SEO & Discovery Intelligence ===
-Contributors: ameverywhere
+Contributors: skoorite
 Tags: seo, ai seo, sitemap, schema, indexing
 Requires at least: 6.0
 Tested up to: 6.5
@@ -14,7 +14,7 @@ AmEverywhere is an enterprise-grade, headless-ready SEO and AI discoverability e
 
 **★★★★★ "The most technically advanced SEO architecture for modern WordPress."**
 
-**AmEverywhere is the ultimate SEO and AI discoverability engine for modern WordPress.** 
+**AmEverywhere is the ultimate SEO and AI discoverability engine for modern WordPress, proudly created by Skoorite Limited.** 
 Whether you're a local business owner, a high-traffic news publisher, or a headless enterprise agency, AmEveryWhere gives you the exact tools you need to outrank the competition. It takes care of the complex technical SEO out of the box, freeing you up to do what you do best: create killer content.
 
 ### What problem does it solve?

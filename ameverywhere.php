@@ -4,7 +4,7 @@
  * Plugin URI: https://ameverywhere.com
  * Description: AmEveryWhere is a next-generation WordPress SEO and AEO plugin engineered for the AI-first search era.
  * Version: 1.0.0
- * Author: AmEveryWhere Team
+ * Author: Skoorite Limited
  * Author URI: https://ameverywhere.com
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
