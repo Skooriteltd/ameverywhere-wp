@@ -187,7 +187,7 @@ class MigrationManager {
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'handleDetect' ),
 				'permission_callback' => function () {
-					return current_user_can( 'manage_options' ); },
+					return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ); },
 			)
 		);
 
@@ -198,7 +198,7 @@ class MigrationManager {
 				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'handleMigrate' ),
 				'permission_callback' => function () {
-					return current_user_can( 'manage_options' ); },
+					return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ); },
 			)
 		);
 	}

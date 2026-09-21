@@ -53,7 +53,7 @@ class InclusiveLanguageChecker {
 
 	public function registerRoutes(): void {
 		$editorCap = fn() => current_user_can( 'edit_posts' );
-		$adminCap  = fn() => current_user_can( 'manage_options' );
+		$adminCap  = fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 
 		register_rest_route(
 			'ameverywhere/v1',

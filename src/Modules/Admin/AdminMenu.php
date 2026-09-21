@@ -9,10 +9,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AdminMenu {
 
 	public function registerMenu(): void {
+		// Determine the lowest-privilege capability the user has to access the SPA
+		$cap = 'manage_seo';
+		if ( current_user_can( 'view_seo_reports' ) ) {
+			$cap = 'view_seo_reports';
+		} elseif ( current_user_can( 'manage_redirects' ) ) {
+			$cap = 'manage_redirects';
+		} elseif ( current_user_can( 'manage_options' ) ) {
+			$cap = 'manage_options';
+		}
+
 		add_menu_page(
 			'AmEveryWhere SEO',
 			'AmEveryWhere',
-			'manage_options',
+			$cap,
 			'ameverywhere',
 			array( $this, 'renderAdminPage' ),
 			'dashicons-chart-area',

@@ -76,7 +76,7 @@ class SchemaModule {
 	}
 
 	public function checkAdminPermission(): bool {
-		return current_user_can( 'manage_options' );
+		return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 	}
 
 	/**

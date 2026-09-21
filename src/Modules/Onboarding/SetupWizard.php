@@ -69,7 +69,7 @@ class SetupWizard {
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'autoDetect' ),
 				'permission_callback' => function () {
-					return current_user_can( 'manage_options' ); },
+					return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ); },
 			)
 		);
 
@@ -80,7 +80,7 @@ class SetupWizard {
 				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'completeSetup' ),
 				'permission_callback' => function () {
-					return current_user_can( 'manage_options' ); },
+					return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ); },
 			)
 		);
 	}

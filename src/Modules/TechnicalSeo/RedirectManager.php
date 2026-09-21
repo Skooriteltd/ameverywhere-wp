@@ -372,7 +372,7 @@ class RedirectManager {
 	}
 
 	public function checkPermission(): bool {
-		return current_user_can( 'manage_options' );
+		return current_user_can( 'manage_redirects' ) || current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 	}
 
 	public function getRedirectsEndpoint( \WP_REST_Request $request ): \WP_REST_Response {

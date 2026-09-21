@@ -48,7 +48,7 @@ class KeywordRankTracker {
 
 	public function registerRoutes(): void {
 		$reportCap = fn() => current_user_can( 'view_seo_reports' ) || current_user_can( 'manage_options' );
-		$adminCap  = fn() => current_user_can( 'manage_options' );
+		$adminCap  = fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 
 		register_rest_route(
 			'ameverywhere/v1',

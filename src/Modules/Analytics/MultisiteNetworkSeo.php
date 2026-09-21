@@ -29,7 +29,7 @@ class MultisiteNetworkSeo {
 
 	public function registerRoutes(): void {
 		$networkAdminCap = fn() => current_user_can( 'manage_network_options' );
-		$siteAdminCap    = fn() => current_user_can( 'manage_options' );
+		$siteAdminCap    = fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 
 		// Network defaults (super admin only)
 		register_rest_route(

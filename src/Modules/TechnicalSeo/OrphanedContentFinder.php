@@ -60,7 +60,7 @@ class OrphanedContentFinder {
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'refreshScan' ),
-				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 			)
 		);
 	}

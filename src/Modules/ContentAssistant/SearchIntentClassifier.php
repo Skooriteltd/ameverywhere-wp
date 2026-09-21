@@ -266,7 +266,7 @@ class SearchIntentClassifier {
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'bulkClassify' ),
-				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 			)
 		);
 	}

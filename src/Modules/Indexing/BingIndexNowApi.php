@@ -147,7 +147,7 @@ class BingIndexNowApi {
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => fn() => rest_ensure_response( $this->getSubmissionLog() ),
-				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 			)
 		);
 
@@ -157,7 +157,7 @@ class BingIndexNowApi {
 			array(
 				'methods'             => \WP_REST_Server::CREATABLE,
 				'callback'            => array( $this, 'manualSubmit' ),
-				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 			)
 		);
 	}

@@ -19,7 +19,7 @@ This document tracks the consolidated production readiness backlog for the AmEve
 ## P2: Open & Pending (Next Milestone / Polish)
 These items are not strictly technical blockers for a v1.0 release, but represent ongoing hardening and operational readiness.
 
-- [ ] **PR-014**: Review all `add_menu_page` capability requirements across all modules to ensure lowest-privilege access.
+- [x] **PR-014**: Review all `add_menu_page` capability requirements across all modules to ensure lowest-privilege access.
 - [ ] **PR-016**: Third-party service disclosure list needs final documentation for the readme/settings page.
 - [ ] **PR-017**: Finalize legal wording with product/legal counsel regarding AI features.
 - [ ] **PR-018 to PR-021**: Miscellaneous edge-case hardening (queue visibility, cron recovery edge cases, scale testing).

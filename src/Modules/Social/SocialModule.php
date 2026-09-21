@@ -344,7 +344,7 @@ class SocialModule {
 		// Verify initiating user has manage_options capability
 		$userId = (int) ( $stateData['user_id'] ?? 0 );
 		$user   = $userId > 0 ? get_userdata( $userId ) : false;
-		if ( ! $user || ! user_can( $user, 'manage_options' ) ) {
+		if ( ! $user || ! ( user_can( $user, 'manage_seo' ) || user_can( $user, 'manage_options' ) ) ) {
 			wp_redirect( add_query_arg( 'oauth_error', 'unauthorized', $redirectUrl ) );
 			exit;
 		}

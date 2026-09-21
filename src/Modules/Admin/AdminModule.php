@@ -227,7 +227,7 @@ class AdminModule {
 	}
 
 	public function checkPermission(): bool {
-		return current_user_can( 'manage_options' );
+		return current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' );
 	}
 
 	public function getSettings( \WP_REST_Request $request ): \WP_REST_Response {

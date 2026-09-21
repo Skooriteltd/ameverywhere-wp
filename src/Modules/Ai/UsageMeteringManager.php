@@ -177,7 +177,7 @@ class UsageMeteringManager {
 			array(
 				'methods'             => \WP_REST_Server::READABLE,
 				'callback'            => array( $this, 'getSiteUsageEndpoint' ),
-				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+				'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 			)
 		);
 
@@ -188,12 +188,12 @@ class UsageMeteringManager {
 				array(
 					'methods'             => \WP_REST_Server::READABLE,
 					'callback'            => fn() => rest_ensure_response( get_option( self::LIMIT_OPTION, $this->defaultLimits() ) ),
-					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+					'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 				),
 				array(
 					'methods'             => \WP_REST_Server::CREATABLE,
 					'callback'            => array( $this, 'saveLimits' ),
-					'permission_callback' => fn() => current_user_can( 'manage_options' ),
+					'permission_callback' => fn() => current_user_can( 'manage_seo' ) || current_user_can( 'manage_options' ),
 				),
 			)
 		);
