@@ -18,6 +18,43 @@ class QueueManager {
 
 	public function boot(): void {
 		add_action( self::ACTION_HOOK, array( $this, 'process' ), 10, 2 );
+		add_action( 'rest_api_init', array( $this, 'registerRoutes' ) );
+	}
+
+	public function registerRoutes(): void {
+		register_rest_route(
+			'ameverywhere/v1',
+			'/system/queue',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'getQueueStatus' ),
+				'permission_callback' => fn() => current_user_can( 'manage_options' ),
+			)
+		);
+	}
+
+	public function getQueueStatus( \WP_REST_Request $request ): \WP_REST_Response {
+		$status = array(
+			'driver'  => $this->hasActionScheduler() ? 'action_scheduler' : 'wp_cron',
+			'pending' => 0,
+			'failed'  => 0,
+		);
+
+		if ( $this->hasActionScheduler() ) {
+			$status['pending'] = \ActionScheduler_Store::instance()->query_actions( array( 'hook' => self::ACTION_HOOK, 'status' => \ActionScheduler_Store::STATUS_PENDING ), 'count' );
+			$status['failed']  = \ActionScheduler_Store::instance()->query_actions( array( 'hook' => self::ACTION_HOOK, 'status' => \ActionScheduler_Store::STATUS_FAILED ), 'count' );
+		} else {
+			$crons = get_option( 'cron', array() );
+			$count = 0;
+			foreach ( $crons as $timestamp => $hooks ) {
+				if ( is_array( $hooks ) && isset( $hooks[ self::ACTION_HOOK ] ) ) {
+					$count += count( $hooks[ self::ACTION_HOOK ] );
+				}
+			}
+			$status['pending'] = $count;
+		}
+
+		return rest_ensure_response( $status );
 	}
 
 	/**
@@ -32,7 +69,19 @@ class QueueManager {
 			} else {
 				as_enqueue_async_action( self::ACTION_HOOK, $args );
 			}
-		} else {
+				} else {
+			// Prevent WP-Cron option bloat scale issue (PR-018)
+			$crons = get_option( 'cron', array() );
+			$count = 0;
+			foreach ( $crons as $timestamp => $hooks ) {
+				if ( is_array( $hooks ) && isset( $hooks[ self::ACTION_HOOK ] ) ) {
+					$count += count( $hooks[ self::ACTION_HOOK ] );
+				}
+			}
+			if ( $count > 250 ) {
+				// Drop job gracefully instead of killing the site database with a massive cron array
+				return;
+			}
 			wp_schedule_single_event( time() + $delay, self::ACTION_HOOK, $args );
 		}
 	}
