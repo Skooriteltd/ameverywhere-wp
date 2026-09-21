@@ -76,8 +76,11 @@ rsync -rc --delete \
     --exclude="deploy-to-wporg.sh" \
     --exclude="package-zip.sh" \
     --exclude="dist" \
+    --exclude="docs" \
+    --exclude="*.md" \
     --exclude="assets/screenshots" \
     --exclude="assets/wporg" \
+    --exclude="assets/raw-design-sources" \
     "${PLUGIN_DIR}/" "${BUILD_DIR}/trunk/"
 
 # ── 5. Copy assets (banner, icons, screenshots) ───────────────────────────────

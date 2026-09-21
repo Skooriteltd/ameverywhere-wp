@@ -1,8 +1,11 @@
 vendor/
 node_modules/
 build/
+dist/
+.kilo/
 *.log
 .DS_Store
+**/.DS_Store
 .env
 composer.phar
 .phpunit.result.cache

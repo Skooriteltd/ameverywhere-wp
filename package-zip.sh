@@ -76,6 +76,8 @@ rsync -a --delete \
     --exclude='dist' \
     --exclude='assets/screenshots' \
     --exclude='assets/wporg' \
+    --exclude='assets/raw-design-sources' \
+    --exclude='docs' \
     --exclude='*.md' \
     --exclude='composer.lock' \
     --exclude='package-lock.json' \

@@ -1,6 +1,9 @@
 # Table of contents
 
 * [Introduction](README.md)
+* [About AmEveryWhere](about.md)
+* [Features](features.md)
+* [Product Roadmap](roadmap.md)
 
 ## Architecture & API
 * [Headless REST API](rest-api.md)

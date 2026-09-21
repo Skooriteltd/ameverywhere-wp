@@ -1,9 +1,0 @@
-/**
- * Internal dependencies
- */
-import type { StorageInterface } from '../../../types';
-declare let storage: StorageInterface & {
-    removeItem?: (key: string) => void;
-};
-export default storage;
-//# sourceMappingURL=default.d.ts.map
