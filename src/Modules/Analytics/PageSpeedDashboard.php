@@ -64,6 +64,9 @@ class PageSpeedDashboard {
 
 		$apiKey = (string) get_option( 'ameverywhere_pagespeed_api_key', '' );
 		if ( empty( $apiKey ) ) {
+			if ( \AmEveryWhere\Core\Api\AmEveryWhereApiGateway::hasActiveLicense() ) {
+				return $this->fetchViaProxy( $url, $strategy );
+			}
 			return new \WP_Error( 'no_api_key', 'Set your Google PageSpeed API key in AmEveryWhere → Settings.', array( 'status' => 400 ) );
 		}
 
@@ -91,6 +94,9 @@ class PageSpeedDashboard {
 		$apiKey   = (string) get_option( 'ameverywhere_pagespeed_api_key', '' );
 
 		if ( empty( $apiKey ) ) {
+			if ( \AmEveryWhere\Core\Api\AmEveryWhereApiGateway::hasActiveLicense() ) {
+				return $this->fetchViaProxy( $url, $strategy );
+			}
 			return new \WP_Error( 'no_api_key', 'Set your Google PageSpeed API key.', array( 'status' => 400 ) );
 		}
 
@@ -188,5 +194,16 @@ class PageSpeedDashboard {
 			}
 		}
 		return array_slice( $opps, 0, 10 );
+	}
+	private function fetchViaProxy( string $url, string $strategy ): array|\WP_Error {
+		$result = \AmEveryWhere\Core\Api\AmEveryWhereApiGateway::proxyRequest( 'pagespeed', array(
+			'url'      => $url,
+			'strategy' => $strategy
+		));
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		// Assuming the proxy returns the exact same schema structure
+		return $result;
 	}
 }

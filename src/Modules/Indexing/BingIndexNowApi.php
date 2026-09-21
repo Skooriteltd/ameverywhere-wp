@@ -23,7 +23,11 @@ class BingIndexNowApi {
 	private const LOG_OPTION = 'ameverywhere_indexnow_log';
 	private const LOG_MAX    = 100;
 	private const KEY_OPTION = 'ameverywhere_indexnow_key';
-	private const ENDPOINT   = 'https://api.indexnow.org/indexnow';
+	private const DEFAULT_ENDPOINT = 'https://api.indexnow.org/indexnow';
+
+	private function getEndpoint(): string {
+		return get_option( 'ameverywhere_indexnow_endpoint', self::DEFAULT_ENDPOINT );
+	}
 
 	public function register(): void {
 		add_action( 'init', array( $this, 'serveKeyFile' ) );
@@ -97,7 +101,7 @@ class BingIndexNowApi {
 		);
 
 		$response = wp_safe_remote_post(
-			self::ENDPOINT,
+			$this->getEndpoint(),
 			array(
 				'headers' => array( 'Content-Type' => 'application/json; charset=utf-8' ),
 				'body'    => $body,

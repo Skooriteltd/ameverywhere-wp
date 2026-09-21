@@ -50,13 +50,16 @@ class IndexingModule {
 		// Dispatch a bounded background notification without blocking the save
 		// request. Google is considered only for content that meets the API's
 		// narrow JobPosting/BroadcastEvent eligibility rules.
+				$strictMode = get_option( 'ameverywhere_google_indexing_strict_mode', 'no' ) === 'yes';
+		$submitGoogle = $strictMode ? GoogleIndexingApi::isEligiblePost( $post ) : true;
+
 		$this->queueManager->push(
 			IndexingJob::class,
 			array(
 				'post_id'       => $post->ID,
 				'url'           => $url,
 				'action'        => 'URL_UPDATED',
-				'submit_google' => GoogleIndexingApi::isEligiblePost( $post ),
+				'submit_google' => $submitGoogle,
 			)
 		);
 	}
