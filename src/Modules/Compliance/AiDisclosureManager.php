@@ -21,7 +21,7 @@ class AiDisclosureManager {
 	private const DISCLOSURE_TEXT = 'ameverywhere_ai_disclosure_text';
 	private const DISCLOSURE_POS  = 'ameverywhere_ai_disclosure_position';
 
-	private const DEFAULT_TEXT = 'This content was created with AI assistance and reviewed by our editorial team.';
+	private const DEFAULT_TEXT = 'This article contains material generated with the assistance of Artificial Intelligence (AI). All AI-generated content has been fact-checked, edited, and approved by a human editor.';
 
 	public function register(): void {
 		add_filter( 'the_content', array( $this, 'injectDisclosure' ) );

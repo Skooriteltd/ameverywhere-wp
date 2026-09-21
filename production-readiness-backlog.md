@@ -20,8 +20,8 @@ This document tracks the consolidated production readiness backlog for the AmEve
 These items are not strictly technical blockers for a v1.0 release, but represent ongoing hardening and operational readiness.
 
 - [x] **PR-014**: Review all `add_menu_page` capability requirements across all modules to ensure lowest-privilege access.
-- [ ] **PR-016**: Third-party service disclosure list needs final documentation for the readme/settings page.
-- [ ] **PR-017**: Finalize legal wording with product/legal counsel regarding AI features.
+- [x] **PR-016**: Third-party service disclosure list needs final documentation for the readme/settings page.
+- [x] **PR-017**: Finalize legal wording with product/legal counsel regarding AI features.
 - [ ] **PR-018 to PR-021**: Miscellaneous edge-case hardening (queue visibility, cron recovery edge cases, scale testing).
 - [x] **PR-022**: Admin bundle size optimization (webpack chunking for React bundles).
 - [ ] **PR-023**: Complete REST test coverage (unit test suite expansion for the 135 endpoints).

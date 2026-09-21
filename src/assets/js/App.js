@@ -3176,6 +3176,7 @@ const App = () => {
                             {isLoadingCookieBanner ? (
                                 <div className="flex items-center gap-3 p-6"><Spinner /><span className="text-slate-500">Loading settings…</span></div>
                             ) : (
+                                <>
                                 <div className="bg-white border rounded-lg p-6 space-y-5">
                                     <div className="flex items-center justify-between">
                                         <div>
@@ -3207,6 +3208,22 @@ const App = () => {
                                         {isSavingCookieBanner ? 'Saving…' : 'Save Cookie Banner Settings'}
                                     </button>
                                 </div>
+                                <div className="mt-8 bg-slate-50 border border-slate-200 rounded-lg p-6">
+                                    <h3 className="text-lg font-semibold text-slate-800 m-0">Third-Party Service Disclosures</h3>
+                                    <p className="text-slate-600 text-sm mt-2 mb-4">
+                                        AmEveryWhere integrates with external APIs to provide advanced features. You should update your Privacy Policy if you use these features.
+                                    </p>
+                                    <ul className="list-disc pl-5 text-sm text-slate-600 space-y-2">
+                                        <li><strong>OpenAI / Anthropic:</strong> Receives post excerpts when using the LLM Writing Assistant.</li>
+                                        <li><strong>Google APIs:</strong> Receives URLs for PageSpeed Insights and Indexing API if enabled.</li>
+                                        <li><strong>Bing IndexNow:</strong> Receives URLs automatically when posts are published to accelerate crawling.</li>
+                                        <li><strong>SerpApi:</strong> Receives your focus keywords for rank tracking.</li>
+                                    </ul>
+                                    <p className="text-xs text-slate-500 mt-4">
+                                        <em>A complete template has been automatically added to your <a href={amEveryWhereAdminConfig.apiUrl.replace('wp-json/ameverywhere/v1', 'wp-admin/privacy.php')} className="text-indigo-600 underline">WordPress Privacy Policy Guide</a>.</em>
+                                    </p>
+                                </div>
+                                </>
                             )}
                         </div>
                     )}
