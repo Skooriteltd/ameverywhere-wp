@@ -23,7 +23,7 @@ These items are not strictly technical blockers for a v1.0 release, but represen
 - [ ] **PR-016**: Third-party service disclosure list needs final documentation for the readme/settings page.
 - [ ] **PR-017**: Finalize legal wording with product/legal counsel regarding AI features.
 - [ ] **PR-018 to PR-021**: Miscellaneous edge-case hardening (queue visibility, cron recovery edge cases, scale testing).
-- [ ] **PR-022**: Admin bundle size optimization (webpack chunking for React bundles).
+- [x] **PR-022**: Admin bundle size optimization (webpack chunking for React bundles).
 - [ ] **PR-023**: Complete REST test coverage (unit test suite expansion for the 135 endpoints).
 - [ ] **PR-024**: Accessibility audit of custom Vue/React widgets in the admin area.
 - [ ] **PR-025**: Internationalization (i18n) complete string audit.

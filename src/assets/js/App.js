@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from '@wordpress/element';
 import { Button, TextControl, TextareaControl, Notice, Spinner, ToggleControl } from '@wordpress/components';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+
 import SetupWizard from './components/SetupWizard';
+import GscTrendChart from './components/GscTrendChart';
+import Ga4TrendChart from './components/Ga4TrendChart';
+import Ga4ChannelChart from './components/Ga4ChannelChart';
 
 const App = () => {
     const amEveryWhereAdminConfig = window.amEveryWhereAdminConfig || {};
@@ -178,7 +181,7 @@ const App = () => {
     }, [ga4Settings]);
 
     // Chart/display helpers
-    const CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#0ea5e9', '#a855f7', '#ec4899', '#14b8a6'];
+    
     const posColor = (p) => p <= 3 ? '#22c55e' : p <= 10 ? '#f59e0b' : p <= 20 ? '#0ea5e9' : '#94a3b8';
     const fmtNum = (n) => n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n ?? 0);
 
